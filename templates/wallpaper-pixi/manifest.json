@@ -1,0 +1,24 @@
+{
+  "id": "__ID__",
+  "name": "__NAME__",
+  "type": "wallpaper",
+  "version": "1.0.0",
+  "apiVersion": 4,
+  "author": "",
+  "description": { "en": "Drawn with PixiJS: soft lights drifting in layers, with a parallax that follows the mouse.", "zh-Hans": "用 PixiJS 绘制：分层漂浮的柔光，随鼠标产生视差。" },
+  "parameters": [
+    { "key": "color", "title": { "en": "Light Color", "zh-Hans": "光点颜色" }, "type": "color", "default": "#5E8BFF" },
+    { "key": "parallax", "title": { "en": "Mouse Parallax", "zh-Hans": "鼠标视差" }, "type": "toggle", "default": true },
+    {
+      "key": "appearance",
+      "title": { "en": "Appearance", "zh-Hans": "外观" },
+      "type": "choice",
+      "options": [
+        { "value": "auto", "title": { "en": "Match System", "zh-Hans": "跟随系统" } },
+        { "value": "light", "title": { "en": "Light", "zh-Hans": "浅色" } },
+        { "value": "dark", "title": { "en": "Dark", "zh-Hans": "深色" } }
+      ],
+      "default": "auto"
+    }
+  ]
+}

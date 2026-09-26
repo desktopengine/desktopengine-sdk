@@ -1,0 +1,109 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://desktopengine.github.io/desktopengine-sdk/manifest.schema.json",
+  "title": "DesktopEngine 小程序清单（manifest.json）",
+  "description": "放在小程序包根目录，与入口文件 index.js 同级。",
+  "type": "object",
+  "required": ["id", "name", "type", "version"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": {
+      "description": "反向域名形式的唯一标识符，例如 com.example.clock",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]*$"
+    },
+    "name": { "description": "显示在资源库里的名称", "$ref": "#/definitions/localizedString" },
+    "type": {
+      "description": "内容类型：壁纸、3D 场景、小组件、桌面伙伴",
+      "enum": ["wallpaper", "widget", "pet"]
+    },
+    "version": { "description": "版本号，建议使用语义化版本，例如 1.0.0", "type": "string", "minLength": 1 },
+    "apiVersion": {
+      "description": "需要的最低运行时 API 版本（DesktopEngine.apiVersion），低版本的应用会拒绝导入",
+      "type": "integer",
+      "minimum": 1
+    },
+    "author": { "description": "作者或开发者名称", "type": "string" },
+    "description": { "description": "一两句话的介绍，显示在详情栏", "$ref": "#/definitions/localizedString" },
+    "icon": { "description": "方形图标，包内相对路径", "type": "string" },
+    "preview": { "description": "资源库网格里的预览图，包内相对路径", "type": "string" },
+    "widget": {
+      "description": "小组件专用",
+      "type": "object",
+      "required": ["sizes"],
+      "properties": {
+        "sizes": {
+          "description": "支持的尺寸，与 WidgetKit 一致：small 164×164、medium 344×164、large 344×344",
+          "type": "array",
+          "items": { "enum": ["small", "medium", "large"] },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "permissions": {
+      "description": "需要的权限，应用在详情栏列出并在首次运行时询问",
+      "type": "array",
+      "items": {
+        "anyOf": [
+          { "enum": ["network", "files", "audio", "system-info", "now-playing", "window-positions"] },
+          { "type": "string" }
+        ]
+      },
+      "uniqueItems": true
+    },
+    "parameters": {
+      "description": "用户可调的选项。应用在详情栏统一绘制表单，取值通过 DesktopEngine.launchOptions.parameters 传入",
+      "type": "array",
+      "items": { "$ref": "#/definitions/parameter" }
+    }
+  },
+  "definitions": {
+    "localizedString": {
+      "description": "显示给用户的文字：一个字符串，或按语言给出的翻译，例如 { \"en\": \"Clock\", \"zh-Hans\": \"时钟\" }。应用按用户的首选语言挑选，都不匹配时用 en",
+      "anyOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$" },
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        }
+      ]
+    },
+    "scalar": { "type": ["boolean", "number", "string", "null"] },
+    "parameter": {
+      "type": "object",
+      "required": ["key", "title", "type"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "title": { "$ref": "#/definitions/localizedString" },
+        "type": { "enum": ["toggle", "number", "text", "color", "choice"] },
+        "default": { "$ref": "#/definitions/scalar" },
+        "options": {
+          "description": "choice 的选项",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["value", "title"],
+            "properties": {
+              "value": { "$ref": "#/definitions/scalar" },
+              "title": { "$ref": "#/definitions/localizedString" }
+            }
+          }
+        },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "step": { "type": "number", "exclusiveMinimum": 0 }
+      },
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "toggle" } } }, "then": { "properties": { "default": { "type": "boolean" } } } },
+        { "if": { "properties": { "type": { "const": "number" } } }, "then": { "properties": { "default": { "type": "number" } } } },
+        { "if": { "properties": { "type": { "const": "text" } } }, "then": { "properties": { "default": { "type": "string" } } } },
+        { "if": { "properties": { "type": { "const": "color" } } }, "then": { "properties": { "default": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" } } } },
+        { "if": { "properties": { "type": { "const": "choice" } } }, "then": { "required": ["options"] } }
+      ]
+    }
+  }
+}

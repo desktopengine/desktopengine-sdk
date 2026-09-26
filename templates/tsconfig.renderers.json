@@ -1,0 +1,9 @@
+{
+  "//": "Type checks the templates drawn with a rendering library, like a created project does: the libraries' types refer to the DOM, so their declarations aren't checked",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "skipLibCheck": true
+  },
+  "include": ["../types/desktop-engine.d.ts", "*-three/src/**/*.ts", "*-pixi/src/**/*.ts"],
+  "exclude": []
+}

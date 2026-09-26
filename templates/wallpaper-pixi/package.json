@@ -1,0 +1,6 @@
+{
+  "private": true,
+  "dependencies": {
+    "pixi.js": "^8.21.0"
+  }
+}

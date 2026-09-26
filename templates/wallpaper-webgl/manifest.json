@@ -1,0 +1,24 @@
+{
+  "id": "__ID__",
+  "name": "__NAME__",
+  "type": "wallpaper",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "author": "",
+  "description": { "en": "A lit cube rendered in real time with WebGL, with a subtle parallax that follows the mouse.", "zh-Hans": "用 WebGL 实时渲染的立方体，随鼠标轻微视差。" },
+  "parameters": [
+    { "key": "color", "title": { "en": "Object Color", "zh-Hans": "物体颜色" }, "type": "color", "default": "#5E8BFF" },
+    { "key": "parallax", "title": { "en": "Mouse Parallax", "zh-Hans": "鼠标视差" }, "type": "toggle", "default": true },
+    {
+      "key": "appearance",
+      "title": { "en": "Appearance", "zh-Hans": "外观" },
+      "type": "choice",
+      "options": [
+        { "value": "auto", "title": { "en": "Match System", "zh-Hans": "跟随系统" } },
+        { "value": "light", "title": { "en": "Light", "zh-Hans": "浅色" } },
+        { "value": "dark", "title": { "en": "Dark", "zh-Hans": "深色" } }
+      ],
+      "default": "auto"
+    }
+  ]
+}

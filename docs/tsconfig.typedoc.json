@@ -1,0 +1,11 @@
+{
+  "//": "The runtime has no DOM and no Node.js: only the SDK's declarations, as in a created project",
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2022"],
+    "types": [],
+    "strict": true,
+    "noEmit": true
+  },
+  "files": ["../types/desktop-engine.d.ts"]
+}

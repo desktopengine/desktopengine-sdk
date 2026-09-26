@@ -1,0 +1,26 @@
+{
+  "id": "__ID__",
+  "name": "__NAME__",
+  "type": "widget",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "author": "",
+  "description": { "en": "How much of today has passed: a progress ring and the time left.", "zh-Hans": "今天已经过去了多少：进度环和剩余时间。" },
+  "widget": { "sizes": ["small", "medium"] },
+  "permissions": [],
+  "parameters": [
+    { "key": "accent", "title": { "en": "Accent Color", "zh-Hans": "强调色" }, "type": "color", "default": "#0A84FF" },
+    {
+      "key": "appearance",
+      "title": { "en": "Appearance", "zh-Hans": "外观" },
+      "type": "choice",
+      "options": [
+        { "value": "auto", "title": { "en": "Match System", "zh-Hans": "跟随系统" } },
+        { "value": "dark", "title": { "en": "Dark", "zh-Hans": "深色" } },
+        { "value": "light", "title": { "en": "Light", "zh-Hans": "浅色" } }
+      ],
+      "default": "auto"
+    },
+    { "key": "workday", "title": { "en": "Working Hours Only (9:00–18:00)", "zh-Hans": "只算工作时间（9:00–18:00）" }, "type": "toggle", "default": false }
+  ]
+}

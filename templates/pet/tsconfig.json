@@ -1,0 +1,16 @@
+{
+  "//": "Editor completions and type checking (npx tsc); desktopengine build, dev and pack do the building",
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2022"],
+    "types": [],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "types/*.d.ts"]
+}

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://typedoc-plugin-markdown.org/schema.json",
+  "entryPoints": ["../types/desktop-engine.d.ts"],
+  "tsconfig": "./tsconfig.typedoc.json",
+  "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],
+  "out": "./api",
+  "docsRoot": ".",
+  "router": "kind",
+  "name": "API 参考",
+  "lang": "zh",
+  "readme": "./api-readme.md",
+  "modulesFileName": "globals",
+  "disableGit": true,
+  "sourceLinkTemplate": "https://github.com/desktopengine/desktopengine-sdk/blob/main/types/desktop-engine.d.ts#L{line}",
+  "hidePageHeader": true,
+  "hideBreadcrumbs": true,
+  "useCodeBlocks": true,
+  "parametersFormat": "table",
+  "enumMembersFormat": "table",
+  "typeDeclarationFormat": "table",
+  "sort": ["kind", "alphabetical"],
+  "validation": { "invalidLink": true, "notExported": false }
+}

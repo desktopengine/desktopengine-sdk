@@ -1,0 +1,57 @@
+{
+  "name": "@desktopengine/sdk",
+  "version": "0.1.0",
+  "description": "为 DesktopEngine 制作动态壁纸、小组件和桌面伙伴的开发工具：类型声明、项目模板和命令行",
+  "keywords": [
+    "desktopengine",
+    "macos",
+    "wallpaper",
+    "live-wallpaper",
+    "widget",
+    "desktop-pet",
+    "sdk",
+    "cli"
+  ],
+  "homepage": "https://desktopengine.github.io/desktopengine-sdk/",
+  "bugs": "https://github.com/desktopengine/desktopengine-sdk/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/desktopengine/desktopengine-sdk.git"
+  },
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "desktopengine": "dist/cli.js"
+  },
+  "types": "types/desktop-engine.d.ts",
+  "files": [
+    "dist",
+    "schema",
+    "templates",
+    "types"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepare": "npm run build",
+    "start": "node src/cli.ts",
+    "test": "node --test \"test/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json && tsc -p templates/tsconfig.json && tsc -p templates/tsconfig.renderers.json"
+  },
+  "dependencies": {
+    "esbuild": "^0.28.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "@types/three": "^0.186.0",
+    "pixi.js": "^8.21.0",
+    "three": "^0.186.1",
+    "typescript": "^7.0.2"
+  }
+}

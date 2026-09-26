@@ -1,0 +1,23 @@
+{
+  "id": "__ID__",
+  "name": "__NAME__",
+  "type": "wallpaper",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "author": "",
+  "description": { "en": "Soft patches of color drifting slowly, light or dark with the system appearance.", "zh-Hans": "缓慢流动的柔和色块，随系统外观呈现浅色或深色。" },
+  "parameters": [
+    { "key": "speed", "title": { "en": "Speed", "zh-Hans": "速度" }, "type": "number", "min": 0.2, "max": 3, "step": 0.1, "default": 1 },
+    {
+      "key": "appearance",
+      "title": { "en": "Appearance", "zh-Hans": "外观" },
+      "type": "choice",
+      "options": [
+        { "value": "auto", "title": { "en": "Match System", "zh-Hans": "跟随系统" } },
+        { "value": "light", "title": { "en": "Light", "zh-Hans": "浅色" } },
+        { "value": "dark", "title": { "en": "Dark", "zh-Hans": "深色" } }
+      ],
+      "default": "auto"
+    }
+  ]
+}

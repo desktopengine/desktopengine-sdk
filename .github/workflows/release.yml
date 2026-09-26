@@ -1,0 +1,61 @@
+# Publishes to npm when the version in package.json isn't published yet, then tags it and creates a GitHub release.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: [package.json]
+  workflow_dispatch:
+
+concurrency: release
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # the tag and the release
+      id-token: write # npm provenance and trusted publishing
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - name: Check the version
+        id: version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if npm view "@desktopengine/sdk@$version" version > /dev/null 2>&1; then
+            echo "$version is already on npm"
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          fi
+          # 0.2.0-beta.1 goes to the next tag, not latest
+          case "$version" in
+            *-*) echo "tag=next" >> "$GITHUB_OUTPUT" ;;
+            *) echo "tag=latest" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - if: steps.version.outputs.published != 'true'
+        run: npm ci
+      - if: steps.version.outputs.published != 'true'
+        run: npm run typecheck && npm test
+
+      - name: Publish to npm
+        if: steps.version.outputs.published != 'true'
+        # NPM_TOKEN until trusted publishing is set up on npmjs.com, which needs no secret
+        run: npm publish --tag ${{ steps.version.outputs.tag }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create the GitHub release
+        if: steps.version.outputs.published != 'true'
+        run: |
+          prerelease=
+          [ "${{ steps.version.outputs.tag }}" = next ] && prerelease=--prerelease
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "v$VERSION" --generate-notes $prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}

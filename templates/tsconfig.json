@@ -1,0 +1,17 @@
+{
+  "//": "Type checks the templates against the SDK types, with the same options as a created project: npm run typecheck. Those drawn with a rendering library from npm (type-three/, type-pixi/) use tsconfig.renderers.json",
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2022"],
+    "types": [],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": false,
+    "noEmit": true
+  },
+  "include": ["../types/desktop-engine.d.ts", "*/src/**/*.ts"],
+  "exclude": ["*-three/**", "*-pixi/**"]
+}
