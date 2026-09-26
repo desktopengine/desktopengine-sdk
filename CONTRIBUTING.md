@@ -21,6 +21,7 @@ npm run build       # compiles into dist/
 - `templates/`: the project templates of `create`, kept small as a starting point. `<type>-<renderer>/` (e.g. `wallpaper-three`) are the versions of `create --renderer`, see `RENDERERS` in `src/project.ts`.
 - `types/desktop-engine.d.ts`: the type declarations of the runtime API, kept to what the engine really provides.
 - Code comments and command line output are in English.
+- Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org): `feat(cli): …`, `fix(types): …`, `docs: …`. `feat` and `fix` subjects become lines of `CHANGELOG.md`, so write them for the SDK's users; a breaking change has a `!` before the colon (`feat(cli)!: …`).
 
 ## Documentation
 
@@ -37,4 +38,6 @@ GitHub Actions publishes it to <https://desktopengine.github.io/desktopengine-sd
 
 ## Releases
 
-When the `version` in `package.json` changes on `main`, GitHub Actions checks, tests and publishes it to npm (with provenance, through npm trusted publishing), then creates the `v<version>` tag and GitHub release. Versions with a prerelease suffix (e.g. `0.2.0-beta.1`) go to the `next` tag.
+A release is made in the app's repository: the next version comes from the commits since the last one (a breaking change makes a major version, a feature a minor one, a fix a patch), their subjects become the version's section of [`CHANGELOG.md`](CHANGELOG.md), and `package.json` gets the new `version`.
+
+When the `version` in `package.json` changes on `main`, GitHub Actions checks, tests and publishes it to npm (with provenance, through npm trusted publishing), then creates the `v<version>` tag and the GitHub release, with the version's section of `CHANGELOG.md`. Versions with a prerelease suffix (e.g. `0.2.0-beta.1`) go to the `next` tag.

@@ -1,5 +1,5 @@
-# Publishes to npm when the version in package.json isn't published yet, and creates its tag and GitHub release when
-# they don't exist yet. npm trusts this workflow (trusted publishing on npmjs.com): no token, no one-time password.
+# Publishes to npm when the version in package.json isn't published yet, and creates its tag and GitHub release (with
+# the version's section of CHANGELOG.md) when they don't exist yet. npm trusts this workflow (trusted publishing on npmjs.com): no token, no one-time password.
 name: Release
 
 on:
@@ -58,7 +58,14 @@ jobs:
         run: |
           prerelease=
           [ "${{ steps.version.outputs.tag }}" = next ] && prerelease=--prerelease
-          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "v$VERSION" --generate-notes $prerelease
+          # the notes are the version's section of CHANGELOG.md, without its heading
+          awk -v version="$VERSION" '/^## / { if (found) exit; found = ($2 == version); next } found' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          if grep -q '[^[:space:]]' "$RUNNER_TEMP/notes.md"; then
+            notes=(--notes-file "$RUNNER_TEMP/notes.md")
+          else
+            notes=(--generate-notes)
+          fi
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "v$VERSION" "${notes[@]}" $prerelease
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}

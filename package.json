@@ -25,6 +25,7 @@
   },
   "types": "types/desktop-engine.d.ts",
   "files": [
+    "CHANGELOG.md",
     "dist",
     "schema",
     "templates",
