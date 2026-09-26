@@ -1,38 +1,38 @@
-# 启动参数
+# Launch Options
 
-应用启动内容时，会在 `index.js` 执行前注入只读的 `DesktopEngine.launchOptions`：
+When the app launches content, it provides the read-only `DesktopEngine.launchOptions` before `index.js` runs:
 
 ```js
 const options = DesktopEngine.launchOptions || {};
-options.windowType;   // 'widget'（贴在桌面上）或 'overlay'（浮于窗口之上），传给 new DesktopEngine.Window({ type })
-options.width;        // 小组件宽度（点），与所选尺寸对应
+options.windowType;   // 'widget' (on the desktop) or 'overlay' (above windows), for new DesktopEngine.Window({ type })
+options.width;        // the widget's width in points, for the size picked
 options.height;
-options.position;     // { x, y }：用户上次拖到的位置，或应用算好的默认位置
+options.position;     // { x, y }: where the user last dragged it, or the default position the app worked out
 options.display;      // { id, name, frame, visibleFrame, scale }
-options.parameters;   // 选项的取值
-options.locale;       // 用户的首选语言，例如 'zh-Hans-CN'
-options.permissions;  // 用户允许的权限，例如 ['audio', 'network']；被拒绝的不在其中
-options.screenSaver;  // 作为屏幕保护程序运行时为 { preview }，否则没有
+options.parameters;   // the values of the options
+options.locale;       // the user's preferred language, e.g. 'en-US'
+options.permissions;  // the permissions the user allowed, e.g. ['audio', 'network']; denied ones aren't there
+options.screenSaver;  // { preview } when running as the screen saver, absent otherwise
 ```
 
-坐标与 `DesktopEngine.Window` 的样式一致：以主显示器左上角为原点，y 向下。完整的字段见 [`LaunchOptions`](/api/interfaces/DesktopEngine.LaunchOptions)。
+Coordinates are the ones of `DesktopEngine.Window` styles: the origin at the top left of the main display, y pointing down. See [`LaunchOptions`](/api/interfaces/DesktopEngine.LaunchOptions) for all the fields.
 
-- `parameters` 是[选项](/reference/manifest#选项-parameters)的取值，用户改了选项后内容会重新启动。
-- `permissions` 见[权限](/reference/manifest#权限-permissions)，`screenSaver` 见[屏幕保护程序](./wallpaper#屏幕保护程序)。
-- 在开发时用 `desktopengine dev --size / --level / --display / --param / --position` 模拟这些值，见[命令行](/reference/cli#dev)。
+- `parameters` are the values of the [options](/reference/manifest#options-parameters); the content restarts when the user changes them.
+- See [Permissions](/reference/manifest#permissions) for `permissions` and [Screen saver](./wallpaper#screen-saver) for `screenSaver`.
+- While developing, `desktopengine dev --size / --level / --display / --param / --position` stand in for them, see [Command Line](/reference/cli#dev).
 
-## 与应用通信
+## Talking to the app
 
 ```js
 win.onmove = (payload) => postMessage('host', { type: 'move', x: payload.x, y: payload.y });
-postMessage('host', { type: 'close' }); // 把自己从桌面移除
+postMessage('host', { type: 'close' }); // removes itself from the desktop
 ```
 
-应用会记住 `move` 上报的位置，下次启动时通过 `options.position` 传回。
+The app remembers the position `move` reports and passes it back in `options.position` next time.
 
-## 外观
+## Appearance
 
-`DesktopEngine.system.appearance` 是系统当前的外观，`'light'` 或 `'dark'`；用户在系统设置里切换（或「自动」按时间切换）时触发 `appearancechange`（API 2）：
+`DesktopEngine.system.appearance` is the system's current appearance, `'light'` or `'dark'`. `appearancechange` fires when the user switches it in System Settings (or Auto switches it by the time of day) (API 2):
 
 ```js
 const system = DesktopEngine.system;
@@ -43,4 +43,4 @@ system.onappearancechange = (event) => {
 };
 ```
 
-「外观」选项建议提供 `auto`（跟随系统）并作为默认值，见小组件和壁纸模板。壁纸一直在按帧绘制，每帧读取 `appearance` 并渐变到目标配色即可，不必监听事件。
+An Appearance option should offer `auto` (following the system) as its default, see the widget and wallpaper templates. Wallpapers draw every frame anyway: read `appearance` each frame and fade to its colors, no event needed.

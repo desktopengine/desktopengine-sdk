@@ -1,50 +1,50 @@
-# 壁纸
+# Wallpapers
 
-`wallpaper` 类型是壁纸的一种（类型「动态」），和图片、视频壁纸在同一个网格里：可以放进分类、加入播放列表，由播放列表定时切换，用详情栏的「设为壁纸」设到某块显示器上。一块显示器同一时间只显示一张壁纸，设了动态壁纸就不再显示图片或视频，反之亦然。选项（parameters）显示在壁纸详情栏里。
+A `wallpaper` is one kind of wallpaper (the Dynamic kind), in the same grid as image and video wallpapers: it can go into categories and playlists, change with its playlist, and be set on a display with Set Wallpaper in the details pane. A display shows one wallpaper at a time, so a dynamic wallpaper replaces the image or video, and the other way around. Its options (parameters) are shown in the wallpaper's details pane.
 
 ```bash
 desktopengine create wallpaper ~/Projects/waves
 ```
 
-`launchOptions.display` 就是要画的显示器，用 `type: 'desktop'` 的窗口铺满它的 `frame`；铺满屏幕的画布用 `getContext('2d', { alpha: false })`，不透明的图层合成更省电。
+`launchOptions.display` is the display to draw on: fill its `frame` with a window of `type: 'desktop'`. For a canvas that fills the screen use `getContext('2d', { alpha: false })`: opaque layers composite with less power.
 
-壁纸一直在按帧绘制，在全屏应用、使用电池等情况下会被应用暂停，见[暂停规则](./performance#暂停规则)。缓慢变化的画面不需要满帧，设 `DesktopEngine.preferredFramesPerSecond = 30`（API 9），线程的唤醒次数减半。
+A wallpaper draws every frame, and the app pauses it when a full screen app covers it, on battery and so on, see [Pausing](./performance#pausing). Slow scenery doesn't need every frame: `DesktopEngine.preferredFramesPerSecond = 30` (API 9) halves the thread's wake-ups.
 
-## 用 WebGL 或渲染引擎绘制
+## Drawing with WebGL or a rendering library
 
-2D 还是 3D、用什么绘制，都由壁纸自己决定。`wallpaper` 的默认模板用 Canvas 2D 绘制，`--renderer` 选择其他绘制方式的模板：
+2D or 3D, and what to draw with, is up to the wallpaper. The default `wallpaper` template draws with Canvas 2D; `--renderer` picks a template drawn another way:
 
 ```bash
-desktopengine create wallpaper ~/Projects/cube --renderer webgl    # WebGL 2：带光照、缓慢转动的立方体，不依赖 npm 包
-desktopengine create wallpaper ~/Projects/knot --renderer three    # three.js：带光照、缓慢转动的 3D 绳结
-desktopengine create wallpaper ~/Projects/lights --renderer pixi   # PixiJS：分层漂浮的 2D 柔光
+desktopengine create wallpaper ~/Projects/cube --renderer webgl    # WebGL 2: a lit, slowly turning cube, no npm packages
+desktopengine create wallpaper ~/Projects/knot --renderer three    # three.js: a lit, slowly turning 3D knot
+desktopengine create wallpaper ~/Projects/lights --renderer pixi   # PixiJS: soft 2D lights floating in layers
 cd ~/Projects/lights && npm install && desktopengine dev .
 ```
 
-three.js 和 PixiJS 模板用 `package.json` 声明引擎依赖，创建后先 `npm install`，构建时 esbuild 把引擎一起打进 `index.js`（未压缩时 three.js 约 1.2 MB、PixiJS 约 1.7 MB，`--minify` 可以再减小）。它们和 WebGL 模板一样有颜色、鼠标视差和外观选项。
+The three.js and PixiJS templates declare the library in `package.json`, so run `npm install` after creating them; the build bundles it into `index.js` (about 1.2 MB for three.js and 1.7 MB for PixiJS unminified, less with `--minify`). Like the WebGL template, they have color, mouse parallax and appearance options.
 
 ### three.js
 
-three.js（r163 起只支持 WebGL 2）要通过项目里的 `src/three/` 使用：`import * as THREE from './three'`。它先补上 three.js 读取的浏览器全局对象 `window`（只是指向全局对象的替身，`THREE.AudioListener` 用 `new window.AudioContext()` 创建音频上下文），用到 `THREE.Audio`、`PositionalAudio` 时要声明 `audio` 权限（见[音频](./audio)）。
+Use three.js (WebGL 2 only since r163) through the project's `src/three/`: `import * as THREE from './three'`. It first provides the browser global `window` that three.js reads (a stand-in pointing to the global object; `THREE.AudioListener` creates its audio context with `new window.AudioContext()`). `THREE.Audio` and `PositionalAudio` need the `audio` permission (see [Audio](./audio)).
 
-绘制不需要别的适配：把 `DesktopEngine.Canvas` 作为 `canvas` 传给 `WebGLRenderer`，`setSize(width, height, false)` 只设置绘图缓冲区的大小。
+Drawing needs nothing else: pass `DesktopEngine.Canvas` as the `canvas` of `WebGLRenderer`, and `setSize(width, height, false)` only sizes its drawing buffer.
 
 ### PixiJS
 
-PixiJS 8 要通过项目里的 `src/pixi/` 使用：`import * as PIXI from './pixi'`，不要直接 `import 'pixi.js'`。它先补上 PixiJS 加载时就会读取的几个浏览器全局对象（`navigator`、`document` 等，只是替身，不是 DOM 实现），再把画布、图片、文件读取接到 DesktopEngine（`DOMAdapter`），并且不加载依赖 DOM 的扩展（无障碍、DOM 容器）。
+Use PixiJS 8 through the project's `src/pixi/`: `import * as PIXI from './pixi'`, not `import 'pixi.js'` directly. It first provides the browser globals PixiJS reads when it loads (`navigator`, `document` and a few more; stand-ins, not a DOM), connects canvases, images and file loading to DesktopEngine (`DOMAdapter`), and doesn't load the extensions that need the DOM (accessibility, DOM containers).
 
-- `HTMLText` 这类依赖 DOM 的功能不能用，文字用 `Text` 或 `BitmapText`。
-- `Assets.load('assets/a.png')` 这类路径以包的根目录为起点；加载 `https://` 地址的资源要声明 `network` 权限（见[网络](./network)），所以这个模板需要 API 4。
-- 需要 `eventMode` / `on('pointerdown')` 这类交互时调用 `PIXI.bindPointerEvents(app)`，把画布的鼠标事件交给 PixiJS；桌面窗口收不到的事件见[窗口](./windows)。
+- What needs the DOM, such as `HTMLText`, doesn't work: draw text with `Text` or `BitmapText`.
+- Paths such as `Assets.load('assets/a.png')` start at the package root. Loading `https://` assets needs the `network` permission (see [Network](./network)), so this template needs API 4.
+- For interaction with `eventMode` / `on('pointerdown')`, call `PIXI.bindPointerEvents(app)` to give the canvas's mouse events to PixiJS; see [Windows](./windows) for the events desktop windows don't get.
 
-## 屏幕保护程序
+## Screen saver
 
-用户可以在壁纸详情栏选「设为屏幕保护程序」，让壁纸作为 macOS 的屏幕保护程序运行（包括锁定屏幕），选项与壁纸共用；图片、视频壁纸也可以。这时 `launchOptions.screenSaver` 存在，内容可以据此调整：
+In a wallpaper's details pane, users can choose Use as Screen Saver to run it as the macOS screen saver (on the lock screen too), with the same options as the wallpaper; image and video wallpapers can too. `launchOptions.screenSaver` is then present, and the content can adapt:
 
-- 屏幕保护程序由系统的 `legacyScreenSaver` 进程加载，那里 JavaScriptCore **没有 JIT**，纯 JavaScript 运算大约慢十几倍。每帧的工作尽量放在 GPU（着色器）里，内置的「地平线」「星云」每帧 JavaScript 只要 1～3 毫秒。
-- 窗口和平时一样用 `type: 'desktop'` 铺满 `launchOptions.display.frame`，应用把它嵌进屏幕保护程序，按比例缩放铺满。
-- 收不到鼠标和键盘事件：任何输入都会结束屏幕保护程序。
-- `launchOptions.screenSaver.preview` 为 `true` 时是「系统设置 › 屏幕保护程序」里的小预览：`win.devicePixelRatio` 被降到 0.25、帧率限制为 30，按 `devicePixelRatio` 决定画布大小的内容自动变便宜，开销大的效果可以关掉。
-- 联网同样需要声明 `network` 权限。
+- The screen saver is loaded by the system's `legacyScreenSaver` process, where JavaScriptCore has **no JIT**: plain JavaScript runs about ten times slower or more. Do as much of each frame as you can on the GPU (in shaders); the built-in Horizon and Nebula spend only 1–3 ms of JavaScript per frame.
+- The window fills `launchOptions.display.frame` with `type: 'desktop'` as usual; the app embeds it in the screen saver, scaled to fill.
+- There are no mouse or keyboard events: any input ends the screen saver.
+- When `launchOptions.screenSaver.preview` is `true`, it's the small preview in System Settings › Screen Saver: `win.devicePixelRatio` is lowered to 0.25 and the frame rate is limited to 30. Content that sizes its canvas by `devicePixelRatio` gets cheaper by itself; turn off expensive effects.
+- The network still needs the `network` permission.
 
-Mac App Store 版的 DesktopEngine 不提供屏幕保护程序。
+The Mac App Store version of DesktopEngine has no screen saver.

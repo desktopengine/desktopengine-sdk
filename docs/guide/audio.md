@@ -1,14 +1,14 @@
-# 音频
+# Audio
 
-运行时提供 `Audio` 元素（`HTMLAudioElement`）和 Web Audio（API 5）。发出声音需要在清单里声明 [`audio` 权限](/reference/manifest#权限-permissions)：没有它 `AudioContext` 一直是 `suspended`，`resume()` 和 `audio.play()` 以 `NotAllowedError` 失败，视频也会被静音；`OfflineAudioContext` 和 `decodeAudioData` 不需要权限。
+The runtime has the `Audio` element (`HTMLAudioElement`) and Web Audio (API 5). Making sound needs the [`audio` permission](/reference/manifest#permissions) in the manifest: without it `AudioContext` stays `suspended`, `resume()` and `audio.play()` fail with `NotAllowedError`, and videos are muted. `OfflineAudioContext` and `decodeAudioData` need no permission.
 
 ```js
-// 播放包里的音效
+// Play a sound from the package
 const chime = new Audio('sounds/chime.mp3');
 chime.volume = 0.6;
 chime.play();
 
-// Web Audio：解码后反复播放，用 AnalyserNode 做可视化
+// Web Audio: decode once, loop it, and visualize it with an AnalyserNode
 const context = new AudioContext();
 const analyser = context.createAnalyser();
 analyser.connect(context.destination);
@@ -25,18 +25,18 @@ requestAnimationFrame(function draw() {
 });
 ```
 
-## 支持的节点
+## Nodes
 
-`AudioBufferSourceNode`、`OscillatorNode`（含 `PeriodicWave`）、`ConstantSourceNode`、`GainNode`、`BiquadFilterNode`、`IIRFilterNode`、`DelayNode`（可以在反馈回路里）、`StereoPannerNode`、`PannerNode` 和 `context.listener`、`AnalyserNode`、`DynamicsCompressorNode`、`ConvolverNode`、`WaveShaperNode`、`ChannelSplitterNode`、`ChannelMergerNode`。`AudioParam` 支持全部自动化方法，也可以把节点连到参数上做调制。
+`AudioBufferSourceNode`, `OscillatorNode` (with `PeriodicWave`), `ConstantSourceNode`, `GainNode`, `BiquadFilterNode`, `IIRFilterNode`, `DelayNode` (in feedback loops too), `StereoPannerNode`, `PannerNode` and `context.listener`, `AnalyserNode`, `DynamicsCompressorNode`, `ConvolverNode`, `WaveShaperNode`, `ChannelSplitterNode`, `ChannelMergerNode`. `AudioParam` has all the automation methods, and nodes can be connected to parameters for modulation.
 
-没有 `AudioWorklet`、`ScriptProcessorNode`、`MediaElementAudioSourceNode` 和媒体流。`PannerNode` 的 `HRTF` 与 `equalpower` 一样按等功率声像处理；`WaveShaperNode` 接受 `oversample` 但不做过采样。
+There is no `AudioWorklet`, `ScriptProcessorNode`, `MediaElementAudioSourceNode` or media streams. `PannerNode`'s `HRTF` pans with equal power, like `equalpower`; `WaveShaperNode` takes `oversample` but doesn't oversample.
 
-## 说明
+## Notes
 
-- 为浏览器写的音频库大多会读取 `window`、`document` 等全局对象，运行时没有这些（没有 DOM）。three.js 的音频在模板的 `src/three/` 里已经可以直接用；howler.js 需要项目自己补上 `window`、`document`、`navigator`、`location` 的替身；它的 Web Audio 模式用 `XMLHttpRequest` 加载声音，API 6 起才有，之前只能用 `html5: true`。
-- `AudioContext` 创建后在允许时直接是 `running`，桌面上没有需要等待的用户手势。应用暂停内容时（见[暂停规则](./performance#暂停规则)）它变成 `interrupted`，时间停止，恢复后回到 `running`；播放中的 `Audio` 元素同样暂停并在之后继续。只是停止绘制或静音时声音不受影响。
-- `Audio` 的 `src` 可以是包内文件（与 `require` 相同的路径规则）和 `defile://` 地址，声明了 `network` 权限时也可以是 http(s) 地址；不支持 `data:` 地址。能播放和解码的格式就是 macOS 支持的：MP3、AAC / M4A、WAV、AIFF、CAF、FLAC、ALAC 等，较新的系统还支持 Ogg；用 `canPlayType()` 判断。
-- 声音从系统当前的输出设备播放，跟随系统切换设备；`AudioContext` 的默认采样率是设备的采样率。
-- 用户可以在应用里调节每个内容的音量，或者把所有内容静音。它乘在内容自己设置的音量之上，JavaScript 读到的 `volume` 不受影响。
-- 内容被移除或停止时，所有声音立即停止。
-- 还不能读取系统的音频输出（例如做音乐可视化）。
+- Most audio libraries written for browsers read globals such as `window` and `document`, which the runtime doesn't have (there is no DOM). three.js audio works as it is in the template's `src/three/`. howler.js needs the project to provide stand-ins for `window`, `document`, `navigator` and `location`; its Web Audio mode loads sounds with `XMLHttpRequest`, which is there since API 6 (before that, only `html5: true` works).
+- An allowed `AudioContext` is `running` right away: there is no user gesture to wait for on the desktop. When the app pauses content (see [Pausing](./performance#pausing)) it becomes `interrupted` and its time stops, then goes back to `running`; playing `Audio` elements pause too and continue afterwards. When drawing only stops, or the content is muted, sound isn't affected.
+- The `src` of `Audio` can be a file in the package (with the same path rules as `require`) or a `defile://` address, and an http(s) address with the `network` permission; `data:` addresses aren't supported. It plays and decodes what macOS does: MP3, AAC / M4A, WAV, AIFF, CAF, FLAC, ALAC and more, and Ogg on newer systems; check with `canPlayType()`.
+- Sound plays on the system's current output device and follows it when it changes; the default sample rate of `AudioContext` is the device's.
+- Users can set the volume of each item of content in the app, or mute all content. It multiplies the volume the content sets, and the `volume` JavaScript reads doesn't change.
+- When content is removed or stopped, all its sound stops at once.
+- Reading the system's audio output (for music visualizers, say) isn't possible yet.

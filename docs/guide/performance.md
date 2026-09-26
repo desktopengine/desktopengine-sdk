@@ -1,50 +1,50 @@
-# 性能和暂停规则
+# Performance and Pausing
 
-壁纸、小组件和桌面伙伴一直待在桌面上，要尽量少占 CPU、GPU 和电量。
+Wallpapers, widgets and desktop pets stay on the desktop all day, so they should take as little CPU, GPU and power as they can.
 
-## 暂停规则
+## Pausing
 
-应用按内容的类型决定什么时候停止绘制、静音或暂停，参照 Wallpaper Engine 的播放规则，用户在「设置 › 壁纸 › 播放」里调整壁纸的规则：
+The app decides when to stop drawing, mute or pause content by its type, after Wallpaper Engine's playback rules. Users set the rules for wallpapers in Settings › Wallpaper › Playback:
 
-| 情况 | 壁纸（动态壁纸和视频壁纸） | 小组件、桌面伙伴 |
+| When | Wallpapers (dynamic and video) | Widgets and desktop pets |
 | --- | --- | --- |
-| 内容的窗口都看不见（被遮住、在其他应用的全屏空间里） | 停止绘制 | 停止绘制 |
-| 壁纸所在的显示器上有全屏应用 | 按设置：继续运行、静音或暂停（默认暂停） | 不受影响 |
-| 其他应用在播放声音（macOS 14.2 及以上） | 按设置（默认静音） | 不受影响 |
-| 使用电池 | 按设置（默认暂停） | 最多 30 fps |
-| 显示器睡眠 | 暂停并静音 | 暂停并静音 |
+| None of the content's windows can be seen (covered, or in another app's full screen Space) | Stop drawing | Stop drawing |
+| A full screen app is on the wallpaper's display | By the setting: keep running, mute or pause (pause by default) | Not affected |
+| Another app plays sound (macOS 14.2 and later) | By the setting (mute by default) | Not affected |
+| On battery | By the setting (pause by default) | At most 30 fps |
+| The displays sleep | Pause and mute | Pause and mute |
 
-- 停止绘制：`requestAnimationFrame` 不再回调，画布不再提交；声音、视频和计时器照常。
-- 暂停：同时暂停视频和声音（`AudioContext` 变成 `interrupted`，播放中的 `Audio` 元素暂停，恢复后继续），`setTimeout` / `setInterval` 的回调最多每秒执行一次，像浏览器的后台标签页。
-- 静音：只是听不到声音，JavaScript 看不到任何变化。
-- 同时满足几条时按影响更大的那条处理；用户的「所有内容静音」和每个内容的音量另外生效。
+- Stop drawing: `requestAnimationFrame` calls back no more and canvases aren't presented; sound, video and timers carry on.
+- Pause: video and sound pause too (`AudioContext` becomes `interrupted`, playing `Audio` elements pause and continue afterwards), and `setTimeout` / `setInterval` callbacks run at most once a second, like in a browser's background tab.
+- Mute: the sound can't be heard, and JavaScript sees no difference.
+- When several apply, the one with the larger effect wins; the user's Mute All Content and the volume of each item apply on top.
 
-这些都由应用处理，内容不需要自己判断。帧率上限由用户在「设置 › 通用 › 性能」里统一调整。
+The app does all this: the content doesn't check for any of it. Users set the frame rate limit in Settings › General › Performance.
 
-## 帧率
+## Frame rate
 
-- 不需要满帧的内容（缓慢的风景、低帧率的小组件）设 `DesktopEngine.preferredFramesPerSecond = 30`（API 9），而不是在 `requestAnimationFrame` 回调里跳过一半的帧：跳过的帧引擎根本不会执行，线程也不会被唤醒，唤醒次数减半。显示器的刷新率是它的整数倍时才生效（60 Hz 时可以是 60、30、20、15、12…），否则每帧都会执行；可以随时改，`0`（默认）跟随显示器。应用的限制（例如用电池时的 30 fps）照样生效，取两者中较低的那个。
-- 不需要动画时停止 `requestAnimationFrame`，只在画面变化时重画（pet 模板的做法）。没有要画的帧时应用会停止驱动这个小程序的帧，唤醒次数可以降到 0。
-- 不要用 `requestAnimationFrame` 计时：到点要做的事（例如番茄钟响铃）用 `setTimeout` 安排，画面在 `requestAnimationFrame` 里按当前时间来画。
-- 定时器间隔不要比需要的短。
+- Content that doesn't need every frame (slow scenery, widgets with a low frame rate) should set `DesktopEngine.preferredFramesPerSecond = 30` (API 9) rather than skip every other frame in its `requestAnimationFrame` callback: the engine doesn't run the skipped frames at all and doesn't wake the thread, so wake-ups are halved. It applies when the display's refresh rate is a multiple of it (60, 30, 20, 15, 12… at 60 Hz), otherwise every frame runs. It can change at any time; `0` (the default) follows the display. The app's limit (30 fps on battery, say) still applies, and the lower of the two wins.
+- Stop `requestAnimationFrame` when nothing moves, and redraw only when the picture changes (as the pet template does). When there is no frame to draw, the app stops driving the mini program's frames, and its wake-ups can drop to 0.
+- Don't keep time with `requestAnimationFrame`: schedule what has to happen at a time (a Pomodoro's chime, say) with `setTimeout`, and draw the picture for the current time in `requestAnimationFrame`.
+- Don't make timer intervals shorter than you need.
 
-## 测量
+## Measuring
 
-`desktopengine dev --perf` 在终端最后一行每秒更新一次小程序的帧率、帧耗时、CPU、唤醒次数和内存：
+`desktopengine dev --perf` updates the last line of the terminal every second with the mini program's frame rate, frame time, CPU, wake-ups and memory:
 
 ```
 60/60 fps · 1.2 ms (max 3.0) · CPU 12% · 60 wake-ups/s · JS 8.4 MB · canvas 36 MB
 ```
 
-- `60/60 fps`：每秒真正画出新内容的帧数 / 目标帧率（显示器的刷新率，或应用限制的帧率，例如用电池时小组件是 30）。
-- `1.2 ms (max 3.0)`：从显示器刷新到这一帧做完的平均和最长时间，包括 `requestAnimationFrame` 回调、布局、提交画布，以及等小程序线程空下来的时间。超过一帧时长的帧记为慢帧（`slow frames`，黄色显示）。
-- `CPU 12%`：小程序线程占用一个 CPU 核心的比例（JavaScript、布局、绘图命令），不含音视频解码和 GPU。
-- `60 wake-ups/s`：小程序线程每秒被唤醒的次数（帧、定时器、网络等）。桌面上常驻的内容要尽量少唤醒。
-- `JS 8.4 MB`：JavaScript 堆的容量加上对象在堆外占用的内存（ArrayBuffer 等），约 5 秒更新一次。Mac App Store 版的 DesktopEngine 不显示这一项。
-- `canvas 36 MB`：画布占用的显存，按各项的尺寸和格式累加（驱动额外的对齐和填充不算）：
-  - 绘图缓冲：宽 × 高 × 4 字节，WebGL（和用到裁剪的 2D）再加同样大小的深度、模板缓冲；开了 `antialias` 时颜色另有一份 4 倍采样的缓冲，深度、模板缓冲也变成 4 倍（1024×1024 的 WebGL 画布：4 + 16 + 16 = 36 MB）；另有显示用的 IOSurface。按 `devicePixelRatio` 决定画布大小，不需要时别开 `antialias`。
-  - WebGL 创建的纹理、缓冲和 renderbuffer：`texImage2D` / `texStorage2D` 等按尺寸和格式计算，`generateMipmap` 再加三分之一；`deleteTexture` 等删掉后就不再计入。纹理是 WebGL 内容里最常见的大头，能用压缩纹理（`WEBGL_compressed_texture_astc`）、较小的尺寸就用。
-  - 画在 2D 画布上的图片。
-- 看不见（被遮住）时显示 `drawing paused`，显示器睡眠等情况下显示 `suspended`，见[暂停规则](#暂停规则)。
+- `60/60 fps`: the frames per second that actually drew something new / the target frame rate (the display's refresh rate, or the app's limit, e.g. 30 for widgets on battery).
+- `1.2 ms (max 3.0)`: the average and longest time from the display's refresh to the frame being done, including the `requestAnimationFrame` callbacks, layout, presenting canvases, and waiting for the mini program's thread to be free. Frames longer than a frame's time are slow frames (`slow frames`, in yellow).
+- `CPU 12%`: the share of one CPU core the mini program's thread takes (JavaScript, layout, drawing commands), without audio and video decoding or the GPU.
+- `60 wake-ups/s`: how many times a second the mini program's thread wakes up (frames, timers, network and so on). Content that stays on the desktop should wake up as rarely as it can.
+- `JS 8.4 MB`: the JavaScript heap's capacity plus the memory objects hold outside it (`ArrayBuffer`s and so on), updated about every 5 seconds. The Mac App Store version of DesktopEngine doesn't show it.
+- `canvas 36 MB`: the video memory of the canvases, added up from the sizes and formats of what they hold (the driver's extra alignment and padding aren't counted):
+  - Drawing buffers: width × height × 4 bytes, plus depth and stencil buffers of the same size for WebGL (and 2D canvases that clip). With `antialias` there is another color buffer with 4 samples, and the depth and stencil buffers have 4 samples too (a 1024×1024 WebGL canvas: 4 + 16 + 16 = 36 MB), plus the IOSurfaces it's shown with. Size canvases by `devicePixelRatio`, and leave `antialias` off when you don't need it.
+  - The textures, buffers and renderbuffers WebGL creates: `texImage2D` / `texStorage2D` and the others by size and format, a third more with `generateMipmap`; they stop counting once deleted with `deleteTexture` and the others. Textures are usually the largest part of WebGL content: use compressed textures (`WEBGL_compressed_texture_astc`) and smaller sizes where you can.
+  - Images drawn on 2D canvases.
+- `drawing paused` when it can't be seen (covered), `suspended` when the displays sleep and so on, see [Pausing](#pausing).
 
-「开发 › 显示性能 HUD」在每个运行中的小程序窗口右上角显示同样的数字，已安装的内容也包括在内。更细的分析用 Instruments：每一帧在 os_signpost 里是一个 `Frame` 区间（子系统 `com.senpng.desktopengine`，类别 `Rendering`），小程序的线程名是 `DesktopEngine JS: <名称>`。
+Develop › Show Performance HUD shows the same numbers at the top right of each running mini program's window, installed content included. For more detail, use Instruments: each frame is a `Frame` interval in os_signpost (subsystem `com.senpng.desktopengine`, category `Rendering`), and the mini program's thread is named `DesktopEngine JS: <name>`.

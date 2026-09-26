@@ -1,6 +1,6 @@
-# 网络
+# Network
 
-运行时提供标准的 `fetch`（连同 `Headers`、`Request`、`Response`、`AbortController`、`AbortSignal`）和 `WebSocket`（API 4），以及 `XMLHttpRequest`（API 6，给还在用它的库，比如 howler.js）。访问 http(s) 和 ws(s) 地址需要在清单里声明 [`network` 权限](/reference/manifest#权限-permissions)，否则 `fetch` 以 `TypeError` 失败，`XMLHttpRequest` 触发 `error`，`new WebSocket()` 抛出 `SecurityError`。
+The runtime has the standard `fetch` (with `Headers`, `Request`, `Response`, `AbortController`, `AbortSignal`) and `WebSocket` (API 4), and `XMLHttpRequest` (API 6, for libraries that still use it, such as howler.js). Reaching http(s) and ws(s) addresses needs the [`network` permission](/reference/manifest#permissions) in the manifest; without it `fetch` fails with a `TypeError`, `XMLHttpRequest` fires `error`, and `new WebSocket()` throws a `SecurityError`.
 
 ```js
 async function loadWeather(city) {
@@ -16,13 +16,13 @@ socket.onmessage = (event) => update(JSON.parse(event.data));
 socket.onclose = (event) => setTimeout(reconnect, 5000);
 ```
 
-- 相对地址（`data.json`、`./data.json`、`/data.json`）读取包内文件，不需要权限，文件不存在时是 404 响应；`data:` 和 `blob:` 地址也可以用。
-- 没有 CORS 限制，任何响应都能读取。每个小程序有自己的 Cookie，只保存在内存里。
-- 从 API 6 起，`fetch` 收到响应头就返回，响应体是流（`response.body`，一个 `ReadableStream`），边下载边读；没人读的时候，缓冲约 1 MB 后暂停下载。`text()`、`json()`、`arrayBuffer()`、`blob()`、`formData()` 读完整个响应体。`text()` 与浏览器一样总是按 UTF-8 解码。系统会先缓冲 `text/plain` 响应的前 512 字节（内容嗅探）再交出来，要逐段推送文字（比如 server-sent events）的服务应该用 `text/event-stream` 等其他类型。
-- 请求体可以是字符串、字节（`ArrayBuffer`、`TypedArray`）、`Blob`、`FormData`（按 multipart/form-data 发送）、`URLSearchParams` 或 `ReadableStream`（要像浏览器一样加 `duplex: 'half'`；会先读完再发送，不是边读边传）。
-- WebSocket 的二进制消息默认是 `Blob`，和浏览器一样（API 6 之前固定是 `ArrayBuffer`）；设 `socket.binaryType = 'arraybuffer'` 改成 `ArrayBuffer`。单条消息最大 16 MB。连接失败时依次触发 `error` 和 `close`（`code` 为 1006），`error` 事件带有非标准的 `message` 说明原因。
-- `XMLHttpRequest` 建在 `fetch` 之上，规则相同；只支持异步，`responseType` 可以是 `''`、`'text'`、`'json'`、`'arraybuffer'`、`'blob'`，`upload` 不触发事件。
-- 远程图片（`CanvasImage`、`Image` 的 `src`）和视频同样需要 `network` 权限。
-- 内容被移除或停止时，进行中的请求和连接会被取消，不会再有回调。
+- Relative addresses (`data.json`, `./data.json`, `/data.json`) read files in the package, with no permission needed; a missing file is a 404 response. `data:` and `blob:` addresses work too.
+- There is no CORS: every response can be read. Each mini program has cookies of its own, kept in memory only.
+- Since API 6, `fetch` returns as soon as the headers arrive and the body is a stream (`response.body`, a `ReadableStream`) to read while it downloads; when nothing reads it, the download pauses after buffering about 1 MB. `text()`, `json()`, `arrayBuffer()`, `blob()` and `formData()` read the whole body. Like in browsers, `text()` always decodes UTF-8. The system buffers the first 512 bytes of `text/plain` responses (content sniffing) before handing them over, so services that push text piece by piece (server-sent events, say) should use `text/event-stream` or another type.
+- Request bodies can be strings, bytes (`ArrayBuffer`, typed arrays), `Blob`, `FormData` (sent as multipart/form-data), `URLSearchParams` or `ReadableStream` (with `duplex: 'half'`, as in browsers; it's read to the end before sending, not streamed).
+- WebSocket binary messages are `Blob`s by default, as in browsers (always `ArrayBuffer` before API 6); set `socket.binaryType = 'arraybuffer'` for `ArrayBuffer`. A message is at most 16 MB. A failed connection fires `error` then `close` (`code` 1006), and the `error` event has a non-standard `message` saying why.
+- `XMLHttpRequest` is built on `fetch`, with the same rules. It's asynchronous only, `responseType` can be `''`, `'text'`, `'json'`, `'arraybuffer'` or `'blob'`, and `upload` fires no events.
+- Remote images (the `src` of `CanvasImage` and `Image`) and videos need the `network` permission too.
+- When content is removed or stopped, its requests and connections are cancelled, with no more callbacks.
 
-没有 `network` 权限（用户拒绝了）时内容照常运行，要显示离线状态，不要反复重试。
+Without the `network` permission (the user denied it) the content runs as usual: show that it's offline rather than retrying again and again.

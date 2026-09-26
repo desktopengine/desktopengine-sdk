@@ -1,33 +1,33 @@
-# 窗口
+# Windows
 
-内容的画面画在 `new DesktopEngine.Window({ type })` 创建的原生窗口里。
+Content draws in native windows made with `new DesktopEngine.Window({ type })`.
 
-| type | 用途 |
+| type | For |
 | --- | --- |
-| `desktop` | 壁纸：桌面层，在桌面图标之下，所有空间可见，也能收到鼠标移动 |
-| `widget` | 贴在桌面上的小组件：桌面图标之上，无边框、背景透明，可拖动 |
-| `overlay` | 浮于所有窗口之上：无边框、背景透明，所有空间和全屏应用上都可见，用于浮动小组件和桌面伙伴 |
-| `panel` | 带标题栏的浮动面板 |
-| `normal` | 普通窗口 |
+| `desktop` | Wallpapers: the desktop level, below the desktop icons, on all Spaces, and it gets mouse moves |
+| `widget` | Widgets on the desktop: above the desktop icons, borderless with a clear background, can be dragged |
+| `overlay` | Above all windows: borderless with a clear background, on all Spaces and over full screen apps; for floating widgets and desktop pets |
+| `panel` | A floating panel with a title bar |
+| `normal` | A standard window |
 
-`desktop`、`widget`、`overlay` 显示时不会激活 DesktopEngine，不会抢走用户当前应用的焦点。
+Showing a `desktop`, `widget` or `overlay` window doesn't activate DesktopEngine, so it doesn't take the focus from the user's current app.
 
-内容能创建哪些窗口由它的类型决定，运行时强制执行：壁纸只能用 `desktop`；小组件和桌面伙伴只能用 `widget` 和 `overlay`（按用户选的位置，传入 `launchOptions.windowType` 即可）。其他类型，包括不写 `type` 的普通窗口，`new DesktopEngine.Window()` 会抛出错误。`desktopengine dev` 和「开发」菜单载入的内容也一样，发布前就能发现；没有清单的小程序不受限制。
+The content's type decides which windows it can create, and the runtime enforces it: wallpapers only `desktop`; widgets and desktop pets only `widget` and `overlay` (where the user put it: pass `launchOptions.windowType`). Any other type, including a standard window without `type`, makes `new DesktopEngine.Window()` throw. Content from `desktopengine dev` and the Develop menu is held to the same rules, so you find out before you ship; mini programs without a manifest aren't.
 
-窗口本身是透明的，样式不支持圆角：需要圆角时，在 Canvas 上画圆角矩形（见小组件模板）。窗口创建后会一直存在，直到调用 `destroy()`。
+Windows are transparent and their styles have no corner radius: to round the corners, draw a rounded rectangle on a canvas (see the widget template). A window stays until you call `destroy()`.
 
-## 鼠标
+## Mouse
 
-- `widget` 和 `overlay` 窗口按住任意位置就能拖动（系统原生拖动）：拖动时依次收到 `mousedown`、窗口的 `move` 和松手时的 `mouseup`，拖动过程中没有 `mousemove`；单击只收到 `click`，没有 `mousedown` / `mouseup`。
-- 窗口的 `dragRegion` 限定按住哪些地方会拖动窗口，其余地方的按下和拖动交给组件（`mousedown`、按住时的 `mousemove`、`mouseup`），适合表盘、滑块这类控件；`null`（默认）是整个窗口，`[]` 是哪里都不拖动。
-- 窗口的 `hitRegion`（以窗口左上角为原点的矩形数组，单位点）限定只有这些地方响应鼠标，其余地方的点击、拖动和悬停都会穿透到下面的窗口；`null`（默认）是整个窗口。窗口透明的地方默认仍然会接住鼠标，不规则形状的桌面伙伴应随画面更新它（见 pet 模板）。
-- `mouseenter`、`mousemove`、`mouseleave` 在窗口不是当前窗口时也会触发。
-- 事件回调的参数是普通对象，`this` 是触发事件的对象；双击事件名是 `dbclick`。
+- Pressing anywhere in a `widget` or `overlay` window drags it (the system's own window dragging): a drag gets `mousedown`, the window's `move`, and `mouseup` on release, with no `mousemove` during the drag; a click only gets `click`, no `mousedown` / `mouseup`.
+- The window's `dragRegion` limits where a press drags the window; elsewhere presses and drags go to the components (`mousedown`, `mousemove` while the button is down, `mouseup`), for controls such as dials and sliders. `null` (the default) is the whole window, `[]` nowhere.
+- The window's `hitRegion` (an array of rectangles in points from the window's top left corner) limits the mouse to those parts: clicks, drags and hovers elsewhere pass through to the windows below. `null` (the default) is the whole window. Transparent parts of a window still catch the mouse by default, so an irregularly shaped pet should update it as it draws (see the pet template).
+- `mouseenter`, `mousemove` and `mouseleave` fire even when the window isn't the key window.
+- Event callbacks get plain objects, and `this` is the object that fired the event; the double click event is named `dbclick`.
 
-## 显示器和缩放
+## Displays and scale
 
-- `launchOptions.display` 是内容所在的显示器，`frame` 是整块屏幕，`visibleFrame` 去掉了菜单栏和程序坞。
-- 窗口的 `devicePixelRatio` 是所在显示器的缩放比例。小组件、桌面伙伴被拖到缩放比例不同的显示器上（例如从 Retina 屏拖到 1x 的外接显示器），或者用户改了显示器的分辨率，它会改变并触发窗口的 `devicepixelratiochange` 事件（API 8），这时按新的值重设画布的 `width` / `height`、重画。
-- 注意这里改 `width` / `height` 不会重置 2D 上下文的状态（浏览器会），缩放用 `setTransform(ratio, 0, 0, ratio, 0, 0)` 重设，不要再叠加一次 `scale()`（见 widget、pet 模板）。
+- `launchOptions.display` is the display the content is on: `frame` is the whole screen, `visibleFrame` leaves out the menu bar and the Dock.
+- A window's `devicePixelRatio` is the scale of its display. When a widget or pet is dragged to a display with another scale (from a Retina screen to a 1x external display, say), or the user changes the display's resolution, it changes and the window fires `devicepixelratiochange` (API 8): set the canvas's `width` / `height` for the new value and redraw.
+- Unlike in browsers, setting `width` / `height` here doesn't reset the 2D context's state: set the scale with `setTransform(ratio, 0, 0, ratio, 0, 0)` rather than adding another `scale()` (see the widget and pet templates).
 
-完整的属性和事件见 [`Window`](/api/interfaces/DesktopEngine.Window)。
+See [`Window`](/api/interfaces/DesktopEngine.Window) for all its properties and events.

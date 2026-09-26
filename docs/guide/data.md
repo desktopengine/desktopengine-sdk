@@ -1,16 +1,16 @@
-# 数据：Blob、FormData、URL、文本编码和流
+# Data: Blob, FormData, URL, Text Encoding and Streams
 
-API 6 起有这些标准的全局对象，行为与浏览器一致：
+Since API 6 there are these standard globals, which behave as in browsers:
 
-- `Blob`、`File`：不可变的字节加 MIME 类型。`URL.createObjectURL(blob)` 生成 `blob:null/…` 地址，`fetch`、`XMLHttpRequest` 和 `CanvasImage`、`Image`、`Video` 的 `src` 都能加载它，所以 three.js 的 `GLTFLoader` 能读 GLB 里内嵌的贴图。和浏览器一样，地址在 `URL.revokeObjectURL()` 或内容停止前一直有效；撤销后已经加载的图片和视频不受影响。
-- `FormData`：表单字段和文件，作为请求体时按 multipart/form-data 发送，`response.formData()` 也能解析；没有表单元素，`new FormData(form)` 会抛错。
-- `URL`、`URLSearchParams`：按 WHATWG URL 标准解析。国际化域名转换成 Punycode，但没有完整的 UTS #46 映射表，个别特殊字符的域名结果可能和浏览器不同。
-- `TextEncoder`、`TextDecoder`：UTF-8 和 UTF-16 与浏览器完全一致；`TextDecoder` 也支持编码标准里的旧编码（GBK、gb18030、Big5、Shift_JIS、EUC-JP、EUC-KR、windows-125x、ISO-8859-x、KOI8 等），由系统解码，个别字符和坏字节的替换方式可能和浏览器略有不同。`TextEncoderStream`、`TextDecoderStream` 用在流上。
-- 流：`ReadableStream`（包括字节流和 BYOB 读取、`for await` 遍历、`ReadableStream.from()`）、`WritableStream`、`TransformStream` 和两种排队策略，来自 [web-streams-polyfill](https://github.com/MattiasBuelens/web-streams-polyfill)。
-- `MessageEvent`、`CloseEvent`、`ProgressEvent` 也是全局的（`Event`、`EventTarget` 从 API 5 起），全局对象还可以通过 `self` 访问（three.js 等库会用 `self.URL`）。
+- `Blob`, `File`: immutable bytes with a MIME type. `URL.createObjectURL(blob)` makes a `blob:null/…` address that `fetch`, `XMLHttpRequest` and the `src` of `CanvasImage`, `Image` and `Video` can load, so three.js's `GLTFLoader` reads the textures embedded in a GLB. As in browsers, the address is valid until `URL.revokeObjectURL()` or until the content stops; images and videos already loaded aren't affected by revoking it.
+- `FormData`: form fields and files, sent as multipart/form-data as a request body; `response.formData()` parses it too. There are no form elements, so `new FormData(form)` throws.
+- `URL`, `URLSearchParams`: parsed by the WHATWG URL standard. International domain names are converted to Punycode, but without the full UTS #46 mapping table, so domains with a few special characters may come out differently from browsers.
+- `TextEncoder`, `TextDecoder`: UTF-8 and UTF-16 are exactly as in browsers. `TextDecoder` also has the legacy encodings of the Encoding standard (GBK, gb18030, Big5, Shift_JIS, EUC-JP, EUC-KR, windows-125x, ISO-8859-x, KOI8 and more), decoded by the system, where a few characters and the replacement of bad bytes may differ slightly from browsers. `TextEncoderStream` and `TextDecoderStream` work on streams.
+- Streams: `ReadableStream` (byte streams and BYOB readers, `for await`, `ReadableStream.from()` included), `WritableStream`, `TransformStream` and the two queuing strategies, from [web-streams-polyfill](https://github.com/MattiasBuelens/web-streams-polyfill).
+- `MessageEvent`, `CloseEvent` and `ProgressEvent` are global too (`Event` and `EventTarget` since API 5), and the global object is also `self` (three.js and other libraries use `self.URL`).
 
 ```js
-// 边下载边解析按行分隔的 JSON
+// Parse newline-delimited JSON while it downloads
 const response = await fetch('https://example.com/events.ndjson');
 let buffer = '';
 for await (const text of response.body.pipeThrough(new TextDecoderStream())) {
@@ -20,7 +20,7 @@ for await (const text of response.body.pipeThrough(new TextDecoderStream())) {
   for (const line of lines) if (line) handle(JSON.parse(line));
 }
 
-// 上传文件和字段
+// Upload a file and a field
 const form = new FormData();
 form.append('title', 'Screenshot');
 form.append('file', new Blob([bytes], { type: 'image/png' }), 'shot.png');

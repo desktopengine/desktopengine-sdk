@@ -1,26 +1,26 @@
-# 运行时说明
+# Runtime Notes
 
-内容运行在 JavaScriptCore 里，不是浏览器。类型声明（[API 参考](/api/)）依据引擎源代码整理，只包含真实可用的 API。要点：
+Content runs in JavaScriptCore, not in a browser. The type declarations (the [API reference](/api/)) are compiled from the engine's source, with only the APIs that really exist. The main points:
 
-- 没有 DOM 和 Node.js：没有 `document`、`localStorage`，网络见[网络](./network)，声音见[音频](./audio)。运行时的模块是 CommonJS 的 `require()`；要用 `import` 请放进 `src/` 由 SDK 打包（见[项目和构建](./project)）。
-- 文件系统只支持读取包内文件。
-- `DesktopEngine.system.cpuUsage()` / `memoryUsage()` 提供 CPU 和内存用量，需要 `system-info` 权限，没有时抛出错误。
+- There is no DOM and no Node.js: no `document` and no `localStorage`; see [Network](./network) for the network and [Audio](./audio) for sound. Modules in the runtime are CommonJS `require()`; to use `import`, put your code in `src/` and let the SDK bundle it (see [Projects and Builds](./project)).
+- The file system can only read files in the package.
+- `DesktopEngine.system.cpuUsage()` / `memoryUsage()` give CPU and memory usage; they need the `system-info` permission and throw without it.
 
-## 画布
+## Canvas
 
-- Canvas 支持 2D、WebGL 1 和 WebGL 2（`getContext('webgl2')`，基于 ANGLE 的 OpenGL ES 3.0）。`texImage3D` / `texSubImage3D` 也接受图片、`ImageData` 和画布，各层在源图中自上而下排列（层间距由 `UNPACK_IMAGE_HEIGHT` 决定，默认等于 height）。Apple 芯片的 Mac 提供 `WEBGL_compressed_texture_astc`。
-- 和浏览器不同，WebGL 2 上下文不是 `instanceof WebGLRenderingContext`，要判断版本请用 `instanceof WebGL2RenderingContext`。
-- Canvas 用 Metal 渲染，显卡不支持 Metal 的老 Mac 上所有 `getContext` 都返回 null、`CanvasImage` 加载失败，要检查返回值。
-- 画布默认带透明通道（与 Web 一致），小组件和桌面伙伴的窗口是透明的，没画到的地方能看到桌面。
-- 画布的绘图缓冲区（`width` × `height`）会拉伸到样式的大小，默认平滑缩放。像素画可以用小的缓冲区、按 1:1 绘制，再设样式 `imageRendering: 'pixelated'`（API 7）放大成清晰的方块（内置的像素猫就是这样画的）；`'crisp-edges'` 缩小时也不做平滑。
-- 画布跟随显示器的缩放比例，见[显示器和缩放](./windows#显示器和缩放)。
-- WebGL 的缓冲、纹理、着色器程序在调用 `gl.deleteXxx()` 或画布销毁时释放；JS 里不再引用它们不会删除它们（它们可能还绑定着）。不停创建资源的程序要自己 `delete`。
+- Canvases have 2D, WebGL 1 and WebGL 2 (`getContext('webgl2')`, OpenGL ES 3.0 on ANGLE). `texImage3D` / `texSubImage3D` also take images, `ImageData` and canvases, with the layers top to bottom in the source image (spaced by `UNPACK_IMAGE_HEIGHT`, the height by default). Macs with Apple silicon have `WEBGL_compressed_texture_astc`.
+- Unlike in browsers, a WebGL 2 context isn't `instanceof WebGLRenderingContext`: check the version with `instanceof WebGL2RenderingContext`.
+- Canvases render with Metal. On old Macs whose graphics don't support Metal, every `getContext` returns null and `CanvasImage` fails to load, so check what they return.
+- Canvases have an alpha channel by default (as on the web). Widget and pet windows are transparent, so the desktop shows where nothing is drawn.
+- A canvas's drawing buffer (`width` × `height`) is stretched to the size of its style, smoothly by default. For pixel art, draw 1:1 in a small buffer and set the style `imageRendering: 'pixelated'` (API 7) to scale it up into sharp squares (the built-in pixel cat is drawn this way); `'crisp-edges'` doesn't smooth when scaling down either.
+- Canvases follow the scale of their display, see [Displays and scale](./windows#displays-and-scale).
+- WebGL buffers, textures and shader programs are freed by `gl.deleteXxx()` or when the canvas is destroyed; dropping them in JavaScript doesn't delete them (they may still be bound). Programs that keep creating resources must `delete` them.
 
-## 还没有的
+## Not there yet
 
-- 签名、上传审核和在线内容库：目前通过导入 .zip 或文件夹分发。
-- `files`、`now-playing`、`window-positions` 权限对应的 API。
-- 读取系统的音频输出（音乐可视化）、本地存储。
-- 运行时原生支持 ES 模块（目前通过 `src/` 打包解决）。
+- Signing, review and an online library: content is shared by importing a .zip or a folder for now.
+- APIs for the `files`, `now-playing` and `window-positions` permissions.
+- Reading the system's audio output (music visualizers), local storage.
+- Native ES modules in the runtime (bundling `src/` covers them for now).
 
-需要的功能可以在 [GitHub](https://github.com/desktopengine/desktopengine-sdk/issues) 上提出。
+Ask for what you need on [GitHub](https://github.com/desktopengine/desktopengine-sdk/issues).

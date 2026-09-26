@@ -1,10 +1,10 @@
-# 设计规则
+# Design Guidelines
 
-内容也按 DesktopEngine 的设计规则来做，和系统保持一致：
+Content follows DesktopEngine's design guidelines, in keeping with the system:
 
-- 使用系统字体，颜色克制，把色彩留给内容本身。
-- 小组件沿用 WidgetKit 的尺寸（`small` 164×164、`medium` 344×164、`large` 344×344）和圆角（约 22 点）；不要重复系统自带的小组件（时钟、日历、天气、提醒事项、照片、股票、电池等）。
-- 桌面上的东西要安静：小组件按需刷新，不常驻动画；桌面伙伴只在画面变化时重画（pet 模板的做法）。
-- 跟随系统的深浅色：「外观」选项提供 `auto`（跟随系统）并作为默认值，见[外观](./launch-options#外观)。
-- 设置交给应用：用[选项](/reference/manifest#选项-parameters)声明可调的东西，应用把它们画成系统表单，不要自己做设置界面。
-- 应用会按情况暂停内容（见[暂停规则](./performance#暂停规则)），不需要自己处理。帧率上限在「设置 › 通用 › 性能」里统一调整。
+- Use the system font and restrained colors, leaving color to the content itself.
+- Widgets keep WidgetKit's sizes (`small` 164×164, `medium` 344×164, `large` 344×344) and corner radius (about 22 points). Don't repeat the widgets the system has (clock, calendar, weather, reminders, photos, stocks, batteries and so on).
+- Things on the desktop should be quiet: widgets refresh when they need to, without constant animation; desktop pets redraw only when the picture changes (as the pet template does).
+- Follow the system's light and dark: an Appearance option offers `auto` (following the system) as its default, see [Appearance](./launch-options#appearance).
+- Leave settings to the app: declare what can be changed as [options](/reference/manifest#options-parameters) and the app draws them as a native form. Don't build a settings UI of your own.
+- The app pauses content when it should (see [Pausing](./performance#pausing)), so you don't handle it yourself. The frame rate limit is set for everything in Settings › General › Performance.

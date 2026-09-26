@@ -1,34 +1,34 @@
-# API 参考
+# API Reference
 
-这里的内容由 SDK 的类型声明 `types/desktop-engine.d.ts` 生成，只包含运行时真正注入的 API。`desktopengine create` 会把同一份声明复制到项目的 `types/` 下，编辑器据此补全和检查类型。怎样使用这些 API，见[指南](/guide/getting-started)。
+This reference is generated from the SDK's type declarations, `types/desktop-engine.d.ts`, which describe only the APIs the runtime really provides. `desktopengine create` copies the same declarations into a project's `types/`, for completion and type checking in editors. For how to use these APIs, see the [guide](/guide/getting-started).
 
-## 全局的 `DesktopEngine`
+## The global `DesktopEngine`
 
-[`DesktopEngine`](/api/interfaces/DesktopEngine.DesktopEngineStatic) 是运行时的入口：
+[`DesktopEngine`](/api/interfaces/DesktopEngine.DesktopEngineStatic) is where the runtime starts:
 
-| 成员 | 说明 |
+| Member | Description |
 | --- | --- |
-| [`launchOptions`](/api/interfaces/DesktopEngine.LaunchOptions) | 启动参数：显示器、位置、选项取值、语言、权限，见[启动参数](/guide/launch-options) |
-| `apiVersion` | 运行时的 API 版本，见 [API 版本](/reference/manifest#api-版本) |
-| `preferredFramesPerSecond` | 内容想要的帧率（API 9），见[帧率](/guide/performance#帧率) |
-| [`Window`](/api/interfaces/DesktopEngine.Window) | 原生窗口，内容的根，见[窗口](/guide/windows) |
-| [`Canvas`](/api/interfaces/DesktopEngine.Canvas) | 画布组件：[2D](/api/interfaces/DesktopEngine.CanvasRenderingContext2D)、[WebGL](/api/interfaces/DesktopEngine.WebGLRenderingContext) 和 [WebGL 2](/api/interfaces/DesktopEngine.WebGL2RenderingContext) |
-| [`CanvasImage`](/api/interfaces/DesktopEngine.CanvasImage) | 画到画布上的图片 |
-| [`Component`](/api/interfaces/DesktopEngine.Component)、[`Image`](/api/interfaces/DesktopEngine.Image)、[`Video`](/api/interfaces/DesktopEngine.Video) | 窗口里的其他组件，样式见 [`ComponentStyle`](/api/interfaces/DesktopEngine.ComponentStyle) |
-| [`system`](/api/interfaces/DesktopEngine.System) | 系统外观、CPU 和内存用量 |
-| [`ScreenManager`](/api/interfaces/DesktopEngine.ScreenManager) | 显示器 |
-| [`fileSystemManager`](/api/interfaces/DesktopEngine.FileSystemManager) | 读取包内文件 |
+| [`launchOptions`](/api/interfaces/DesktopEngine.LaunchOptions) | Launch options: the display, position, option values, language and permissions, see [Launch Options](/guide/launch-options) |
+| `apiVersion` | The runtime's API version, see [API versions](/reference/manifest#api-versions) |
+| `preferredFramesPerSecond` | The frame rate the content wants (API 9), see [Frame rate](/guide/performance#frame-rate) |
+| [`Window`](/api/interfaces/DesktopEngine.Window) | A native window, the root of the content, see [Windows](/guide/windows) |
+| [`Canvas`](/api/interfaces/DesktopEngine.Canvas) | A canvas component: [2D](/api/interfaces/DesktopEngine.CanvasRenderingContext2D), [WebGL](/api/interfaces/DesktopEngine.WebGLRenderingContext) and [WebGL 2](/api/interfaces/DesktopEngine.WebGL2RenderingContext) |
+| [`CanvasImage`](/api/interfaces/DesktopEngine.CanvasImage) | An image to draw on canvases |
+| [`Component`](/api/interfaces/DesktopEngine.Component), [`Image`](/api/interfaces/DesktopEngine.Image), [`Video`](/api/interfaces/DesktopEngine.Video) | The other components of a window, styled with [`ComponentStyle`](/api/interfaces/DesktopEngine.ComponentStyle) |
+| [`system`](/api/interfaces/DesktopEngine.System) | The system's appearance, CPU and memory usage |
+| [`ScreenManager`](/api/interfaces/DesktopEngine.ScreenManager) | The displays |
+| [`fileSystemManager`](/api/interfaces/DesktopEngine.FileSystemManager) | Reads files in the package |
 
-所有类型都在 [`DesktopEngine` 命名空间](/api/modules/DesktopEngine)里。
+All the types are in the [`DesktopEngine` namespace](/api/modules/DesktopEngine).
 
-## Web 标准 API
+## Web standard APIs
 
-运行时还提供这些全局对象，行为与浏览器一致，差别写在各自的说明里：
+The runtime also has these globals, which behave as in browsers; the differences are in their descriptions:
 
-- 计时和帧：`setTimeout`、`setInterval`、`requestAnimationFrame`、[`performance`](/api/interfaces/DesktopEngine.Performance)、[`console`](/api/interfaces/DesktopEngine.Console)
-- 事件：[`Event`](/api/interfaces/Event)、[`EventTarget`](/api/interfaces/EventTarget)、[`DOMException`](/api/interfaces/DOMException)
-- 网络（API 4）：[`fetch`](/api/functions/fetch)、[`Request`](/api/interfaces/Request)、[`Response`](/api/interfaces/Response)、[`Headers`](/api/interfaces/Headers)、[`AbortController`](/api/interfaces/AbortController)、[`WebSocket`](/api/interfaces/WebSocket)、[`XMLHttpRequest`](/api/interfaces/XMLHttpRequest)（API 6），见[网络](/guide/network)
-- 数据（API 6）：[`Blob`](/api/interfaces/Blob)、[`File`](/api/interfaces/File)、[`FormData`](/api/interfaces/FormData)、[`URL`](/api/interfaces/URL)、[`URLSearchParams`](/api/interfaces/URLSearchParams)、[`TextEncoder`](/api/interfaces/TextEncoder)、[`TextDecoder`](/api/interfaces/TextDecoder)、[`ReadableStream`](/api/interfaces/ReadableStream)，见[数据](/guide/data)
-- 音频（API 5）：[`Audio`](/api/interfaces/HTMLAudioElement)、[`AudioContext`](/api/interfaces/AudioContext) 和各种音频节点，见[音频](/guide/audio)
+- Timers and frames: `setTimeout`, `setInterval`, `requestAnimationFrame`, [`performance`](/api/interfaces/DesktopEngine.Performance), [`console`](/api/interfaces/DesktopEngine.Console)
+- Events: [`Event`](/api/interfaces/Event), [`EventTarget`](/api/interfaces/EventTarget), [`DOMException`](/api/interfaces/DOMException)
+- Network (API 4): [`fetch`](/api/functions/fetch), [`Request`](/api/interfaces/Request), [`Response`](/api/interfaces/Response), [`Headers`](/api/interfaces/Headers), [`AbortController`](/api/interfaces/AbortController), [`WebSocket`](/api/interfaces/WebSocket), [`XMLHttpRequest`](/api/interfaces/XMLHttpRequest) (API 6), see [Network](/guide/network)
+- Data (API 6): [`Blob`](/api/interfaces/Blob), [`File`](/api/interfaces/File), [`FormData`](/api/interfaces/FormData), [`URL`](/api/interfaces/URL), [`URLSearchParams`](/api/interfaces/URLSearchParams), [`TextEncoder`](/api/interfaces/TextEncoder), [`TextDecoder`](/api/interfaces/TextDecoder), [`ReadableStream`](/api/interfaces/ReadableStream), see [Data](/guide/data)
+- Audio (API 5): [`Audio`](/api/interfaces/HTMLAudioElement), [`AudioContext`](/api/interfaces/AudioContext) and the audio nodes, see [Audio](/guide/audio)
 
-完整的列表见[全部声明](/api/globals)。
+See [all declarations](/api/globals) for the full list.

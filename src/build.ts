@@ -1,5 +1,5 @@
 // DesktopEngine SDK
-// Copyright © 2024 senpng. All rights reserved.
+// Copyright © 2026 DesktopEngine. All rights reserved.
 //
 // This source code is licensed under the Apache Licence 2.0.
 

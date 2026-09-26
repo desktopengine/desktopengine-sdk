@@ -1,11 +1,11 @@
-# 命令行
+# Command Line
 
 ```bash
 npm install -g @desktopengine/sdk
 desktopengine --help
 ```
 
-`folder` 缺省是当前文件夹。有 `src/index.ts`（或 `src/index.js`）的项目先打包再使用，可以用 `import`、TypeScript 和 npm 包；没有 `src/` 的项目原样使用，根目录的 `index.js` 就是入口。见[项目和构建](/guide/project)。
+`folder` defaults to the current folder. Projects with `src/index.ts` (or `src/index.js`) are bundled first and can use `import`, TypeScript and npm packages; projects without `src/` are used as they are, with `index.js` at the root as the entry. See [Projects and Builds](/guide/project).
 
 ## create
 
@@ -13,15 +13,15 @@ desktopengine --help
 desktopengine create <type> <folder> [--renderer <renderer>] [--id <identifier>] [--name <name>]
 ```
 
-用模板新建一个项目。
+Creates a project from a template.
 
-| 参数 | 说明 |
+| Argument | Description |
 | --- | --- |
-| `<type>` | `wallpaper`、`widget` 或 `pet` |
-| `<folder>` | 新项目的文件夹 |
-| `--renderer` | 用另一种方式绘制的模板，目前只有壁纸有：`webgl`、`three`、`pixi`。`three` 和 `pixi` 创建后要先 `npm install`，见[用 WebGL 或渲染引擎绘制](/guide/wallpaper#用-webgl-或渲染引擎绘制) |
-| `--id` | 清单的 `id`，缺省是 `com.example.<文件夹名>` |
-| `--name` | 清单的 `name` |
+| `<type>` | `wallpaper`, `widget` or `pet` |
+| `<folder>` | The folder of the new project |
+| `--renderer` | A template drawn another way, only for wallpapers for now: `webgl`, `three`, `pixi`. Run `npm install` after creating a `three` or `pixi` project, see [Drawing with WebGL or a rendering library](/guide/wallpaper#drawing-with-webgl-or-a-rendering-library) |
+| `--id` | The manifest's `id`, `com.example.<folder name>` by default |
+| `--name` | The manifest's `name` |
 
 ## dev
 
@@ -29,20 +29,20 @@ desktopengine create <type> <folder> [--renderer <renderer>] [--id <identifier>]
 desktopengine dev [folder] [options]
 ```
 
-在 DesktopEngine 里运行项目，文件改变后重新构建、重新载入，终端里显示它的 console 输出和未捕获的异常。按 Ctrl-C 停止。
+Runs the project in DesktopEngine, rebuilds and reloads it when files change, and prints its console output and uncaught exceptions. Press Ctrl-C to stop.
 
-| 选项 | 说明 |
+| Option | Description |
 | --- | --- |
-| `--size small\|medium\|large` | 小组件的尺寸，不在 `widget.sizes` 里时用第一个 |
-| `--level desktop\|floating` | 贴在桌面上，或浮于所有窗口之上；缺省时桌面伙伴浮在窗口之上，其他贴在桌面上 |
-| `--display <number>` | 在第几块显示器上运行，从 1 开始，缺省是主显示器 |
-| `--param <key=value>` | 一个选项的取值，可以重复；没有给出的用清单里的 `default` |
-| `--position <x,y>` | 窗口的位置 |
-| `--port <port>` | 监听的端口，缺省随机 |
-| `--perf` | 显示帧率、帧耗时、CPU、唤醒次数和内存，见[性能](/guide/performance#测量) |
-| `--no-open` | 不打开 DesktopEngine，只打印连接它的 URL |
+| `--size small\|medium\|large` | The widget size; the first of `widget.sizes` when it isn't one of them |
+| `--level desktop\|floating` | On the desktop, or above all windows; by default pets float above windows and the rest are on the desktop |
+| `--display <number>` | The display to run on, starting at 1; the main display by default |
+| `--param <key=value>` | The value of an option, can be repeated; the others take the manifest's `default` |
+| `--position <x,y>` | The window position |
+| `--port <port>` | The port to listen on, random by default |
+| `--perf` | Shows the frame rate, frame time, CPU, wake-ups and memory, see [Performance](/guide/performance#measuring) |
+| `--no-open` | Prints the URL that connects DesktopEngine instead of opening it |
 
-这些选项模拟用户在详情栏里的选择，内容读到的 [`launchOptions`](/guide/launch-options) 和安装后一致。
+These options stand in for what the user picks in the details pane: the [`launchOptions`](/guide/launch-options) your content reads are the same as once installed.
 
 ## build
 
@@ -50,7 +50,7 @@ desktopengine dev [folder] [options]
 desktopengine build [folder] [--minify]
 ```
 
-把 `src/index.(ts|js)` 连同它 `import` 的模块和 npm 包打成一个 `index.js`，和清单、资源一起放进 `dist/package/`。`--minify` 压缩打包结果。
+Bundles `src/index.(ts|js)`, the modules and npm packages it imports into one `index.js`, and puts it with the manifest and assets in `dist/package/`. `--minify` makes the bundle smaller.
 
 ## validate
 
@@ -58,7 +58,7 @@ desktopengine build [folder] [--minify]
 desktopengine validate [folder]
 ```
 
-按应用的规则检查 `manifest.json` 和入口，有 `src/` 时先构建。有错误时以状态 1 退出，适合放进 CI。
+Checks `manifest.json` and the entry by the app's rules, building `src/` first. Exits with status 1 when there are errors, so it fits in CI.
 
 ## pack
 
@@ -66,4 +66,4 @@ desktopengine validate [folder]
 desktopengine pack [folder] [--out <folder>] [--minify]
 ```
 
-构建、检查并打包成 `<id>-<version>.zip`（缺省放在项目的 `dist/` 下），在 DesktopEngine 里用「文件 › 导入…」导入。
+Builds, validates and zips the package into `<id>-<version>.zip` (in the project's `dist/` by default), which File › Import… in DesktopEngine imports.

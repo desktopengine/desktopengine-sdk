@@ -1,70 +1,70 @@
-# 快速开始
+# Getting Started
 
-DesktopEngine 应用只做核心服务：运行小程序、管理资源库和播放列表、分配显示器。动态壁纸、小组件和桌面伙伴由开发者和创作者用这个 SDK 制作，用户在应用里导入后使用。
+The DesktopEngine app only provides the core services: it runs mini programs, manages the library and playlists, and assigns displays. Dynamic wallpapers, widgets and desktop pets are made by developers and creators with this SDK, and users import them into the app.
 
-SDK 包含：
+The SDK includes:
 
-- `desktopengine` 命令行：新建、运行调试、构建、检查和打包项目
-- 壁纸、小组件、桌面伙伴三种项目模板，壁纸另有 WebGL、three.js 和 PixiJS 版本
-- 运行时 API 的类型声明，编辑器可据此补全和检查类型（见 [API 参考](/api/)）
-- `manifest.json` 的 [JSON Schema](/reference/manifest#json-schema)
+- The `desktopengine` command line tool: create, run and debug, build, validate and pack projects
+- Project templates for wallpapers, widgets and desktop pets, plus WebGL, three.js and PixiJS versions for wallpapers
+- Type declarations of the runtime API, which editors use for completion and type checking (see the [API reference](/api/))
+- A [JSON Schema](/reference/manifest#json-schema) for `manifest.json`
 
-## 安装
+## Install
 
-需要 Node.js 18 或更新版本，以及安装了 [DesktopEngine](https://desktopengine.github.io) 的 Mac。
+You need Node.js 18 or later, and a Mac with [DesktopEngine](https://desktopengine.github.io) installed.
 
 ```bash
 npm install -g @desktopengine/sdk
 desktopengine --version
 ```
 
-不想全局安装，也可以每次用 `npx @desktopengine/sdk <命令>`。
+To skip the global install, run `npx @desktopengine/sdk <command>` instead.
 
-较新的 npm 会提示 esbuild 的安装脚本（`postinstall`）没有运行，可以忽略：SDK 不需要它。
+Recent versions of npm warn that esbuild's install script (`postinstall`) didn't run. You can ignore it: the SDK doesn't need it.
 
-## 新建并运行
+## Create and run
 
 ```bash
-desktopengine create widget ~/Projects/day-progress --id com.example.day-progress --name 今日进度
+desktopengine create widget ~/Projects/day-progress --id com.example.day-progress --name "Day Progress"
 desktopengine dev ~/Projects/day-progress
 ```
 
-`create` 的类型可以是 `wallpaper`（壁纸）、`widget`（小组件）或 `pet`（桌面伙伴），生成的项目结构见[项目和构建](./project)。
+The type given to `create` is `wallpaper`, `widget` or `pet`. See [Projects and Builds](./project) for what the project contains.
 
-`dev` 会打开 DesktopEngine 并在其中运行这个小程序：
+`dev` opens DesktopEngine and runs the mini program in it:
 
-- 第一次连接时应用会询问是否允许（没有打开「开发」菜单时会先询问是否打开）。
-- 保存文件后自动重新构建、重新载入；窗口被拖到的位置在重新载入后保留。
-- `console.log` 等输出、未捕获的异常（带调用栈）和 `postMessage('host', …)` 都显示在终端里。
-- 用参数模拟用户在详情栏里的选择，`DesktopEngine.launchOptions` 和安装后完全一致：
+- The first time it connects, the app asks whether to allow it (and first whether to turn on the Develop menu, if it's off).
+- Saving a file rebuilds and reloads it; the position its window was dragged to is kept across reloads.
+- `console.log` and the other console output, uncaught exceptions (with their stack) and `postMessage('host', …)` are printed in the terminal.
+- Options stand in for what the user picks in the details pane, and `DesktopEngine.launchOptions` is exactly what it is once installed:
 
   ```bash
   desktopengine dev . --size medium --level floating --display 2 --param accent=#FF9F0A --param workday=true
   ```
 
-- 加上 `--perf`，终端最后一行每秒更新一次帧率、CPU、唤醒次数和内存，见[性能](./performance)。
-- 按 Ctrl-C 停止，小程序也会从桌面上移除。
+- With `--perf`, the last line of the terminal shows the frame rate, CPU, wake-ups and memory every second, see [Performance](./performance).
+- Press Ctrl-C to stop; the mini program is removed from the desktop too.
 
-## 断点调试
+## Debugging with breakpoints
 
-在 Safari 的「设置 › 高级」里打开「显示网页开发者功能」，然后选择「开发 › 这台 Mac › 小程序」。打开 DesktopEngine 的「开发」菜单之后载入的小程序才能被检查；`src/` 项目在开发构建里带有 source map，检查器里看到的是原始文件。
+In Safari, turn on "Show features for web developers" in Settings › Advanced, then choose Develop › *this Mac* › the mini program. Only mini programs loaded after DesktopEngine's Develop menu is turned on can be inspected. Development builds of `src/` projects have source maps, so the inspector shows your original files.
 
-不用 `dev` 也可以：先 `desktopengine build`，再打开「设置 › 高级 › 在菜单栏中显示「开发」菜单」，选择「开发 › 载入本地小程序…」（⌘⌥O）选择项目的 `dist/package/` 文件夹，重新构建后会自动重新载入。这种方式下 `DesktopEngine.launchOptions` 是空对象 `{}`（模板里都写了缺省值）。
+You can also do without `dev`: run `desktopengine build`, turn on Settings › Advanced › Show Develop Menu in Menu Bar, choose Develop › Load Local Mini Program… (⌘⌥O) and pick the project's `dist/package/` folder. It reloads after each build. This way `DesktopEngine.launchOptions` is an empty object `{}` (the templates have defaults for everything).
 
-## 检查、打包和导入
+## Validate, pack and import
 
 ```bash
 desktopengine validate ~/Projects/day-progress
 desktopengine pack ~/Projects/day-progress
 ```
 
-`pack` 在项目的 `dist/` 下生成 `<id>-<version>.zip`。在 DesktopEngine 的「全部壁纸」「小组件」或「伙伴」页点工具栏里的导入按钮，或选择「文件 › 导入…」，都可以导入这个 .zip 或整个项目文件夹。导入后按类型出现在对应的地方：壁纸出现在壁纸网格里（工具栏筛选「动态」），小组件和桌面伙伴出现在各自的页面。导入同一个 `id` 会替换旧版本，桌面上正在运行的实例会用新版本重新启动。
+`pack` writes `<id>-<version>.zip` into the project's `dist/`. To import the .zip or the whole project folder, click the import button in the toolbar of All Wallpapers, Widgets or Pets in DesktopEngine, or choose File › Import…. What you import shows up by type: wallpapers in the wallpaper grid (filter the toolbar by Dynamic), widgets and pets on their own pages. Importing the same `id` again replaces the old version, and instances running on the desktop restart with the new one.
 
-目前通过 .zip 或文件夹分发内容，还没有签名、上传审核和在线内容库。
+For now content is shared as a .zip or a folder: there is no signing, review or online library yet.
 
-## 接下来
+## Next
 
-- [项目和构建](./project)：项目里有什么，`src/` 怎样被打包
-- [清单](/reference/manifest)：名称、类型、权限和用户可调的选项
-- [壁纸](./wallpaper)，或者看[启动参数](./launch-options)和[窗口](./windows)来做小组件和桌面伙伴
-- [设计规则](./design)：怎样让内容和 macOS 融为一体
+- [Projects and Builds](./project): what's in a project and how `src/` is bundled
+- [Manifest](/reference/manifest): name, type, permissions and the options users can change
+- [Wallpapers](./wallpaper), or [Launch Options](./launch-options) and [Windows](./windows) for widgets and desktop pets
+- [Design Guidelines](./design): how content fits in with macOS
