@@ -10,7 +10,8 @@
 // - fetch, XMLHttpRequest and WebSocket are available; reaching the network needs the "network" permission in
 //   manifest.json. Streams, Blob, FormData, URL and TextEncoder / TextDecoder are available too.
 // - Audio and Web Audio (`new Audio(src)`, AudioContext) are available; sound needs the "audio" permission in manifest.json.
-// - Not implemented: DOM, import/ESM, localStorage, etc. (see https://desktopengine.github.io/desktopengine-sdk/guide/runtime).
+// - localStorage / sessionStorage and a Node-style file system (`DesktopEngine.fs`) keep data between launches.
+// - Not implemented: DOM, import/ESM, IndexedDB, etc. (see https://desktopengine.github.io/desktopengine-sdk/guide/runtime).
 //
 // Usage: set `"types": []` in tsconfig and include this file, or use `/// <reference path="..." />` in JS.
 
@@ -3315,64 +3316,112 @@ declare namespace DesktopEngine {
   }
 
   // ---------------------------------------------------------------------------
-  // FileSystemManager
+  // File system (DesktopEngine.fs)
   // ---------------------------------------------------------------------------
 
   /**
-   * A file path: a path inside the package (`/a.png`, `./a.png` and `a.png` all refer to the package root), or a sandbox path
-   * `defile://usr/...`、`defile://cache/...`、`defile://share/...`、`defile://temp/...`
+   * A path of `DesktopEngine.fs`, taken literally (no percent-decoding):
+   * - a file in the package, read-only: `data.json`, `./data.json` and `/data.json` all start at the package root
+   * - `defile://usr/...`: the content's own files, kept between launches and shared by all its instances
+   * - `defile://temp/...`: temporary files, deleted when the content stops
+   *
+   * `..` can't go above these roots.
    */
   type FilePath = string;
 
-  /** Text encoding */
-  type FileEncoding = 'ascii' | 'base64' | 'binary' | 'hex' | 'ucs2' | 'ucs-2' | 'utf16le' | 'utf-16le' | 'utf-8' | 'utf8' | 'latin1';
+  /** Text encoding, as in Node */
+  type FileEncoding = 'utf8' | 'utf-8' | 'ascii' | 'latin1' | 'binary' | 'base64' | 'base64url' | 'hex' | 'ucs2' | 'ucs-2' | 'utf16le' | 'utf-16le';
 
-  /** Common result of asynchronous methods */
-  interface FileResult {
-    /** "ok" on success, or an error description on failure */
-    errMsg: string;
-    /** 0 on success, or an error code on failure */
-    code: number;
+  /** Data to write: a string (UTF-8 unless an encoding is given), an ArrayBuffer or a view of one (typed array, DataView) */
+  type FileData = string | ArrayBuffer | ArrayBufferView;
+
+  /** Options of writeFile / appendFile, or the encoding itself */
+  type WriteFileOptions = FileEncoding | { encoding?: FileEncoding | null };
+
+  /** An error of `DesktopEngine.fs`, like Node's */
+  interface FileSystemError extends Error {
+    /** e.g. `'ENOENT'` (no such file), `'EEXIST'`, `'ENOTDIR'`, `'EISDIR'`, `'ENOTEMPTY'`, `'EACCES'` (read-only or outside of the sandbox), `'EINVAL'` (not a file path) */
+    code: string;
+    /** The operation that failed, e.g. `'open'` */
+    syscall: string;
+    /** The path as it was given */
+    path: string;
   }
 
-  /** access options */
-  interface AccessOptions {
-    /** The path to check */
-    path: FilePath;
-    /** Completion callback (called on both success and failure) */
-    complete?: (res: FileResult) => void;
+  /** What `stat` tells about a file or a directory */
+  interface Stats {
+    isFile(): boolean;
+    isDirectory(): boolean;
+    /** Always false: symbolic links are followed */
+    isSymbolicLink(): boolean;
+    /** Size in bytes */
+    size: number;
+    mode: number;
+    /** Times in milliseconds since 1970 */
+    atimeMs: number;
+    mtimeMs: number;
+    ctimeMs: number;
+    birthtimeMs: number;
+    atime: Date;
+    mtime: Date;
+    ctime: Date;
+    birthtime: Date;
   }
 
-  /** readFile options */
-  interface ReadFileOptions {
-    /** File path */
-    filePath: FilePath;
-    /** Encoding; returns an ArrayBuffer when omitted or "arraybuffer" */
-    encoding?: FileEncoding | 'arraybuffer';
-    /** Completion callback (called on both success and failure) */
-    complete?: (res: ReadFileResult | FileResult) => void;
-  }
-
-  /** readFile success result */
-  interface ReadFileResult extends FileResult {
-    /** File contents; null for an empty file read as an ArrayBuffer */
-    data: string | ArrayBuffer | null;
-    /** The MIME type when read with a text encoding */
-    type?: string;
-  }
-
-  /** File system manager (DesktopEngine.fileSystemManager); its asynchronous methods are wrapped to return Promises */
-  interface FileSystemManager {
-    /** Checks whether a file or directory exists; rejects (with code -1) if it doesn't */
-    access(options: AccessOptions): Promise<FileResult>;
-    /** Reads a file asynchronously; rejects on failure */
-    readFile(options: ReadFileOptions): Promise<ReadFileResult>;
-    /** Reads a file synchronously as an ArrayBuffer (null for an empty file); throws on failure */
-    readFileSync(filePath: FilePath, encoding?: 'arraybuffer'): ArrayBuffer | null;
-    /** Reads a file synchronously as a string in the given encoding; throws on failure */
-    readFileSync(filePath: FilePath, encoding: FileEncoding): string;
-    /** Internal: loads and runs a CommonJS module (used to implement require) */
-    requireModule(moduleId: string, module: Module, exports: any, require: RequireFunction): any;
+  /**
+   * The file system, `DesktopEngine.fs`: the functions of Node's `fs/promises` and their `Sync` versions. The asynchronous
+   * ones run one at a time in order, off the JavaScript thread; they reject with a {@link FileSystemError}, the `Sync`
+   * ones throw it. Binary data is an ArrayBuffer.
+   *
+   * ```js
+   * const fs = DesktopEngine.fs;
+   * await fs.mkdir('defile://usr/notes', { recursive: true });
+   * await fs.writeFile('defile://usr/notes/today.json', JSON.stringify(note));
+   * const text = await fs.readFile('defile://usr/notes/today.json', 'utf8');
+   * ```
+   */
+  interface FileSystem {
+    /** Reads a file: an ArrayBuffer, or a string with an encoding */
+    readFile(path: FilePath, options?: null | { encoding?: null }): Promise<ArrayBuffer>;
+    readFile(path: FilePath, options: FileEncoding | { encoding: FileEncoding }): Promise<string>;
+    readFileSync(path: FilePath, options?: null | { encoding?: null }): ArrayBuffer;
+    readFileSync(path: FilePath, options: FileEncoding | { encoding: FileEncoding }): string;
+    /** Replaces the file (all at once: it's never left half written), making it when it doesn't exist; its directory must exist */
+    writeFile(path: FilePath, data: FileData, options?: WriteFileOptions): Promise<void>;
+    writeFileSync(path: FilePath, data: FileData, options?: WriteFileOptions): void;
+    /** Adds to the end of the file, making it when it doesn't exist */
+    appendFile(path: FilePath, data: FileData, options?: WriteFileOptions): Promise<void>;
+    appendFileSync(path: FilePath, data: FileData, options?: WriteFileOptions): void;
+    /** Makes a directory; with `recursive` also its missing parents, and it's no error when it exists */
+    mkdir(path: FilePath, options?: { recursive?: boolean }): Promise<void>;
+    mkdirSync(path: FilePath, options?: { recursive?: boolean }): void;
+    /** The names in a directory, sorted */
+    readdir(path: FilePath): Promise<string[]>;
+    readdirSync(path: FilePath): string[];
+    stat(path: FilePath): Promise<Stats>;
+    statSync(path: FilePath): Stats;
+    /** Resolves when the file or directory exists, rejects with ENOENT otherwise */
+    access(path: FilePath): Promise<void>;
+    accessSync(path: FilePath): void;
+    /** Whether the file or directory exists */
+    existsSync(path: FilePath): boolean;
+    /** Removes a file, or a directory with `recursive`; `force` ignores a missing one */
+    rm(path: FilePath, options?: { recursive?: boolean; force?: boolean }): Promise<void>;
+    rmSync(path: FilePath, options?: { recursive?: boolean; force?: boolean }): void;
+    /** Removes an empty directory */
+    rmdir(path: FilePath): Promise<void>;
+    rmdirSync(path: FilePath): void;
+    /** Removes a file */
+    unlink(path: FilePath): Promise<void>;
+    unlinkSync(path: FilePath): void;
+    /** Moves or renames a file or a directory, replacing a file at the new path */
+    rename(oldPath: FilePath, newPath: FilePath): Promise<void>;
+    renameSync(oldPath: FilePath, newPath: FilePath): void;
+    /** Copies a file, replacing the destination */
+    copyFile(src: FilePath, dest: FilePath): Promise<void>;
+    copyFileSync(src: FilePath, dest: FilePath): void;
+    /** The class of what `stat` returns, for instanceof */
+    readonly Stats: IllegalConstructor<Stats>;
   }
 
   // ---------------------------------------------------------------------------
@@ -3490,8 +3539,8 @@ declare namespace DesktopEngine {
     ScreenManager: ScreenManager;
     /** System services instance */
     system: System;
-    /** File system manager instance */
-    fileSystemManager: FileSystemManager;
+    /** The file system: package files, and the content's own files that are kept between launches */
+    readonly fs: FileSystem;
     /**
      * Read-only options passed in by the app at launch (size, display, position, user settings, etc.), injected before index.js runs.
      * Provided when the DesktopEngine app launches the content; `desktopengine dev` simulates them from its command-line arguments; {} when loaded directly from the Develop menu.
@@ -3540,8 +3589,10 @@ declare namespace DesktopEngine {
     readonly ScreenManager: PlainConstructor<ScreenManager>;
     /** System services constructor */
     readonly System: PlainConstructor<System>;
-    /** File system manager constructor (not wrapped with Promises) */
-    readonly FileSystemManager: PlainConstructor<unknown>;
+    /** Native side of `DesktopEngine.fs` and `require` (internal: use `DesktopEngine.fs`) */
+    readonly FileSystem: PlainConstructor<unknown>;
+    /** Native side of `localStorage` (a singleton, internal: use the global) */
+    readonly LocalStorage: SingletonConstructor<unknown> | undefined;
     /** Native side of fetch, WebSocket, blob URLs and TextDecoder (a singleton, internal: use the globals) */
     readonly Network: SingletonConstructor<unknown> | undefined;
     /** Native side of Web Audio and `Audio` (a singleton, internal: use the globals) */
@@ -4461,6 +4512,41 @@ declare var TransformStream: {
 
 /** The global object, like in browsers and workers (`self.URL`) */
 declare var self: typeof globalThis;
+
+// -----------------------------------------------------------------------------
+// Web Storage: localStorage and sessionStorage
+// -----------------------------------------------------------------------------
+
+/**
+ * Keys and values (strings), like in browsers; the items are also properties (`storage.name = 'x'`, `Object.keys(storage)`).
+ * Up to 5 MB each (keys and values together, counted in UTF-16 code units): over that, setItem throws a
+ * `QuotaExceededError` DOMException.
+ */
+interface Storage {
+  /** The number of items */
+  readonly length: number;
+  /** Removes every item */
+  clear(): void;
+  /** The value, null when there's no such key */
+  getItem(key: string): string | null;
+  /** The key at the index, in the order they were added; null past the end */
+  key(index: number): string | null;
+  removeItem(key: string): void;
+  /** Stores the value as a string */
+  setItem(key: string, value: string): void;
+  [name: string]: any;
+}
+
+declare var Storage: DesktopEngine.IllegalConstructor<Storage>;
+
+/**
+ * Kept between launches. It belongs to the content: all its instances (e.g. the same widget twice on the desktop) share
+ * it and see each other's changes right away, there's no `storage` event. Namespace keys with
+ * `DesktopEngine.launchOptions.instanceId` for what belongs to one instance.
+ */
+declare var localStorage: Storage;
+/** Kept in memory while the content runs */
+declare var sessionStorage: Storage;
 
 // -----------------------------------------------------------------------------
 // Audio: Web Audio and `Audio` elements

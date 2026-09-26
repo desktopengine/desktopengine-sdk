@@ -2,8 +2,7 @@
 
 Content runs in JavaScriptCore, not in a browser. The type declarations (the [API reference](/api/)) are compiled from the engine's source, with only the APIs that really exist. The main points:
 
-- There is no DOM and no Node.js: no `document` and no `localStorage`; see [Network](./network) for the network and [Audio](./audio) for sound. Modules in the runtime are CommonJS `require()`; to use `import`, put your code in `src/` and let the SDK bundle it (see [Projects and Builds](./project)).
-- The file system can only read files in the package.
+- There is no DOM and no Node.js: no `document`, no `window`; see [Network](./network) for the network, [Storage and Files](./storage) for `localStorage` and files, and [Audio](./audio) for sound. Modules in the runtime are CommonJS `require()`; to use `import`, put your code in `src/` and let the SDK bundle it (see [Projects and Builds](./project)).
 - `DesktopEngine.system.cpuUsage()` / `memoryUsage()` give CPU and memory usage; they need the `system-info` permission and throw without it.
 
 ## Canvas
@@ -20,7 +19,7 @@ Content runs in JavaScriptCore, not in a browser. The type declarations (the [AP
 
 - Signing, review and an online library: content is shared by importing a .zip or a folder for now.
 - APIs for the `files`, `now-playing` and `window-positions` permissions.
-- Reading the system's audio output (music visualizers), local storage.
+- Reading the system's audio output (music visualizers), IndexedDB.
 - Native ES modules in the runtime (bundling `src/` covers them for now).
 
 Ask for what you need on [GitHub](https://github.com/desktopengine/desktopengine-sdk/issues).

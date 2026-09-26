@@ -2,8 +2,7 @@
 
 内容运行在 JavaScriptCore 里，不是浏览器。类型声明（[API 参考](/zh/reference/api)）依据引擎源代码整理，只包含真实可用的 API。要点：
 
-- 没有 DOM 和 Node.js：没有 `document`、`localStorage`，网络见[网络](./network)，声音见[音频](./audio)。运行时的模块是 CommonJS 的 `require()`；要用 `import` 请放进 `src/` 由 SDK 打包（见[项目和构建](./project)）。
-- 文件系统只支持读取包内文件。
+- 没有 DOM 和 Node.js：没有 `document`、`window`，网络见[网络](./network)，`localStorage` 和文件见[存储和文件](./storage)，声音见[音频](./audio)。运行时的模块是 CommonJS 的 `require()`；要用 `import` 请放进 `src/` 由 SDK 打包（见[项目和构建](./project)）。
 - `DesktopEngine.system.cpuUsage()` / `memoryUsage()` 提供 CPU 和内存用量，需要 `system-info` 权限，没有时抛出错误。
 
 ## 画布
@@ -20,7 +19,7 @@
 
 - 签名、上传审核和在线内容库：目前通过导入 .zip 或文件夹分发。
 - `files`、`now-playing`、`window-positions` 权限对应的 API。
-- 读取系统的音频输出（音乐可视化）、本地存储。
+- 读取系统的音频输出（音乐可视化）、IndexedDB。
 - 运行时原生支持 ES 模块（目前通过 `src/` 打包解决）。
 
 需要的功能可以在 [GitHub](https://github.com/desktopengine/desktopengine-sdk/issues) 上提出。

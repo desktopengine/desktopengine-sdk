@@ -89,6 +89,7 @@ function guideSidebar(): DefaultTheme.SidebarItem[] {
       items: [
         { text: 'Network', link: '/guide/network' },
         { text: 'Data', link: '/guide/data' },
+        { text: 'Storage and Files', link: '/guide/storage' },
         { text: 'Audio', link: '/guide/audio' },
       ],
     },
@@ -133,6 +134,7 @@ const chineseGuide: DefaultTheme.SidebarItem[] = [
     items: [
       { text: '网络', link: '/zh/guide/network' },
       { text: '数据', link: '/zh/guide/data' },
+      { text: '存储和文件', link: '/zh/guide/storage' },
       { text: '音频', link: '/zh/guide/audio' },
     ],
   },

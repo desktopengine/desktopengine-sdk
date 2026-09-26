@@ -17,7 +17,7 @@ This reference is generated from the SDK's type declarations, `types/desktop-eng
 | [`Component`](/api/interfaces/DesktopEngine.Component), [`Image`](/api/interfaces/DesktopEngine.Image), [`Video`](/api/interfaces/DesktopEngine.Video) | The other components of a window, styled with [`ComponentStyle`](/api/interfaces/DesktopEngine.ComponentStyle) |
 | [`system`](/api/interfaces/DesktopEngine.System) | The system's appearance, CPU and memory usage |
 | [`ScreenManager`](/api/interfaces/DesktopEngine.ScreenManager) | The displays |
-| [`fileSystemManager`](/api/interfaces/DesktopEngine.FileSystemManager) | Reads files in the package |
+| [`fs`](/api/interfaces/DesktopEngine.FileSystem) | Package files and the content's own files, see [Storage and Files](/guide/storage) |
 
 All the types are in the [`DesktopEngine` namespace](/api/modules/DesktopEngine).
 
@@ -29,6 +29,7 @@ The runtime also has these globals, which behave as in browsers; the differences
 - Events: [`Event`](/api/interfaces/Event), [`EventTarget`](/api/interfaces/EventTarget), [`DOMException`](/api/interfaces/DOMException)
 - Network: [`fetch`](/api/functions/fetch), [`Request`](/api/interfaces/Request), [`Response`](/api/interfaces/Response), [`Headers`](/api/interfaces/Headers), [`AbortController`](/api/interfaces/AbortController), [`WebSocket`](/api/interfaces/WebSocket), [`XMLHttpRequest`](/api/interfaces/XMLHttpRequest), see [Network](/guide/network)
 - Data: [`Blob`](/api/interfaces/Blob), [`File`](/api/interfaces/File), [`FormData`](/api/interfaces/FormData), [`URL`](/api/interfaces/URL), [`URLSearchParams`](/api/interfaces/URLSearchParams), [`TextEncoder`](/api/interfaces/TextEncoder), [`TextDecoder`](/api/interfaces/TextDecoder), [`ReadableStream`](/api/interfaces/ReadableStream), see [Data](/guide/data)
+- Storage: [`localStorage`, `sessionStorage`](/api/interfaces/Storage), see [Storage and Files](/guide/storage)
 - Audio: [`Audio`](/api/interfaces/HTMLAudioElement), [`AudioContext`](/api/interfaces/AudioContext) and the audio nodes, see [Audio](/guide/audio)
 
 See [all declarations](/api/globals) for the full list.
