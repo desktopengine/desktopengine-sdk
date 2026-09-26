@@ -47,4 +47,4 @@ The app does all this: the content doesn't check for any of it. Users set the fr
   - Images drawn on 2D canvases.
 - `drawing paused` when it can't be seen (covered), `suspended` when the displays sleep and so on, see [Pausing](#pausing).
 
-Develop › Show Performance HUD shows the same numbers at the top right of each running mini program's window, installed content included. For more detail, use Instruments: each frame is a `Frame` interval in os_signpost (subsystem `com.senpng.desktopengine`, category `Rendering`), and the mini program's thread is named `DesktopEngine JS: <name>`.
+Develop › Show Performance HUD shows the same numbers at the top right of each running mini program's window, installed content included. For more detail, use Instruments: each frame is a `Frame` interval in os_signpost (subsystem `app.desktopengine`, category `Rendering`), and the mini program's thread is named `DesktopEngine JS: <name>`.

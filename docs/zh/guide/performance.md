@@ -47,4 +47,4 @@
   - 画在 2D 画布上的图片。
 - 看不见（被遮住）时显示 `drawing paused`，显示器睡眠等情况下显示 `suspended`，见[暂停规则](#暂停规则)。
 
-「开发 › 显示性能 HUD」在每个运行中的小程序窗口右上角显示同样的数字，已安装的内容也包括在内。更细的分析用 Instruments：每一帧在 os_signpost 里是一个 `Frame` 区间（子系统 `com.senpng.desktopengine`，类别 `Rendering`），小程序的线程名是 `DesktopEngine JS: <名称>`。
+「开发 › 显示性能 HUD」在每个运行中的小程序窗口右上角显示同样的数字，已安装的内容也包括在内。更细的分析用 Instruments：每一帧在 os_signpost 里是一个 `Frame` 区间（子系统 `app.desktopengine`，类别 `Rendering`），小程序的线程名是 `DesktopEngine JS: <名称>`。
