@@ -27,7 +27,7 @@ DOMAdapter.set({
   },
   getWebGLRenderingContext: () => WebGLRenderingContext,
   getNavigator: () => ({ userAgent: 'DesktopEngine', gpu: null }),
-  // paths resolve against the package root, like DesktopEngine.fileSystemManager and CanvasImage
+  // paths resolve against the package root, like DesktopEngine.fs and CanvasImage
   getBaseUrl: () => '/',
   getFontFaceSet: () => null,
   // package files, or http(s) with the network permission in manifest.json
