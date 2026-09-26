@@ -239,14 +239,13 @@ test('parseArgs reads positional arguments and flags', () => {
 });
 
 test('formatMetrics sums up a second of the mini program', () => {
-  const metrics = { type: 'metrics', state: 'running', fps: 59.6, targetFps: 60, frameTime: 1.24, maxFrameTime: 3, slowFrames: 0, cpu: 12.4, wakeUps: 60.2 } as const;
-  assert.equal(formatMetrics(metrics), '60/60 fps · 1.2 ms (max 3.0) · CPU 12% · 60 wake-ups/s');
-  assert.equal(formatMetrics({ ...metrics, slowFrames: 1 }), '60/60 fps · 1.2 ms (max 3.0) · CPU 12% · 60 wake-ups/s · 1 slow frame');
-  assert.equal(formatMetrics({ ...metrics, state: 'rendering-paused', cpu: 0, wakeUps: 1 }), 'drawing paused, no window is visible · CPU 0% · 1 wake-ups/s');
-  assert.equal(formatMetrics({ ...metrics, state: 'suspended', cpu: 0, wakeUps: 1 }), 'suspended · CPU 0% · 1 wake-ups/s');
-  // memory: JS only from Developer ID and Debug builds of the app
+  const metrics = { type: 'metrics', state: 'running', fps: 59.6, targetFps: 60, frameTime: 1.24, maxFrameTime: 3, slowFrames: 0, cpu: 12.4, wakeUps: 60.2, canvasMemory: 46_137_344 } as const;
+  assert.equal(formatMetrics(metrics), '60/60 fps · 1.2 ms (max 3.0) · CPU 12% · 60 wake-ups/s · canvas 44 MB');
+  assert.equal(formatMetrics({ ...metrics, slowFrames: 1 }), '60/60 fps · 1.2 ms (max 3.0) · CPU 12% · 60 wake-ups/s · canvas 44 MB · 1 slow frame');
+  assert.equal(formatMetrics({ ...metrics, state: 'rendering-paused', cpu: 0, wakeUps: 1 }), 'drawing paused, no window is visible · CPU 0% · 1 wake-ups/s · canvas 44 MB');
+  assert.equal(formatMetrics({ ...metrics, state: 'suspended', cpu: 0, wakeUps: 1 }), 'suspended · CPU 0% · 1 wake-ups/s · canvas 44 MB');
+  // JS memory only from Developer ID and Debug builds of the app
   assert.equal(formatMetrics({ ...metrics, jsMemory: 126_877_696, canvasMemory: 6_291_456 }), '60/60 fps · 1.2 ms (max 3.0) · CPU 12% · 60 wake-ups/s · JS 121 MB · canvas 6.0 MB');
-  assert.equal(formatMetrics({ ...metrics, canvasMemory: 46_137_344 }), '60/60 fps · 1.2 ms (max 3.0) · CPU 12% · 60 wake-ups/s · canvas 44 MB');
 });
 
 test('the CLI refuses arguments it has no use for', () => {

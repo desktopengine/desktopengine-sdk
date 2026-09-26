@@ -7,9 +7,9 @@
 //   (declarations such as console, setTimeout and require would conflict).
 // - The entry index.js runs as a global script with only a global `require` (import and npm packages are available when `desktopengine build` bundles src/); modules loaded with `require()` are wrapped as
 //   `function (module, exports, require) {...}`, and only there are `module` / `exports` available.
-// - fetch, XMLHttpRequest and WebSocket are available (API 4, XMLHttpRequest since 6); reaching the network needs the
-//   "network" permission in manifest.json. Streams, Blob, FormData, URL and TextEncoder / TextDecoder since API 6.
-// - Audio and Web Audio (`new Audio(src)`, AudioContext) are available (API 5); sound needs the "audio" permission in manifest.json.
+// - fetch, XMLHttpRequest and WebSocket are available; reaching the network needs the "network" permission in
+//   manifest.json. Streams, Blob, FormData, URL and TextEncoder / TextDecoder are available too.
+// - Audio and Web Audio (`new Audio(src)`, AudioContext) are available; sound needs the "audio" permission in manifest.json.
 // - Not implemented: DOM, import/ESM, localStorage, etc. (see https://desktopengine.github.io/desktopengine-sdk/guide/runtime).
 //
 // Usage: set `"types": []` in tsconfig and include this file, or use `/// <reference path="..." />` in JS.
@@ -234,7 +234,7 @@ declare namespace DesktopEngine {
     backgroundColor?: StyleColor;
     /** Opacity from 0 to 1; defaults to 1 */
     opacity?: number;
-    /** Canvas only: how its drawing buffer is scaled to its size; defaults to auto. Since apiVersion 7 */
+    /** Canvas only: how its drawing buffer is scaled to its size; defaults to auto */
     imageRendering?: ImageRendering;
   }
 
@@ -319,7 +319,7 @@ declare namespace DesktopEngine {
     backgroundColor: StyleValue;
     /** Opacity */
     opacity: StyleValue;
-    /** Canvas only: how its drawing buffer is scaled to its size. Since apiVersion 7 */
+    /** Canvas only: how its drawing buffer is scaled to its size */
     imageRendering: ImageRendering | null;
   }
 
@@ -445,7 +445,7 @@ declare namespace DesktopEngine {
     keydown: KeyboardPayload;
     /** A key was released (once listened to, the key is not passed further down) */
     keyup: KeyboardPayload;
-    /** devicePixelRatio changed: the window moved to a display with another scale, or the display's scale changed. Since apiVersion 8 */
+    /** devicePixelRatio changed: the window moved to a display with another scale, or the display's scale changed */
     devicepixelratiochange: void;
   }
 
@@ -504,7 +504,7 @@ declare namespace DesktopEngine {
 
   /** System event map */
   interface SystemEventMap {
-    /** The system appearance changed (the user switched it, or Auto switched it at sunset / sunrise). Since apiVersion 2 */
+    /** The system appearance changed (the user switched it, or Auto switched it at sunset / sunrise) */
     appearancechange: { appearance: Appearance };
   }
 
@@ -673,7 +673,7 @@ declare namespace DesktopEngine {
     onkeydown: EventHandler<this, KeyboardPayload> | null | undefined;
     /** keyup callback (not supported by the desktop type) */
     onkeyup: EventHandler<this, KeyboardPayload> | null | undefined;
-    /** devicepixelratiochange callback. Since apiVersion 8 */
+    /** devicepixelratiochange callback */
     ondevicepixelratiochange: EventHandler<this, void> | null | undefined;
     /** Removes the onshow callback */
     offshow(): void;
@@ -693,7 +693,7 @@ declare namespace DesktopEngine {
     offkeydown(): void;
     /** Removes the onkeyup callback */
     offkeyup(): void;
-    /** Removes the ondevicepixelratiochange callback. Since apiVersion 8 */
+    /** Removes the ondevicepixelratiochange callback */
     offdevicepixelratiochange(): void;
   }
 
@@ -974,8 +974,8 @@ declare namespace DesktopEngine {
     textBaseline: CanvasTextBaseline;
     /**
      * Fill style. Colors: `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`/`rgba()` and `hsl()`/`hsla()` with commas or
-     * spaces (`rgb(255 0 0 / 50%)`), or a CSS color name; invalid colors are ignored, like on the web (before apiVersion 3
-     * `#rgba`, `#rrggbbaa` and the space syntax weren't understood). Colors read back as an `rgba(r,g,b,a)` string
+     * spaces (`rgb(255 0 0 / 50%)`), or a CSS color name; invalid colors are ignored, like on the web.
+     * Colors read back as an `rgba(r,g,b,a)` string
      */
     fillStyle: string | CanvasGradient | CanvasPattern;
     /** Stroke style, colors as for fillStyle; colors read back as an `rgba(r,g,b,a)` string */
@@ -1028,7 +1028,7 @@ declare namespace DesktopEngine {
     transform(a: number, b: number, c: number, d: number, e: number, f: number): void;
     /** Sets the transform matrix */
     setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
-    /** Resets the transform matrix to the identity. Since apiVersion 3 */
+    /** Resets the transform matrix to the identity */
     resetTransform(): void;
     /** Draws an image at (dx, dy) */
     drawImage(image: CanvasDrawable, dx: number, dy: number): void;
@@ -1154,7 +1154,7 @@ declare namespace DesktopEngine {
     readonly precision: number;
   }
 
-  /** The attributes the context really has (a plain object; before apiVersion 3 fixed values given as 1/0) */
+  /** The attributes the context really has (a plain object) */
   interface WebGLContextAttributes {
     /** The alpha option of getContext (true unless alpha: false) */
     readonly alpha: boolean;
@@ -3294,9 +3294,9 @@ declare namespace DesktopEngine {
 
   /** System services (DesktopEngine.system) */
   interface System extends EventedObject<SystemEventMap> {
-    /** The current system appearance. Since apiVersion 2 */
+    /** The current system appearance */
     readonly appearance: Appearance;
-    /** appearancechange callback. Since apiVersion 2 */
+    /** appearancechange callback */
     onappearancechange: EventHandler<this, SystemEventMap['appearancechange']> | null | undefined;
     /** Removes the onappearancechange callback */
     offappearancechange(): void;
@@ -3493,7 +3493,7 @@ declare namespace DesktopEngine {
     readonly launchOptions: Readonly<LaunchOptions>;
     /**
      * Runtime API version, incremented when APIs are added. If you need a newer API, declare `apiVersion` in manifest.json;
-     * older versions of the app refuse to import the content. You can also check it at runtime and fall back.
+     * the app refuses to import the content when it has an older API. You can also check it at runtime and fall back.
      */
     readonly apiVersion: number;
     /**
@@ -3501,7 +3501,7 @@ declare namespace DesktopEngine {
      * don't run at all, which saves more power than skipping them in a requestAnimationFrame callback: the thread isn't
      * even woken. Applies when the display's refresh rate is a multiple of it (60 Hz: 60, 30, 20, 15, 12…), otherwise
      * every frame runs. The app's own limit (e.g. 30 fps on battery) still applies, the lower one wins. Can change at any
-     * time. Since apiVersion 9
+     * time.
      */
     preferredFramesPerSecond: number;
   }
@@ -3543,7 +3543,7 @@ declare namespace DesktopEngine {
   }
 
   // ---------------------------------------------------------------------------
-  // Events (the global Event class; MessageEvent, CloseEvent and ProgressEvent are globals since apiVersion 6)
+  // Events (the global Event class; MessageEvent, CloseEvent and ProgressEvent are globals too)
   // ---------------------------------------------------------------------------
 
   /** An event, same as the global Event; events don't bubble, target and currentTarget are the same */
@@ -3596,7 +3596,7 @@ declare namespace DesktopEngine {
     abort: Event;
   }
 
-  /** Progress of an XMLHttpRequest. Since apiVersion 6 */
+  /** Progress of an XMLHttpRequest */
   interface ProgressEvent extends Event {
     /** Whether total is known (the response has a Content-Length) */
     readonly lengthComputable: boolean;
@@ -3781,8 +3781,7 @@ declare var EventTarget: {
 };
 
 // -----------------------------------------------------------------------------
-// Network: fetch, XMLHttpRequest and WebSocket (API 4; XMLHttpRequest, streamed bodies, Blob and FormData bodies
-// since API 6)
+// Network: fetch, XMLHttpRequest and WebSocket
 //
 // http(s) and ws(s) URLs need the "network" permission in manifest.json: without it fetch rejects with a TypeError,
 // XMLHttpRequest fires error and new WebSocket throws a "SecurityError" DOMException. Relative URLs ("data.json",
@@ -3824,7 +3823,7 @@ declare var Headers: {
 
 /** Reading a request or response body, once */
 interface Body {
-  /** The body as a stream of bytes (since apiVersion 6), null when there's none */
+  /** The body as a stream of bytes, null when there's none */
   readonly body: ReadableStream<Uint8Array> | null;
   /** The body has been read, or its stream read from or cancelled */
   readonly bodyUsed: boolean;
@@ -3833,9 +3832,9 @@ interface Body {
   /** Decoded as UTF-8, like browsers, whatever the charset */
   text(): Promise<string>;
   json(): Promise<any>;
-  /** A Blob whose type is the Content-Type. Since apiVersion 6 */
+  /** A Blob whose type is the Content-Type */
   blob(): Promise<Blob>;
-  /** Parses a multipart/form-data or application/x-www-form-urlencoded body. Since apiVersion 6 */
+  /** Parses a multipart/form-data or application/x-www-form-urlencoded body */
   formData(): Promise<FormData>;
 }
 
@@ -3904,9 +3903,8 @@ declare var Response: {
 
 /**
  * Fetches a URL or a package file. Resolves once the headers have arrived, also for 4xx / 5xx statuses, and the body
- * follows as a stream (since apiVersion 6; before, once the whole response had arrived). The download pauses while
- * about 1 MB is waiting to be read. Rejects with a TypeError when the request can't be made (no network permission,
- * unreachable host, ...).
+ * follows as a stream. The download pauses while about 1 MB is waiting to be read. Rejects with a TypeError when the
+ * request can't be made (no network permission, unreachable host, ...).
  * @remarks The system buffers the first 512 bytes of a text/plain response (content sniffing) before it's delivered:
  * streamed text, like server-sent events, should use another Content-Type such as text/event-stream.
  */
@@ -3938,7 +3936,7 @@ declare var AbortController: {
   new (): AbortController;
 };
 
-/** More event classes, e.g. to dispatch events or to check instanceof. Since apiVersion 6 */
+/** More event classes, e.g. to dispatch events or to check instanceof */
 declare var MessageEvent: {
   prototype: DesktopEngine.MessageEvent;
   new (type: string, init?: EventInit & { data?: unknown; origin?: string }): DesktopEngine.MessageEvent;
@@ -3963,10 +3961,7 @@ interface WebSocket extends DesktopEngine.EventTarget<DesktopEngine.WebSocketEve
   readonly extensions: string;
   /** Bytes passed to send() that haven't been sent yet */
   readonly bufferedAmount: number;
-  /**
-   * What binary messages are: "blob" (the default, like browsers) or "arraybuffer"; other values are ignored.
-   * Before apiVersion 6 always "arraybuffer"
-   */
+  /** What binary messages are: "blob" (the default, like browsers) or "arraybuffer"; other values are ignored */
   binaryType: 'blob' | 'arraybuffer';
   onopen: ((this: WebSocket, event: DesktopEngine.Event) => void) | null;
   onmessage: ((this: WebSocket, event: DesktopEngine.MessageEvent) => void) | null;
@@ -4018,7 +4013,6 @@ declare var XMLHttpRequestUpload: {
 
 /**
  * XMLHttpRequest, for libraries that use it; on top of fetch, with the same URLs and rules. Asynchronous only.
- * Since apiVersion 6
  */
 interface XMLHttpRequest extends XMLHttpRequestEventTarget {
   /** UNSENT, OPENED, HEADERS_RECEIVED, LOADING or DONE */
@@ -4073,7 +4067,7 @@ declare var XMLHttpRequest: {
 };
 
 // -----------------------------------------------------------------------------
-// Data: Blob, File, FormData, URL, URLSearchParams, TextEncoder and TextDecoder (API 6)
+// Data: Blob, File, FormData, URL, URLSearchParams, TextEncoder and TextDecoder
 // -----------------------------------------------------------------------------
 
 type BlobPart = string | ArrayBuffer | ArrayBufferView | Blob;
@@ -4263,7 +4257,7 @@ declare var TextDecoderStream: {
 };
 
 // -----------------------------------------------------------------------------
-// Streams (WHATWG Streams Standard, web-streams-polyfill; API 6)
+// Streams (WHATWG Streams Standard, web-streams-polyfill)
 // -----------------------------------------------------------------------------
 
 interface QueuingStrategy<T = any> {
@@ -4459,11 +4453,11 @@ declare var TransformStream: {
   new <I = any, O = any>(transformer?: Transformer<I, O>, writableStrategy?: QueuingStrategy<I>, readableStrategy?: QueuingStrategy<O>): TransformStream<I, O>;
 };
 
-/** The global object, like in browsers and workers (`self.URL`). Since apiVersion 6 */
+/** The global object, like in browsers and workers (`self.URL`) */
 declare var self: typeof globalThis;
 
 // -----------------------------------------------------------------------------
-// Audio: Web Audio and `Audio` elements (API 5)
+// Audio: Web Audio and `Audio` elements
 //
 // Sound needs the "audio" permission in manifest.json: without it an AudioContext stays "suspended" (resume() rejects
 // with a "NotAllowedError" DOMException) and play() rejects the same way; OfflineAudioContext and decodeAudioData work.

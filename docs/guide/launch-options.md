@@ -32,7 +32,7 @@ The app remembers the position `move` reports and passes it back in `options.pos
 
 ## Appearance
 
-`DesktopEngine.system.appearance` is the system's current appearance, `'light'` or `'dark'`. `appearancechange` fires when the user switches it in System Settings (or Auto switches it by the time of day) (API 2):
+`DesktopEngine.system.appearance` is the system's current appearance, `'light'` or `'dark'`. `appearancechange` fires when the user switches it in System Settings (or Auto switches it by the time of day):
 
 ```js
 const system = DesktopEngine.system;

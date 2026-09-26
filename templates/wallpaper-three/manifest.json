@@ -3,7 +3,7 @@
   "name": "__NAME__",
   "type": "wallpaper",
   "version": "1.0.0",
-  "apiVersion": 2,
+  "apiVersion": 1,
   "author": "",
   "description": { "en": "Drawn with three.js: a glossy knot turning slowly, with a subtle parallax that follows the mouse.", "zh-Hans": "用 three.js 绘制：缓慢转动的光泽绳结，随鼠标轻微视差。" },
   "parameters": [

@@ -27,7 +27,7 @@
 ## 显示器和缩放
 
 - `launchOptions.display` 是内容所在的显示器，`frame` 是整块屏幕，`visibleFrame` 去掉了菜单栏和程序坞。
-- 窗口的 `devicePixelRatio` 是所在显示器的缩放比例。小组件、桌面伙伴被拖到缩放比例不同的显示器上（例如从 Retina 屏拖到 1x 的外接显示器），或者用户改了显示器的分辨率，它会改变并触发窗口的 `devicepixelratiochange` 事件（API 8），这时按新的值重设画布的 `width` / `height`、重画。
+- 窗口的 `devicePixelRatio` 是所在显示器的缩放比例。小组件、桌面伙伴被拖到缩放比例不同的显示器上（例如从 Retina 屏拖到 1x 的外接显示器），或者用户改了显示器的分辨率，它会改变并触发窗口的 `devicepixelratiochange` 事件，这时按新的值重设画布的 `width` / `height`、重画。
 - 注意这里改 `width` / `height` 不会重置 2D 上下文的状态（浏览器会），缩放用 `setTransform(ratio, 0, 0, ratio, 0, 0)` 重设，不要再叠加一次 `scale()`（见 widget、pet 模板）。
 
 完整的属性和事件见 [`Window`](/api/interfaces/DesktopEngine.Window)。

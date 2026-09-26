@@ -8,7 +8,7 @@
   "name": { "en": "Day Progress", "zh-Hans": "今日进度" },
   "type": "widget",
   "version": "1.0.0",
-  "apiVersion": 2,
+  "apiVersion": 1,
   "author": "Example",
   "icon": "assets/icon.png",
   "widget": { "sizes": ["small", "medium"] },
@@ -103,16 +103,8 @@ The runtime enforces `network` (no network without it, see [Network](/guide/netw
 
 ## API versions
 
-The runtime has an integer API version that goes up when APIs are added: `DesktopEngine.apiVersion` in JavaScript. This SDK describes version 9 (the first line of `desktopengine --help` shows it too). When you use a new API, put `"apiVersion": 9` in the manifest and older versions of the app refuse to import it and ask users to update; or leave it out and check `DesktopEngine.apiVersion` at run time to fall back.
+The runtime has an integer API version that goes up when APIs are added: `DesktopEngine.apiVersion` in JavaScript. This SDK describes version 1 (the first line of `desktopengine --help` shows it too). When you use an API added later, put its version in `"apiVersion"` and apps with an older API refuse to import the package and ask users to update; or leave it out and check `DesktopEngine.apiVersion` at run time to fall back.
 
 | Version | Added |
 | --- | --- |
 | 1 | The first version |
-| 2 | `DesktopEngine.system.appearance` and the `appearancechange` event (following the system's light and dark, see [Appearance](/guide/launch-options#appearance)) |
-| 3 | `resetTransform()` in Canvas 2D; colors in `#rgba`, `#rrggbbaa` and the space-separated `rgb(255 0 0 / 50%)`, invalid colors are ignored; WebGL's `getContextAttributes()` returns the actual attributes |
-| 4 | `fetch`, `Headers`, `Request`, `Response`, `AbortController`, `AbortSignal`, `WebSocket`, `DOMException` (see [Network](/guide/network)); the `network` permission is enforced |
-| 5 | `Audio` (`HTMLAudioElement`) and Web Audio: `AudioContext`, `OfflineAudioContext`, the audio nodes, `AudioParam`, `AudioBuffer` (see [Audio](/guide/audio)); global `Event` and `EventTarget`; the `audio` permission is enforced, and videos are muted without it |
-| 6 | Streamed response bodies (`Response.body`) and the Streams API, `Blob`, `File`, `URL.createObjectURL`, `FormData`, `URL`, `URLSearchParams`, `TextEncoder`, `TextDecoder` (see [Data](/guide/data)); `XMLHttpRequest`, `ProgressEvent`, `MessageEvent`, `CloseEvent`, `self`; WebSocket's `binaryType` defaults to `"blob"` |
-| 7 | The `imageRendering` canvas style: `'pixelated'` and `'crisp-edges'` keep pixels sharp when scaled up (see [Runtime Notes](/guide/runtime)) |
-| 8 | The window's `devicepixelratiochange` event: `devicePixelRatio` changes when a window moves to a display with another scale (see [Windows](/guide/windows#displays-and-scale)) |
-| 9 | `DesktopEngine.preferredFramesPerSecond`: the frame rate the content wants (see [Frame rate](/guide/performance#frame-rate)) |

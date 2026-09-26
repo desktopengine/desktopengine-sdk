@@ -135,7 +135,7 @@ function formatMemory(bytes: number): string {
 export function formatMetrics(metrics: Metrics): string {
   const memory = [
     metrics.jsMemory === undefined ? '' : ` · JS ${formatMemory(metrics.jsMemory)}`,
-    metrics.canvasMemory === undefined ? '' : ` · canvas ${formatMemory(metrics.canvasMemory)}`,
+    ` · canvas ${formatMemory(metrics.canvasMemory)}`,
   ].join('');
   const usage = `CPU ${Math.round(metrics.cpu)}% · ${Math.round(metrics.wakeUps)} wake-ups/s${memory}`;
   if (metrics.state === 'suspended') return `suspended · ${usage}`;

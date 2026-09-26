@@ -3,7 +3,7 @@
   "name": "__NAME__",
   "type": "widget",
   "version": "1.0.0",
-  "apiVersion": 2,
+  "apiVersion": 1,
   "author": "",
   "description": { "en": "How much of today has passed: a progress ring and the time left.", "zh-Hans": "今天已经过去了多少：进度环和剩余时间。" },
   "widget": { "sizes": ["small", "medium"] },

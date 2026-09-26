@@ -32,7 +32,7 @@ postMessage('host', { type: 'close' }); // 把自己从桌面移除
 
 ## 外观
 
-`DesktopEngine.system.appearance` 是系统当前的外观，`'light'` 或 `'dark'`；用户在系统设置里切换（或「自动」按时间切换）时触发 `appearancechange`（API 2）：
+`DesktopEngine.system.appearance` 是系统当前的外观，`'light'` 或 `'dark'`；用户在系统设置里切换（或「自动」按时间切换）时触发 `appearancechange`：
 
 ```js
 const system = DesktopEngine.system;

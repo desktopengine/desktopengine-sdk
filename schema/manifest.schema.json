@@ -19,7 +19,7 @@
     },
     "version": { "description": "The version, semantic versioning is recommended, e.g. 1.0.0", "type": "string", "minLength": 1 },
     "apiVersion": {
-      "description": "The lowest runtime API version it needs (DesktopEngine.apiVersion); older versions of the app refuse to import it",
+      "description": "The lowest runtime API version it needs (DesktopEngine.apiVersion); apps with an older API refuse to import it",
       "type": "integer",
       "minimum": 1
     },

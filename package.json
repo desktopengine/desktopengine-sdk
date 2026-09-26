@@ -1,6 +1,6 @@
 {
   "name": "@desktopengine/sdk",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Make dynamic wallpapers, widgets and desktop pets for DesktopEngine: type declarations, project templates and a command line tool",
   "keywords": [
     "desktopengine",

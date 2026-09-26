@@ -8,7 +8,7 @@
   "name": { "en": "Day Progress", "zh-Hans": "今日进度" },
   "type": "widget",
   "version": "1.0.0",
-  "apiVersion": 2,
+  "apiVersion": 1,
   "author": "Example",
   "icon": "assets/icon.png",
   "widget": { "sizes": ["small", "medium"] },
@@ -103,16 +103,8 @@ if (permissions.includes('network')) {
 
 ## API 版本
 
-运行时有一个整数的 API 版本，新增 API 时递增，JavaScript 里是 `DesktopEngine.apiVersion`，当前的 SDK 对应的版本是 9（`desktopengine --help` 的第一行也会显示）。用到新 API 时在清单里写上 `"apiVersion": 9`，低版本的应用会拒绝导入并提示用户更新；也可以不写，在运行时判断 `DesktopEngine.apiVersion` 后降级。
+运行时有一个整数的 API 版本，新增 API 时递增，JavaScript 里是 `DesktopEngine.apiVersion`，当前的 SDK 对应的版本是 1（`desktopengine --help` 的第一行也会显示）。用到之后新增的 API 时，在清单的 `"apiVersion"` 写上它的版本，API 版本更低的应用会拒绝导入并提示用户更新；也可以不写，在运行时判断 `DesktopEngine.apiVersion` 后降级。
 
 | 版本 | 新增 |
 | --- | --- |
 | 1 | 首个版本 |
-| 2 | `DesktopEngine.system.appearance` 和 `appearancechange` 事件（跟随系统深浅色，见[外观](/zh/guide/launch-options#外观)） |
-| 3 | Canvas 2D 的 `resetTransform()`；颜色支持 `#rgba`、`#rrggbbaa` 和 `rgb(255 0 0 / 50%)` 这类空格写法，无效颜色被忽略；WebGL 的 `getContextAttributes()` 返回实际的属性 |
-| 4 | `fetch`、`Headers`、`Request`、`Response`、`AbortController`、`AbortSignal`、`WebSocket`、`DOMException`（见[网络](/zh/guide/network)）；`network` 权限开始生效 |
-| 5 | `Audio`（`HTMLAudioElement`）和 Web Audio：`AudioContext`、`OfflineAudioContext`、各种音频节点、`AudioParam`、`AudioBuffer`（见[音频](/zh/guide/audio)）；全局的 `Event`、`EventTarget`；`audio` 权限开始生效，没有它视频也是静音的 |
-| 6 | 流式响应体（`Response.body`）和 Streams API、`Blob`、`File`、`URL.createObjectURL`、`FormData`、`URL`、`URLSearchParams`、`TextEncoder`、`TextDecoder`（见[数据](/zh/guide/data)）；`XMLHttpRequest`、`ProgressEvent`、`MessageEvent`、`CloseEvent`、`self`；WebSocket 的 `binaryType` 默认是 `"blob"` |
-| 7 | 画布样式 `imageRendering`：`'pixelated'`、`'crisp-edges'` 放大时保持像素清晰（见[运行时说明](/zh/guide/runtime)） |
-| 8 | 窗口的 `devicepixelratiochange` 事件：窗口换到缩放比例不同的显示器后 `devicePixelRatio` 随之改变（见[运行时说明](/zh/guide/runtime)） |
-| 9 | `DesktopEngine.preferredFramesPerSecond`：内容自己想要的帧率（见[暂停规则](/zh/guide/performance#暂停规则)） |

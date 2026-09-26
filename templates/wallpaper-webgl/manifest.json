@@ -3,7 +3,7 @@
   "name": "__NAME__",
   "type": "wallpaper",
   "version": "1.0.0",
-  "apiVersion": 2,
+  "apiVersion": 1,
   "author": "",
   "description": { "en": "A lit cube rendered in real time with WebGL, with a subtle parallax that follows the mouse.", "zh-Hans": "用 WebGL 实时渲染的立方体，随鼠标轻微视差。" },
   "parameters": [

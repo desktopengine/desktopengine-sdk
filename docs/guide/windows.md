@@ -27,7 +27,7 @@ Windows are transparent and their styles have no corner radius: to round the cor
 ## Displays and scale
 
 - `launchOptions.display` is the display the content is on: `frame` is the whole screen, `visibleFrame` leaves out the menu bar and the Dock.
-- A window's `devicePixelRatio` is the scale of its display. When a widget or pet is dragged to a display with another scale (from a Retina screen to a 1x external display, say), or the user changes the display's resolution, it changes and the window fires `devicepixelratiochange` (API 8): set the canvas's `width` / `height` for the new value and redraw.
+- A window's `devicePixelRatio` is the scale of its display. When a widget or pet is dragged to a display with another scale (from a Retina screen to a 1x external display, say), or the user changes the display's resolution, it changes and the window fires `devicepixelratiochange`: set the canvas's `width` / `height` for the new value and redraw.
 - Unlike in browsers, setting `width` / `height` here doesn't reset the 2D context's state: set the scale with `setTransform(ratio, 0, 0, ratio, 0, 0)` rather than adding another `scale()` (see the widget and pet templates).
 
 See [`Window`](/api/interfaces/DesktopEngine.Window) for all its properties and events.

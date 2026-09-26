@@ -3,7 +3,7 @@
   "name": "__NAME__",
   "type": "wallpaper",
   "version": "1.0.0",
-  "apiVersion": 2,
+  "apiVersion": 1,
   "author": "",
   "description": { "en": "Soft patches of color drifting slowly, light or dark with the system appearance.", "zh-Hans": "缓慢流动的柔和色块，随系统外观呈现浅色或深色。" },
   "parameters": [

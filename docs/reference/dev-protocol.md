@@ -27,7 +27,7 @@ All messages on the WebSocket are UTF-8 JSON text messages, told apart by `type`
 | --- | --- | --- |
 | `load` | `revision`, `url`, `launch` | Download `url` (`/package.zip?token=…`) and run it in place of the version running. `revision` counts up from 1; the app drops downloads and launches that are out of date |
 | `stop` | | Stop the mini program, keeping the connection |
-| `metrics` | `enabled` | When `true`, the app sends a `metrics` message about every second while the mini program runs; `false` stops them. It holds for versions loaded later too. `dev --perf` sends it after `hello` and before `load`. Older versions of the app ignore it |
+| `metrics` | `enabled` | When `true`, the app sends a `metrics` message about every second while the mini program runs; `false` stops them. It holds for versions loaded later too. `dev --perf` sends it after `hello` and before `load` |
 
 `launch` holds what the details pane offers for installed content; every field can be left out:
 
@@ -68,7 +68,7 @@ The fields of `metrics`:
 | `jsMemory` | Bytes, the JavaScript heap's capacity plus the memory objects hold outside it (`ArrayBuffer`s and so on). It comes from a private interface of JavaScriptCore, so the Mac App Store version of the app doesn't measure it and leaves it out; measured about every 5 seconds, this is the latest value |
 | `canvasMemory` | Bytes, the video memory of the canvases: drawing buffers (multisampling, depth and stencil included), the textures, buffers and renderbuffers WebGL content creates, and images drawn, added up by size and format, plus the IOSurfaces they're shown with. Measured about every 5 seconds |
 
-Numbers have one decimal place, except `slowFrames`, `targetFps` and the two memory fields. `metrics` from older versions of the app have no memory fields.
+Numbers have one decimal place, except `slowFrames`, `targetFps` and the two memory fields.
 
 ## Disconnecting
 

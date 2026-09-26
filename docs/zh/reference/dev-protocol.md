@@ -27,7 +27,7 @@ WebSocket 上都是 UTF-8 的 JSON 文本消息，用 `type` 区分。
 | --- | --- | --- |
 | `load` | `revision`、`url`、`launch` | 下载 `url`（`/package.zip?token=…`）并运行，替换正在运行的上一个版本。`revision` 从 1 递增，应用丢弃过期的下载和启动 |
 | `stop` | | 停止小程序，连接保持 |
-| `metrics` | `enabled` | 为 `true` 时应用在小程序运行期间约每秒发一条 `metrics`，`false` 停止；对之后重新载入的版本同样有效。`dev --perf` 在收到 `hello` 后、`load` 之前发送。旧版应用忽略它 |
+| `metrics` | `enabled` | 为 `true` 时应用在小程序运行期间约每秒发一条 `metrics`，`false` 停止；对之后重新载入的版本同样有效。`dev --perf` 在收到 `hello` 后、`load` 之前发送 |
 
 `launch` 对应安装后的内容在详情栏里的选项，都可以省略：
 
@@ -68,7 +68,7 @@ WebSocket 上都是 UTF-8 的 JSON 文本消息，用 `type` 区分。
 | `jsMemory` | 字节，JS 堆的容量加上对象在堆外占用的内存（ArrayBuffer 等）。来自 JavaScriptCore 的私有接口，Mac App Store 版应用不测、没有这个字段；约 5 秒测一次，是最近的值 |
 | `canvasMemory` | 字节，画布占用的显存：绘图缓冲（含多重采样、深度和模板）、WebGL 内容创建的纹理、缓冲和 renderbuffer、画过的图片，按尺寸和格式累加，加上显示用的 IOSurface。约 5 秒测一次 |
 
-除 `slowFrames`、`targetFps` 和两项内存外，数字保留一位小数。旧版应用发来的 `metrics` 没有两项内存。
+除 `slowFrames`、`targetFps` 和两项内存外，数字保留一位小数。
 
 ## 断开
 

@@ -8,7 +8,7 @@ desktopengine create wallpaper ~/Projects/waves
 
 `launchOptions.display` 就是要画的显示器，用 `type: 'desktop'` 的窗口铺满它的 `frame`；铺满屏幕的画布用 `getContext('2d', { alpha: false })`，不透明的图层合成更省电。
 
-壁纸一直在按帧绘制，在全屏应用、使用电池等情况下会被应用暂停，见[暂停规则](./performance#暂停规则)。缓慢变化的画面不需要满帧，设 `DesktopEngine.preferredFramesPerSecond = 30`（API 9），线程的唤醒次数减半。
+壁纸一直在按帧绘制，在全屏应用、使用电池等情况下会被应用暂停，见[暂停规则](./performance#暂停规则)。缓慢变化的画面不需要满帧，设 `DesktopEngine.preferredFramesPerSecond = 30`，线程的唤醒次数减半。
 
 ## 用 WebGL 或渲染引擎绘制
 
@@ -34,7 +34,7 @@ three.js（r163 起只支持 WebGL 2）要通过项目里的 `src/three/` 使用
 PixiJS 8 要通过项目里的 `src/pixi/` 使用：`import * as PIXI from './pixi'`，不要直接 `import 'pixi.js'`。它先补上 PixiJS 加载时就会读取的几个浏览器全局对象（`navigator`、`document` 等，只是替身，不是 DOM 实现），再把画布、图片、文件读取接到 DesktopEngine（`DOMAdapter`），并且不加载依赖 DOM 的扩展（无障碍、DOM 容器）。
 
 - `HTMLText` 这类依赖 DOM 的功能不能用，文字用 `Text` 或 `BitmapText`。
-- `Assets.load('assets/a.png')` 这类路径以包的根目录为起点；加载 `https://` 地址的资源要声明 `network` 权限（见[网络](./network)），所以这个模板需要 API 4。
+- `Assets.load('assets/a.png')` 这类路径以包的根目录为起点；加载 `https://` 地址的资源要声明 `network` 权限（见[网络](./network)）。
 - 需要 `eventMode` / `on('pointerdown')` 这类交互时调用 `PIXI.bindPointerEvents(app)`，把画布的鼠标事件交给 PixiJS；桌面窗口收不到的事件见[窗口](./windows)。
 
 ## 屏幕保护程序

@@ -1,6 +1,6 @@
 # 音频
 
-运行时提供 `Audio` 元素（`HTMLAudioElement`）和 Web Audio（API 5）。发出声音需要在清单里声明 [`audio` 权限](/zh/reference/manifest#权限-permissions)：没有它 `AudioContext` 一直是 `suspended`，`resume()` 和 `audio.play()` 以 `NotAllowedError` 失败，视频也会被静音；`OfflineAudioContext` 和 `decodeAudioData` 不需要权限。
+运行时提供 `Audio` 元素（`HTMLAudioElement`）和 Web Audio。发出声音需要在清单里声明 [`audio` 权限](/zh/reference/manifest#权限-permissions)：没有它 `AudioContext` 一直是 `suspended`，`resume()` 和 `audio.play()` 以 `NotAllowedError` 失败，视频也会被静音；`OfflineAudioContext` 和 `decodeAudioData` 不需要权限。
 
 ```js
 // 播放包里的音效
@@ -33,7 +33,7 @@ requestAnimationFrame(function draw() {
 
 ## 说明
 
-- 为浏览器写的音频库大多会读取 `window`、`document` 等全局对象，运行时没有这些（没有 DOM）。three.js 的音频在模板的 `src/three/` 里已经可以直接用；howler.js 需要项目自己补上 `window`、`document`、`navigator`、`location` 的替身；它的 Web Audio 模式用 `XMLHttpRequest` 加载声音，API 6 起才有，之前只能用 `html5: true`。
+- 为浏览器写的音频库大多会读取 `window`、`document` 等全局对象，运行时没有这些（没有 DOM）。three.js 的音频在模板的 `src/three/` 里已经可以直接用；howler.js 需要项目自己补上 `window`、`document`、`navigator`、`location` 的替身；它的 Web Audio 模式用 `XMLHttpRequest` 加载声音，运行时也有。
 - `AudioContext` 创建后在允许时直接是 `running`，桌面上没有需要等待的用户手势。应用暂停内容时（见[暂停规则](./performance#暂停规则)）它变成 `interrupted`，时间停止，恢复后回到 `running`；播放中的 `Audio` 元素同样暂停并在之后继续。只是停止绘制或静音时声音不受影响。
 - `Audio` 的 `src` 可以是包内文件（与 `require` 相同的路径规则）和 `defile://` 地址，声明了 `network` 权限时也可以是 http(s) 地址；不支持 `data:` 地址。能播放和解码的格式就是 macOS 支持的：MP3、AAC / M4A、WAV、AIFF、CAF、FLAC、ALAC 等，较新的系统还支持 Ogg；用 `canPlayType()` 判断。
 - 声音从系统当前的输出设备播放，跟随系统切换设备；`AudioContext` 的默认采样率是设备的采样率。

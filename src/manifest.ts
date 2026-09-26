@@ -14,7 +14,7 @@ export const PARAMETER_TYPES = ['toggle', 'number', 'text', 'color', 'choice'] a
 export const MANIFEST_FILE = 'manifest.json';
 export const ENTRY_FILE = 'index.js';
 /** `DesktopEngine.apiVersion` these types and rules describe. */
-export const API_VERSION = 9;
+export const API_VERSION = 1;
 
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9.-]*$/;
 /** BCP 47 language tag, e.g. en, zh-Hans, pt-BR */
@@ -179,7 +179,7 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
     if (typeof apiVersion !== 'number' || !Number.isInteger(apiVersion) || apiVersion < 1) {
       errors.push(`"apiVersion" must be a positive integer (it is ${JSON.stringify(apiVersion)})`);
     } else if (apiVersion > API_VERSION) {
-      warnings.push(`"apiVersion" ${apiVersion} is newer than ${API_VERSION}, the one this SDK supports: update the SDK. Older versions of the app refuse to import the package`);
+      warnings.push(`"apiVersion" ${apiVersion} is newer than ${API_VERSION}, the one this SDK supports: update the SDK. The app refuses to import a package that needs a newer API than it has`);
     }
   }
 

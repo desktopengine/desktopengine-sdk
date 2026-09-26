@@ -43,7 +43,7 @@ function fitCanvas(ctx: DesktopEngine.CanvasRenderingContext2D): void {
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
 }
 fitCanvas(context);
-// apiVersion 8; earlier versions never call it
+// Dragged onto a display with another scale
 win.ondevicepixelratiochange = () => {
   fitCanvas(context);
   draw(context);
@@ -53,7 +53,7 @@ const palettes = {
   dark: { background: '#1C1C1E', track: 'rgba(255,255,255,0.12)', label: 'rgba(255,255,255,0.85)', secondary: 'rgba(255,255,255,0.55)' },
   light: { background: '#FFFFFF', track: 'rgba(0,0,0,0.08)', label: 'rgba(0,0,0,0.85)', secondary: 'rgba(0,0,0,0.5)' },
 };
-// "auto" follows the system appearance (DesktopEngine.system.appearance, apiVersion 2) and redraws when it changes
+// "auto" follows the system appearance (DesktopEngine.system.appearance) and redraws when it changes
 const followsSystem = parameters.appearance !== 'light' && parameters.appearance !== 'dark';
 let colors = palettes[followsSystem ? DesktopEngine.system.appearance : parameters.appearance === 'light' ? 'light' : 'dark'];
 if (followsSystem) {

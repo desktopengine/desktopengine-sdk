@@ -3,7 +3,7 @@
   "name": "__NAME__",
   "type": "wallpaper",
   "version": "1.0.0",
-  "apiVersion": 4,
+  "apiVersion": 1,
   "author": "",
   "description": { "en": "Drawn with PixiJS: soft lights drifting in layers, with a parallax that follows the mouse.", "zh-Hans": "用 PixiJS 绘制：分层漂浮的柔光，随鼠标产生视差。" },
   "parameters": [

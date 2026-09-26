@@ -12,7 +12,7 @@
 - 和浏览器不同，WebGL 2 上下文不是 `instanceof WebGLRenderingContext`，要判断版本请用 `instanceof WebGL2RenderingContext`。
 - Canvas 用 Metal 渲染，显卡不支持 Metal 的老 Mac 上所有 `getContext` 都返回 null、`CanvasImage` 加载失败，要检查返回值。
 - 画布默认带透明通道（与 Web 一致），小组件和桌面伙伴的窗口是透明的，没画到的地方能看到桌面。
-- 画布的绘图缓冲区（`width` × `height`）会拉伸到样式的大小，默认平滑缩放。像素画可以用小的缓冲区、按 1:1 绘制，再设样式 `imageRendering: 'pixelated'`（API 7）放大成清晰的方块（内置的像素猫就是这样画的）；`'crisp-edges'` 缩小时也不做平滑。
+- 画布的绘图缓冲区（`width` × `height`）会拉伸到样式的大小，默认平滑缩放。像素画可以用小的缓冲区、按 1:1 绘制，再设样式 `imageRendering: 'pixelated'` 放大成清晰的方块（内置的像素猫就是这样画的）；`'crisp-edges'` 缩小时也不做平滑。
 - 画布跟随显示器的缩放比例，见[显示器和缩放](./windows#显示器和缩放)。
 - WebGL 的缓冲、纹理、着色器程序在调用 `gl.deleteXxx()` 或画布销毁时释放；JS 里不再引用它们不会删除它们（它们可能还绑定着）。不停创建资源的程序要自己 `delete`。
 

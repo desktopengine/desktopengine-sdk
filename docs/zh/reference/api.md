@@ -10,7 +10,7 @@
 | --- | --- |
 | [`launchOptions`](/api/interfaces/DesktopEngine.LaunchOptions) | 启动参数：显示器、位置、选项取值、语言、权限，见[启动参数](/zh/guide/launch-options) |
 | `apiVersion` | 运行时的 API 版本，见 [API 版本](/zh/reference/manifest#api-版本) |
-| `preferredFramesPerSecond` | 内容想要的帧率（API 9），见[帧率](/zh/guide/performance#帧率) |
+| `preferredFramesPerSecond` | 内容想要的帧率，见[帧率](/zh/guide/performance#帧率) |
 | [`Window`](/api/interfaces/DesktopEngine.Window) | 原生窗口，内容的根，见[窗口](/zh/guide/windows) |
 | [`Canvas`](/api/interfaces/DesktopEngine.Canvas) | 画布组件：[2D](/api/interfaces/DesktopEngine.CanvasRenderingContext2D)、[WebGL](/api/interfaces/DesktopEngine.WebGLRenderingContext) 和 [WebGL 2](/api/interfaces/DesktopEngine.WebGL2RenderingContext) |
 | [`CanvasImage`](/api/interfaces/DesktopEngine.CanvasImage) | 画到画布上的图片 |
@@ -27,8 +27,8 @@
 
 - 计时和帧：`setTimeout`、`setInterval`、`requestAnimationFrame`、[`performance`](/api/interfaces/DesktopEngine.Performance)、[`console`](/api/interfaces/DesktopEngine.Console)
 - 事件：[`Event`](/api/interfaces/Event)、[`EventTarget`](/api/interfaces/EventTarget)、[`DOMException`](/api/interfaces/DOMException)
-- 网络（API 4）：[`fetch`](/api/functions/fetch)、[`Request`](/api/interfaces/Request)、[`Response`](/api/interfaces/Response)、[`Headers`](/api/interfaces/Headers)、[`AbortController`](/api/interfaces/AbortController)、[`WebSocket`](/api/interfaces/WebSocket)、[`XMLHttpRequest`](/api/interfaces/XMLHttpRequest)（API 6），见[网络](/zh/guide/network)
-- 数据（API 6）：[`Blob`](/api/interfaces/Blob)、[`File`](/api/interfaces/File)、[`FormData`](/api/interfaces/FormData)、[`URL`](/api/interfaces/URL)、[`URLSearchParams`](/api/interfaces/URLSearchParams)、[`TextEncoder`](/api/interfaces/TextEncoder)、[`TextDecoder`](/api/interfaces/TextDecoder)、[`ReadableStream`](/api/interfaces/ReadableStream)，见[数据](/zh/guide/data)
-- 音频（API 5）：[`Audio`](/api/interfaces/HTMLAudioElement)、[`AudioContext`](/api/interfaces/AudioContext) 和各种音频节点，见[音频](/zh/guide/audio)
+- 网络：[`fetch`](/api/functions/fetch)、[`Request`](/api/interfaces/Request)、[`Response`](/api/interfaces/Response)、[`Headers`](/api/interfaces/Headers)、[`AbortController`](/api/interfaces/AbortController)、[`WebSocket`](/api/interfaces/WebSocket)、[`XMLHttpRequest`](/api/interfaces/XMLHttpRequest)，见[网络](/zh/guide/network)
+- 数据：[`Blob`](/api/interfaces/Blob)、[`File`](/api/interfaces/File)、[`FormData`](/api/interfaces/FormData)、[`URL`](/api/interfaces/URL)、[`URLSearchParams`](/api/interfaces/URLSearchParams)、[`TextEncoder`](/api/interfaces/TextEncoder)、[`TextDecoder`](/api/interfaces/TextDecoder)、[`ReadableStream`](/api/interfaces/ReadableStream)，见[数据](/zh/guide/data)
+- 音频：[`Audio`](/api/interfaces/HTMLAudioElement)、[`AudioContext`](/api/interfaces/AudioContext) 和各种音频节点，见[音频](/zh/guide/audio)
 
 完整的列表见[全部声明](/api/globals)。

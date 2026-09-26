@@ -64,8 +64,8 @@ export interface Metrics {
   wakeUps: number;
   /** bytes of the JavaScript heap, not measured by Mac App Store builds of the app */
   jsMemory?: number;
-  /** bytes the canvases hold to draw; missing from older apps */
-  canvasMemory?: number;
+  /** bytes the canvases hold to draw */
+  canvasMemory: number;
 }
 
 /** Messages the app sends. */

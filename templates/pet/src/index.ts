@@ -149,8 +149,7 @@ function frame(time: number): void {
   requestAnimationFrame(frame);
 }
 
-// Walked or dragged onto a display with another scale (apiVersion 8; earlier versions never call it): the next
-// frame draws again
+// Walked or dragged onto a display with another scale: the next frame draws again
 win.ondevicepixelratiochange = () => {
   fitCanvas();
   drawn = '';

@@ -8,7 +8,7 @@ desktopengine create wallpaper ~/Projects/waves
 
 `launchOptions.display` is the display to draw on: fill its `frame` with a window of `type: 'desktop'`. For a canvas that fills the screen use `getContext('2d', { alpha: false })`: opaque layers composite with less power.
 
-A wallpaper draws every frame, and the app pauses it when a full screen app covers it, on battery and so on, see [Pausing](./performance#pausing). Slow scenery doesn't need every frame: `DesktopEngine.preferredFramesPerSecond = 30` (API 9) halves the thread's wake-ups.
+A wallpaper draws every frame, and the app pauses it when a full screen app covers it, on battery and so on, see [Pausing](./performance#pausing). Slow scenery doesn't need every frame: `DesktopEngine.preferredFramesPerSecond = 30` halves the thread's wake-ups.
 
 ## Drawing with WebGL or a rendering library
 
@@ -34,7 +34,7 @@ Drawing needs nothing else: pass `DesktopEngine.Canvas` as the `canvas` of `WebG
 Use PixiJS 8 through the project's `src/pixi/`: `import * as PIXI from './pixi'`, not `import 'pixi.js'` directly. It first provides the browser globals PixiJS reads when it loads (`navigator`, `document` and a few more; stand-ins, not a DOM), connects canvases, images and file loading to DesktopEngine (`DOMAdapter`), and doesn't load the extensions that need the DOM (accessibility, DOM containers).
 
 - What needs the DOM, such as `HTMLText`, doesn't work: draw text with `Text` or `BitmapText`.
-- Paths such as `Assets.load('assets/a.png')` start at the package root. Loading `https://` assets needs the `network` permission (see [Network](./network)), so this template needs API 4.
+- Paths such as `Assets.load('assets/a.png')` start at the package root. Loading `https://` assets needs the `network` permission (see [Network](./network)).
 - For interaction with `eventMode` / `on('pointerdown')`, call `PIXI.bindPointerEvents(app)` to give the canvas's mouse events to PixiJS; see [Windows](./windows) for the events desktop windows don't get.
 
 ## Screen saver

@@ -10,7 +10,7 @@ This reference is generated from the SDK's type declarations, `types/desktop-eng
 | --- | --- |
 | [`launchOptions`](/api/interfaces/DesktopEngine.LaunchOptions) | Launch options: the display, position, option values, language and permissions, see [Launch Options](/guide/launch-options) |
 | `apiVersion` | The runtime's API version, see [API versions](/reference/manifest#api-versions) |
-| `preferredFramesPerSecond` | The frame rate the content wants (API 9), see [Frame rate](/guide/performance#frame-rate) |
+| `preferredFramesPerSecond` | The frame rate the content wants, see [Frame rate](/guide/performance#frame-rate) |
 | [`Window`](/api/interfaces/DesktopEngine.Window) | A native window, the root of the content, see [Windows](/guide/windows) |
 | [`Canvas`](/api/interfaces/DesktopEngine.Canvas) | A canvas component: [2D](/api/interfaces/DesktopEngine.CanvasRenderingContext2D), [WebGL](/api/interfaces/DesktopEngine.WebGLRenderingContext) and [WebGL 2](/api/interfaces/DesktopEngine.WebGL2RenderingContext) |
 | [`CanvasImage`](/api/interfaces/DesktopEngine.CanvasImage) | An image to draw on canvases |
@@ -27,8 +27,8 @@ The runtime also has these globals, which behave as in browsers; the differences
 
 - Timers and frames: `setTimeout`, `setInterval`, `requestAnimationFrame`, [`performance`](/api/interfaces/DesktopEngine.Performance), [`console`](/api/interfaces/DesktopEngine.Console)
 - Events: [`Event`](/api/interfaces/Event), [`EventTarget`](/api/interfaces/EventTarget), [`DOMException`](/api/interfaces/DOMException)
-- Network (API 4): [`fetch`](/api/functions/fetch), [`Request`](/api/interfaces/Request), [`Response`](/api/interfaces/Response), [`Headers`](/api/interfaces/Headers), [`AbortController`](/api/interfaces/AbortController), [`WebSocket`](/api/interfaces/WebSocket), [`XMLHttpRequest`](/api/interfaces/XMLHttpRequest) (API 6), see [Network](/guide/network)
-- Data (API 6): [`Blob`](/api/interfaces/Blob), [`File`](/api/interfaces/File), [`FormData`](/api/interfaces/FormData), [`URL`](/api/interfaces/URL), [`URLSearchParams`](/api/interfaces/URLSearchParams), [`TextEncoder`](/api/interfaces/TextEncoder), [`TextDecoder`](/api/interfaces/TextDecoder), [`ReadableStream`](/api/interfaces/ReadableStream), see [Data](/guide/data)
-- Audio (API 5): [`Audio`](/api/interfaces/HTMLAudioElement), [`AudioContext`](/api/interfaces/AudioContext) and the audio nodes, see [Audio](/guide/audio)
+- Network: [`fetch`](/api/functions/fetch), [`Request`](/api/interfaces/Request), [`Response`](/api/interfaces/Response), [`Headers`](/api/interfaces/Headers), [`AbortController`](/api/interfaces/AbortController), [`WebSocket`](/api/interfaces/WebSocket), [`XMLHttpRequest`](/api/interfaces/XMLHttpRequest), see [Network](/guide/network)
+- Data: [`Blob`](/api/interfaces/Blob), [`File`](/api/interfaces/File), [`FormData`](/api/interfaces/FormData), [`URL`](/api/interfaces/URL), [`URLSearchParams`](/api/interfaces/URLSearchParams), [`TextEncoder`](/api/interfaces/TextEncoder), [`TextDecoder`](/api/interfaces/TextDecoder), [`ReadableStream`](/api/interfaces/ReadableStream), see [Data](/guide/data)
+- Audio: [`Audio`](/api/interfaces/HTMLAudioElement), [`AudioContext`](/api/interfaces/AudioContext) and the audio nodes, see [Audio](/guide/audio)
 
 See [all declarations](/api/globals) for the full list.
