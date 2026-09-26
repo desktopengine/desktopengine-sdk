@@ -3434,7 +3434,7 @@ declare namespace DesktopEngine {
     (moduleId: string): any;
   }
 
-  /** A CommonJS module object in the kernel */
+  /** A CommonJS module object */
   interface Module {
     /** Module ID (absolute path without .js) */
     id: string;
@@ -3476,7 +3476,7 @@ declare namespace DesktopEngine {
     base64Decode(base64: string): ArrayBuffer | null;
   }
 
-  /** The global performance (a singleton, already created by the kernel) */
+  /** The global performance (a singleton, already created by the engine) */
   interface Performance {
     /**
      * Milliseconds since timeOrigin, with sub-millisecond precision, on a monotonic clock that stops while the Mac sleeps.
@@ -3487,7 +3487,7 @@ declare namespace DesktopEngine {
     readonly timeOrigin: number;
   }
 
-  /** Animation frame manager (a singleton, already created by the kernel, which exports requestAnimationFrame) */
+  /** Animation frame manager (a singleton, already created by the engine, which exports requestAnimationFrame) */
   interface AnimationFrameManager {
     /** See the global requestAnimationFrame */
     requestAnimationFrame(callback: FrameRequestCallback): number;
@@ -3561,7 +3561,7 @@ declare namespace DesktopEngine {
     preferredFramesPerSecond: number;
   }
 
-  /** Kernel scope DesktopEngineCore (each class name can be obtained only once; Utils is already taken by the kernel) */
+  /** Core scope DesktopEngineCore (each class name can be obtained only once; Utils is already taken by the engine) */
   interface CoreScope {
     /** Utils singleton constructor (internal) */
     readonly Utils: SingletonConstructor<Utils> | undefined;
@@ -3760,7 +3760,7 @@ declare namespace DesktopEngine {
 /** The main entry object for mini programs: Utils methods plus each module's constructors and instances */
 declare var DesktopEngine: DesktopEngine.DesktopEngineStatic;
 
-/** Kernel native class loading scope (internal) */
+/** Core native class loading scope (internal) */
 declare const DesktopEngineCore: DesktopEngine.CoreScope;
 
 /** Runtime native class loading scope (DesktopEngine.* is taken from here) */
@@ -5266,13 +5266,13 @@ declare var Audio: {
 
 /**
  * Copies the enumerable members of the objects (methods are bound to their original object) to target
- * @remarks A helper exposed by the kernel polyfill
+ * @remarks A helper exposed by the engine's core polyfill
  */
 declare function mixin(instances: object[], target: object): void;
 
 /**
  * Wraps the methods on an object's prototype to return Promises (injecting success/fail into the first argument object)
- * @remarks A helper exposed by the kernel polyfill; this inside then is the global object
+ * @remarks A helper exposed by the engine's core polyfill; this inside then is the global object
  */
 declare function promisify(obj: object): void;
 
