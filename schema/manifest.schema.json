@@ -41,6 +41,17 @@
       },
       "additionalProperties": false
     },
+    "wallpaper": {
+      "description": "For wallpapers only",
+      "type": "object",
+      "properties": {
+        "span": {
+          "description": "It can span all displays: users can choose All Displays (Span), and one instance gets every display in DesktopEngine.launchOptions.displays and makes a window on each",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
     "permissions": {
       "description": "The permissions it needs, which the app lists in the details pane and asks for the first time it runs",
       "type": "array",

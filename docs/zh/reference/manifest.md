@@ -29,6 +29,7 @@
 | `description` | | 一两句话的介绍，可以翻译 |
 | `icon`、`preview` | | 包内相对路径的图标和预览图 |
 | `widget.sizes` | | 小组件支持的尺寸：`small` 164×164、`medium` 344×164、`large` 344×344，缺省为 `small` |
+| `wallpaper.span` | | 为 `true` 时壁纸可以跨所有显示器，见[跨显示器](/zh/guide/wallpaper#跨显示器) |
 | `permissions` | | 需要的权限，见[权限](#权限-permissions) |
 | `parameters` | | 用户可调的选项，见[选项](#选项-parameters) |
 

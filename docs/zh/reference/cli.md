@@ -36,6 +36,7 @@ desktopengine dev [folder] [options]
 | `--size small\|medium\|large` | 小组件的尺寸，不在 `widget.sizes` 里时用第一个 |
 | `--level desktop\|floating` | 贴在桌面上，或浮于所有窗口之上；缺省时桌面伙伴浮在窗口之上，其他贴在桌面上 |
 | `--display <number>` | 在第几块显示器上运行，从 1 开始，缺省是主显示器 |
+| `--span` | 让壁纸跨所有显示器运行，`manifest.json` 要声明 [`wallpaper.span`](/zh/guide/wallpaper#跨显示器) |
 | `--param <key=value>` | 一个选项的取值，可以重复；没有给出的用清单里的 `default` |
 | `--position <x,y>` | 窗口的位置 |
 | `--port <port>` | 监听的端口，缺省随机 |

@@ -66,8 +66,14 @@ declare namespace DesktopEngine {
     width?: number;
     /** Widget window height (points) */
     height?: number;
-    /** The display that shows the content */
+    /** The display that shows the content; absent when a wallpaper spans all displays (`displays`) */
     display?: LaunchDisplay;
+    /**
+     * Every display, the main one first, when the user runs a wallpaper across all of them; only for wallpapers
+     * whose manifest.json declares `"wallpaper": { "span": true }`. Make a desktop window on each and lay the
+     * drawing out in their shared coordinates, so it continues from one display to the next
+     */
+    displays?: LaunchDisplay[];
     /** Top-left position of the window: where the user last dragged it, or a default computed by the app */
     position?: { x: number; y: number };
     /** Values of the parameters in manifest.json (the user's value if set, otherwise the default) */

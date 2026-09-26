@@ -36,6 +36,7 @@ Runs the project in DesktopEngine, rebuilds and reloads it when files change, an
 | `--size small\|medium\|large` | The widget size; the first of `widget.sizes` when it isn't one of them |
 | `--level desktop\|floating` | On the desktop, or above all windows; by default pets float above windows and the rest are on the desktop |
 | `--display <number>` | The display to run on, starting at 1; the main display by default |
+| `--span` | A wallpaper across all displays, when `manifest.json` declares [`wallpaper.span`](/guide/wallpaper#spanning-all-displays) |
 | `--param <key=value>` | The value of an option, can be repeated; the others take the manifest's `default` |
 | `--position <x,y>` | The window position |
 | `--port <port>` | The port to listen on, random by default |

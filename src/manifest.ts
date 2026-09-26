@@ -61,6 +61,7 @@ export interface Manifest {
   icon?: string;
   preview?: string;
   widget?: { sizes: WidgetSize[] };
+  wallpaper?: { span?: boolean };
   permissions?: string[];
   parameters?: Parameter[];
 }
@@ -232,6 +233,18 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
     warnings.push('The widget declares no "widget.sizes", the app uses small');
   }
 
+  const { wallpaper } = manifest;
+  if (wallpaper !== undefined) {
+    if (!isPlainObject(wallpaper)) {
+      errors.push('"wallpaper" must be an object');
+    } else if (wallpaper.span !== undefined && typeof wallpaper.span !== 'boolean') {
+      errors.push('"wallpaper.span" must be true or false');
+    }
+    if (manifest.type !== 'wallpaper') {
+      warnings.push('Only wallpapers (type wallpaper) use "wallpaper"');
+    }
+  }
+
   const { permissions } = manifest;
   if (permissions !== undefined) {
     if (!Array.isArray(permissions)) {
@@ -259,7 +272,7 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
     }
   }
 
-  const known = new Set(['id', 'name', 'type', 'version', 'author', 'description', 'icon', 'preview', 'widget', 'permissions', 'parameters', 'apiVersion', '$schema']);
+  const known = new Set(['id', 'name', 'type', 'version', 'author', 'description', 'icon', 'preview', 'widget', 'wallpaper', 'permissions', 'parameters', 'apiVersion', '$schema']);
   Object.keys(manifest)
     .filter((key) => !known.has(key))
     .forEach((key) => warnings.push(`The app ignores the unknown field "${key}"`));

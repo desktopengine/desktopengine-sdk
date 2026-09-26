@@ -36,6 +36,7 @@ WebSocket 上都是 UTF-8 的 JSON 文本消息，用 `type` 区分。
 | `size` | `small`、`medium`、`large`，只对小组件有效，不在 `widget.sizes` 里时用第一个 |
 | `level` | `desktop`（贴在桌面上）或 `floating`（浮于所有窗口之上），缺省时桌面伙伴为 `floating`，其他为 `desktop` |
 | `display` | 从 1 开始的显示器序号，缺省为主显示器 |
+| `span` | 为 `true` 时壁纸跨所有显示器运行（`launchOptions.displays`），要求清单声明了 `wallpaper.span`；这时不看 `display` |
 | `parameters` | `{ key: 值 }`，没有给出的选项用 manifest 里的 `default` |
 | `position` | `{ x, y }`，缺省时沿用用户拖到的位置，再缺省时放在显示器右上角 |
 

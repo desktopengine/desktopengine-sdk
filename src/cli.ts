@@ -34,6 +34,7 @@ Usage:
         --size small|medium|large   widget size
         --level desktop|floating    on the desktop, or above all windows
         --display <number>          the display to run on, starting at 1
+        --span                      a wallpaper across all displays, when manifest.json declares wallpaper.span
         --param <key=value>         a parameter value, can be repeated
         --position <x,y>            window position
         --port <port>               random by default
@@ -62,7 +63,7 @@ export interface ParsedArgs {
 }
 
 /** Flags that never take a value: `dev --perf folder` keeps `folder` as the folder. */
-const SWITCHES = new Set(['help', 'h', 'version', 'v', 'minify', 'perf', 'open']);
+const SWITCHES = new Set(['help', 'h', 'version', 'v', 'minify', 'perf', 'open', 'span']);
 
 /** Flags given more than once become arrays, `--no-x` is `x: false`. */
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -240,6 +241,7 @@ async function dev(projectDir: string, flags: Record<string, FlagValue>): Promis
     size: stringFlag(flags.size),
     level: stringFlag(flags.level),
     display: stringFlag(flags.display),
+    span: flags.span === true,
     position: stringFlag(flags.position),
     params: stringFlags(flags.param),
   });

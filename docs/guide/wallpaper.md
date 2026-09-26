@@ -6,7 +6,7 @@ A `wallpaper` is one kind of wallpaper (the Dynamic kind), in the same grid as i
 desktopengine create wallpaper ~/Projects/waves
 ```
 
-`launchOptions.display` is the display to draw on: fill its `frame` with a window of `type: 'desktop'`. For a canvas that fills the screen use `getContext('2d', { alpha: false })`: opaque layers composite with less power.
+`launchOptions.display` is the display to draw on: fill its `frame` with a window of `type: 'desktop'` (a wallpaper can also [span all displays](#spanning-all-displays)). For a canvas that fills the screen use `getContext('2d', { alpha: false })`: opaque layers composite with less power.
 
 A wallpaper draws every frame, and the app pauses it when a full screen app covers it, on battery and so on, see [Pausing](./performance#pausing). Slow scenery doesn't need every frame: `DesktopEngine.preferredFramesPerSecond = 30` halves the thread's wake-ups.
 
@@ -36,6 +36,40 @@ Use PixiJS 8 through the project's `src/pixi/`: `import * as PIXI from './pixi'`
 - What needs the DOM, such as `HTMLText`, doesn't work: draw text with `Text` or `BitmapText`.
 - Paths such as `Assets.load('assets/a.png')` start at the package root. Loading `https://` assets needs the `network` permission (see [Network](./network)).
 - For interaction with `eventMode` / `on('pointerdown')`, call `PIXI.bindPointerEvents(app)` to give the canvas's mouse events to PixiJS; see [Windows](./windows) for the events desktop windows don't get.
+
+## Spanning all displays
+
+With more than one display, users can run a wallpaper across all of them, as one picture laid over the displays the way they're arranged in System Settings › Displays. A wallpaper that can do it says so in `manifest.json`:
+
+```json
+"wallpaper": { "span": true }
+```
+
+The details pane then offers All Displays (Span). One instance runs for every display: `launchOptions.display` is absent, and `launchOptions.displays` lists all of them, the main display first. Make a `desktop` window filling each one's `frame`, and lay the drawing out in the coordinates they share, so it continues from one display to the next:
+
+```ts
+const options = DesktopEngine.launchOptions;
+// on one display, or across all of them
+const displays = options.displays ?? (options.display ? [options.display] : []);
+// the whole picture: the box around the displays
+const left = Math.min(...displays.map((display) => display.frame.x));
+const top = Math.min(...displays.map((display) => display.frame.y));
+
+for (const display of displays) {
+  const { x, y, width, height } = display.frame;
+  const win = new DesktopEngine.Window({ type: 'desktop', style: { left: x, top: y, width, height } });
+  // this display shows the part of the picture that starts at (x - left, y - top)
+}
+```
+
+- Displays are placed by their points, as arranged. When they differ in height or are offset, parts of the box aren't on any display; displays of different pixel densities don't line up exactly, the app doesn't know their physical sizes.
+- The layout is up to the wallpaper. Scenery that stands on the ground can put the bottom edge of each column of displays (the ones stacked above and below each other) on the ground, as the built-in Horizon does: a display arranged a little higher than the one beside it then still shows its foreground, at the cost of a step at the seam, and stacked displays continue the scene upward.
+- Each window has its own `devicePixelRatio`: size each canvas by its own window's.
+- It's one instance, so time, random values and state are shared by all the displays. Mouse events come to the window under the pointer, in its coordinates: add the window's `left` and `top` for the shared ones.
+- All the windows draw in the same `requestAnimationFrame`, at the refresh rate of one display. A window covered by a full screen app gets `hide`: skip drawing it until `show`.
+- The app pauses the wallpaper only when every display pauses wallpapers (a full screen app on each of them, for example), and mutes it when any display mutes them.
+- When a display is connected, disconnected or arranged differently, the app restarts the wallpaper with the new `displays`.
+- `desktopengine dev --span` runs it across all displays while developing. As the screen saver it runs on each display on its own, with `display`.
 
 ## Screen saver
 

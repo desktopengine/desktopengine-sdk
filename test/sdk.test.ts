@@ -72,6 +72,18 @@ test('missing and wrong fields are reported', () => {
   assert.ok(errors.some((message) => message.includes('"version"')));
 });
 
+test('a wallpaper can declare that it spans all displays', () => {
+  const wallpaper = { ...minimal, type: 'wallpaper' };
+  const spanning = validateManifest({ ...wallpaper, wallpaper: { span: true } });
+  assert.deepEqual(spanning.errors, []);
+  assert.ok(!spanning.warnings.some((message) => message.includes('unknown')));
+  assert.ok(validateManifest({ ...wallpaper, wallpaper: { span: 'yes' } }).errors.some((message) => message.includes('wallpaper.span')));
+  assert.ok(validateManifest({ ...wallpaper, wallpaper: true }).errors.some((message) => message.includes('"wallpaper"')));
+  const widget = validateManifest({ ...minimal, type: 'widget', widget: { sizes: ['small'] }, wallpaper: { span: true } });
+  assert.deepEqual(widget.errors, []);
+  assert.ok(widget.warnings.some((message) => message.includes('Only wallpapers')));
+});
+
 test('parameters follow the rules of the app', () => {
   const manifest = {
     ...minimal,

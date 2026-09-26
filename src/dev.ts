@@ -37,6 +37,8 @@ export interface LaunchRequest {
   level?: WindowLevel;
   /** 1-based index into the displays */
   display?: number;
+  /** A wallpaper across all displays; the app only does it when the manifest declares `wallpaper.span` */
+  span?: boolean;
   position?: { x: number; y: number };
   parameters?: Record<string, Scalar>;
 }
@@ -83,6 +85,7 @@ export interface LaunchFlags {
   size?: string;
   level?: string;
   display?: string | number;
+  span?: boolean;
   position?: string;
   params?: string[];
 }
@@ -119,6 +122,17 @@ export function launchRequest(manifest: Manifest, options: LaunchFlags = {}): { 
       throw new Error('--display must be a display number, starting at 1');
     }
     launch.display = display;
+  }
+
+  if (options.span) {
+    if (manifest.type !== 'wallpaper') {
+      warnings.push('Only wallpapers use --span');
+    } else if (manifest.wallpaper?.span !== true) {
+      warnings.push('manifest.json doesn\'t declare "wallpaper": { "span": true }, the app runs it on one display');
+    } else if (launch.display !== undefined) {
+      warnings.push('--display is left out when the wallpaper spans all displays');
+    }
+    launch.span = true;
   }
 
   if (options.position !== undefined) {

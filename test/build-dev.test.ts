@@ -175,6 +175,15 @@ test('launchRequest turns flags into launch options', () => {
   });
   assert.ok(warnings.some((message) => message.includes('large')));
 
+  const wallpaper: Manifest = { id: 'com.example.span', name: 'Span', type: 'wallpaper', version: '1.0.0' };
+  const spanning = launchRequest({ ...wallpaper, wallpaper: { span: true } }, { span: true });
+  assert.deepEqual(spanning, { launch: { span: true }, warnings: [] });
+  const undeclared = launchRequest(wallpaper, { span: true, display: '2' }).warnings;
+  assert.ok(undeclared.some((message) => message.includes('wallpaper')));
+  assert.ok(!undeclared.some((message) => message.includes('--display')));
+  assert.ok(launchRequest({ ...wallpaper, wallpaper: { span: true } }, { span: true, display: '2' }).warnings.some((message) => message.includes('--display')));
+  assert.ok(launchRequest(widgetManifest, { span: true }).warnings.some((message) => message.includes('Only wallpapers')));
+
   assert.throws(() => launchRequest(widgetManifest, { size: 'huge' }), /--size/);
   assert.throws(() => launchRequest(widgetManifest, { display: '0' }), /--display/);
   assert.throws(() => launchRequest(widgetManifest, { params: ['missing=1'] }), /declares no parameter/);

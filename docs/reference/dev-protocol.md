@@ -36,6 +36,7 @@ All messages on the WebSocket are UTF-8 JSON text messages, told apart by `type`
 | `size` | `small`, `medium` or `large`, for widgets only; the first of `widget.sizes` when it isn't one of them |
 | `level` | `desktop` (on the desktop) or `floating` (above all windows); `floating` for desktop pets by default, `desktop` for the rest |
 | `display` | The number of the display, starting at 1; the main display by default |
+| `span` | `true` runs a wallpaper across all displays (`launchOptions.displays`), when its manifest declares `wallpaper.span`; `display` is then left out |
 | `parameters` | `{ key: value }`; options not given take the manifest's `default` |
 | `position` | `{ x, y }`; by default where the user dragged it, then the top right of the display |
 

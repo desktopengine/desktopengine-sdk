@@ -9,6 +9,7 @@ options.width;        // the widget's width in points, for the size picked
 options.height;
 options.position;     // { x, y }: where the user last dragged it, or the default position the app worked out
 options.display;      // { id, name, frame, visibleFrame, scale }
+options.displays;     // every display instead, when a wallpaper spans them, see Wallpapers
 options.parameters;   // the values of the options
 options.locale;       // the user's preferred language, e.g. 'en-US'
 options.permissions;  // the permissions the user allowed, e.g. ['audio', 'network']; denied ones aren't there
@@ -18,8 +19,8 @@ options.screenSaver;  // { preview } when running as the screen saver, absent ot
 Coordinates are the ones of `DesktopEngine.Window` styles: the origin at the top left of the main display, y pointing down. See [`LaunchOptions`](/api/interfaces/DesktopEngine.LaunchOptions) for all the fields.
 
 - `parameters` are the values of the [options](/reference/manifest#options-parameters); the content restarts when the user changes them.
-- See [Permissions](/reference/manifest#permissions) for `permissions` and [Screen saver](./wallpaper#screen-saver) for `screenSaver`.
-- While developing, `desktopengine dev --size / --level / --display / --param / --position` stand in for them, see [Command Line](/reference/cli#dev).
+- See [Permissions](/reference/manifest#permissions) for `permissions`, [Spanning all displays](./wallpaper#spanning-all-displays) for `displays` and [Screen saver](./wallpaper#screen-saver) for `screenSaver`.
+- While developing, `desktopengine dev --size / --level / --display / --span / --param / --position` stand in for them, see [Command Line](/reference/cli#dev).
 
 ## Talking to the app
 
