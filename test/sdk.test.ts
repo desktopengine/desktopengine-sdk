@@ -238,6 +238,39 @@ test('listPackageFiles leaves out hidden files, which can hold secrets', () => {
   assert.equal(affectsPackage('assets/a.png'), true);
 });
 
+test('listPackageFiles leaves out the build output and the types of the project, not folders so named deeper', () => {
+  const dir = tempDir();
+  fs.writeFileSync(path.join(dir, 'index.js'), '');
+  fs.writeFileSync(path.join(dir, 'tsconfig.json'), '{}');
+  for (const folder of ['dist', 'types', 'assets/dist', 'assets/types']) {
+    fs.mkdirSync(path.join(dir, folder), { recursive: true });
+    fs.writeFileSync(path.join(dir, folder, 'a.png'), '');
+  }
+  fs.writeFileSync(path.join(dir, 'assets', 'tsconfig.json'), '{}');
+  assert.deepEqual(listPackageFiles(dir), ['assets/dist/a.png', 'assets/tsconfig.json', 'assets/types/a.png', 'index.js']);
+  assert.equal(affectsPackage('types/desktop-engine.d.ts'), false);
+  assert.equal(affectsPackage('assets/types/a.png'), true);
+});
+
+test('listPackageFiles takes a symbolic link as what it links to', () => {
+  const dir = tempDir();
+  const shared = tempDir();
+  fs.writeFileSync(path.join(shared, 'font.ttf'), 'font');
+  fs.mkdirSync(path.join(shared, 'sounds'));
+  fs.writeFileSync(path.join(shared, 'sounds', 'ding.mp3'), 'ding');
+  fs.writeFileSync(path.join(dir, 'index.js'), '');
+  fs.symlinkSync(path.join(shared, 'font.ttf'), path.join(dir, 'font.ttf'));
+  fs.symlinkSync(path.join(shared, 'sounds'), path.join(dir, 'sounds'));
+  assert.deepEqual(listPackageFiles(dir), ['font.ttf', 'index.js', 'sounds/ding.mp3']);
+
+  fs.symlinkSync(path.join(shared, 'missing.png'), path.join(dir, 'missing.png'));
+  assert.throws(() => listPackageFiles(dir), /missing\.png is a symbolic link to a file that doesn't exist/);
+  fs.unlinkSync(path.join(dir, 'missing.png'));
+
+  fs.symlinkSync(dir, path.join(dir, 'sounds', 'loop'));
+  assert.throws(() => listPackageFiles(dir), /links to a folder that contains it/);
+});
+
 test('the CLI names a mini program by its English name', () => {
   assert.equal(englishText('时钟'), '时钟');
   assert.equal(englishText({ 'zh-Hans': '时钟', en: 'Clock' }), 'Clock');
