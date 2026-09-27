@@ -35,7 +35,7 @@ desktopengine dev ~/Projects/day-progress
 
 - 第一次连接时应用会询问是否允许（没有打开「开发」菜单时会先询问是否打开）。
 - 保存文件后自动重新构建、重新载入；窗口被拖到的位置在重新载入后保留。
-- `console.log` 等输出、未捕获的异常（带调用栈）和 `postMessage('host', …)` 都显示在终端里。
+- `console.log` 等输出、未捕获的异常（带调用栈）、没人处理的 Promise rejection 和 `postMessage('host', …)` 都显示在终端里。Mac App Store 版的 DesktopEngine 看不到没人 await 或 catch 的 async 函数的 rejection，例如脚本末尾的 `main();`：请写成 `main().catch(console.error);`。
 - 用参数模拟用户在详情栏里的选择，`DesktopEngine.launchOptions` 和安装后完全一致：
 
   ```bash

@@ -35,7 +35,7 @@ The type given to `create` is `wallpaper`, `widget` or `pet`. See [Projects and 
 
 - The first time it connects, the app asks whether to allow it (and first whether to turn on the Develop menu, if it's off).
 - Saving a file rebuilds and reloads it; the position its window was dragged to is kept across reloads.
-- `console.log` and the other console output, uncaught exceptions (with their stack) and `postMessage('host', …)` are printed in the terminal.
+- `console.log` and the other console output, uncaught exceptions (with their stack), rejected promises nobody handles and `postMessage('host', …)` are printed in the terminal. The Mac App Store version of DesktopEngine doesn't see the rejection of an async function's promise that nothing awaits or catches, e.g. `main();` at the end of the script: write `main().catch(console.error);`.
 - Options stand in for what the user picks in the details pane, and `DesktopEngine.launchOptions` is exactly what it is once installed:
 
   ```bash
