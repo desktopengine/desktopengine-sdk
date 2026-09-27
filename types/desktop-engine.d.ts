@@ -3883,7 +3883,8 @@ declare var EventTarget: {
 // XMLHttpRequest fires error and new WebSocket throws a "SecurityError" DOMException. Relative URLs ("data.json",
 // "./data.json", "/data.json") and defile:// read files like require, without the permission; a missing file is a
 // 404 response. data: and blob: URLs work too. Unlike browsers there's no CORS, and cookies are kept per mini program
-// in memory.
+// in memory. URLs are parsed like in browsers, percent-encoded and with "." and ".." resolved; a relative one stays
+// relative to the package's root, so the url of new Request("./my data.json") is "my%20data.json".
 // -----------------------------------------------------------------------------
 
 type HeadersInit = [string, string][] | Record<string, string> | Headers;
