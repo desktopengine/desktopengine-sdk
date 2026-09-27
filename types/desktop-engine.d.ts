@@ -546,7 +546,7 @@ declare namespace DesktopEngine {
     readonly height: number;
     /** Array of child components (each read returns a new array) */
     readonly children: AnyComponent[];
-    /** Adds a child component; omit `index` or pass -1 to append at the end; a Window can't be a child */
+    /** Adds a child component at `index` (0 to the number of children); omit it or pass -1 to append at the end. Throws a RangeError for other indexes; a Window can't be a child */
     appendChild(child: AnyComponent, index?: number): void;
     /** Removes a child component; throws if it isn't a child of this component */
     removeChild(child: AnyComponent): void;
