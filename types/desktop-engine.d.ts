@@ -135,10 +135,17 @@ declare namespace DesktopEngine {
   /** A color: `#RGB`/`#RGBA`/`#RRGGBB`/`#RRGGBBAA`, `rgb()`/`rgba()`, a color name, or a 0xRRGGBB number */
   type StyleColor = string | number;
 
-  /** Positioning type */
+  /**
+   * Positioning type: `relative` offsets the view by left/top/right/bottom and positions absolute descendants;
+   * `static` ignores the offsets and absolute descendants skip it for the nearest positioned ancestor
+   */
   type PositionType = 'relative' | 'absolute' | 'static';
-  /** Display type */
-  type Display = 'flex' | 'none';
+  /**
+   * Display type: `none` hides the view; `contents` lays its children out as its parent's, without a box of its own:
+   * no background, opacity or clipping, and no click, mouseenter, mouseleave or mousemove of its own (listen on the
+   * children). Components that draw their own content (Canvas, Image, Video) are hidden by `contents`, as on the web
+   */
+  type Display = 'flex' | 'none' | 'contents';
   /** Overflow behavior; clips subviews when not visible */
   type Overflow = 'visible' | 'hidden' | 'scroll';
   /** Layout direction */
@@ -147,10 +154,14 @@ declare namespace DesktopEngine {
   type FlexDirection = 'column' | 'column-reverse' | 'row' | 'row-reverse';
   /** Main axis alignment */
   type Justify = 'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around' | 'space-evenly';
-  /** Cross axis alignment */
-  type Align = 'auto' | 'flex-start' | 'center' | 'flex-end' | 'stretch' | 'baseline' | 'space-between' | 'space-around';
+  /** Cross axis alignment of items */
+  type Align = 'auto' | 'flex-start' | 'center' | 'flex-end' | 'stretch' | 'baseline';
+  /** Cross axis alignment of the lines of a wrapping container */
+  type AlignContent = 'flex-start' | 'center' | 'flex-end' | 'stretch' | 'space-between' | 'space-around' | 'space-evenly';
   /** Wrapping behavior (note: `no-wrap`, not `nowrap`) */
   type FlexWrap = 'no-wrap' | 'wrap' | 'wrap-reverse';
+  /** What width and height measure: `border-box` includes the padding, `content-box` doesn't */
+  type BoxSizing = 'border-box' | 'content-box';
   /**
    * How a canvas' drawing buffer is scaled to its size (CSS image-rendering): `auto` smooths; `pixelated` keeps pixels
    * sharp when scaling up, for pixel art drawn 1:1 in a small buffer; `crisp-edges` keeps them sharp scaling down too
@@ -161,7 +172,7 @@ declare namespace DesktopEngine {
   interface StyleProperties {
     /** Positioning type; defaults to relative */
     position?: PositionType;
-    /** Display type; defaults to flex; none hides the view */
+    /** Display type; defaults to flex; none hides the view, contents gives its children to its parent's layout */
     display?: Display;
     /** Overflow behavior; defaults to hidden */
     overflow?: Overflow;
@@ -172,13 +183,15 @@ declare namespace DesktopEngine {
     /** Main axis alignment; defaults to flex-start */
     justifyContent?: Justify;
     /** Cross axis alignment of lines; defaults to stretch */
-    alignContent?: Align;
+    alignContent?: AlignContent;
     /** Cross axis alignment of children; defaults to stretch */
     alignItems?: Align;
     /** Cross axis alignment of this item; defaults to auto */
     alignSelf?: Align;
     /** Wrapping behavior; defaults to no-wrap */
     flexWrap?: FlexWrap;
+    /** What width and height measure; defaults to border-box (unlike the web) */
+    boxSizing?: BoxSizing;
     /** flex shorthand (numbers only) */
     flex?: number | `${number}`;
     /** Grow factor */
@@ -237,6 +250,12 @@ declare namespace DesktopEngine {
     maxHeight?: StyleLength;
     /** Aspect ratio */
     aspectRatio?: number | `${number}`;
+    /** Space between rows and between columns of children; percentages are of the container's inner size */
+    gap?: StyleLength;
+    /** Space between rows (lines of a wrapping row, or items of a column); overrides gap */
+    rowGap?: StyleLength;
+    /** Space between columns (items of a row, or lines of a wrapping column); overrides gap */
+    columnGap?: StyleLength;
     /** Background color */
     backgroundColor?: StyleColor;
     /** Opacity from 0 to 1; defaults to 1 */
@@ -265,13 +284,15 @@ declare namespace DesktopEngine {
     /** Main axis alignment */
     justifyContent: Justify | null;
     /** Cross axis alignment of lines */
-    alignContent: Align | null;
+    alignContent: AlignContent | null;
     /** Cross axis alignment of children */
     alignItems: Align | null;
     /** Cross axis alignment of this item */
     alignSelf: Align | null;
     /** Wrapping behavior */
     flexWrap: FlexWrap | null;
+    /** What width and height measure */
+    boxSizing: BoxSizing | null;
     /** flex shorthand */
     flex: StyleValue;
     /** Grow factor */
@@ -322,6 +343,12 @@ declare namespace DesktopEngine {
     maxHeight: StyleValue;
     /** Aspect ratio */
     aspectRatio: StyleValue;
+    /** Space between rows and columns */
+    gap: StyleValue;
+    /** Space between rows */
+    rowGap: StyleValue;
+    /** Space between columns */
+    columnGap: StyleValue;
     /** Background color */
     backgroundColor: StyleValue;
     /** Opacity */
