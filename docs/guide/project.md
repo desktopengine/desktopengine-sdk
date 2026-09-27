@@ -31,7 +31,7 @@ dist/package/
 └── assets/…          all files but src/, types/, tsconfig.json and the npm files are copied as they are
 ```
 
-Hidden files and folders, whose names start with a dot (`.env`, `.npmrc`, `.git`…), never go into the package, wherever they are: anyone who installs it can read what's in it. Keep API keys and tokens out of the other files too.
+When `dev`, `build` and `pack` put the package together, hidden files and folders, whose names start with a dot (`.env`, `.npmrc`, `.git`…), never go into it, wherever they are: anyone who installs it can read what's in it. Keep API keys and tokens out of the other files too.
 
 `node_modules` folders and `.zip` files never go in either. `dist/`, `types/` and `tsconfig.json` are left out only at the root of the project: deeper, such as `assets/types/`, they're files of the package. A symbolic link goes in as the file or folder it links to, since the app doesn't install links; a link to nothing, or to a folder that contains it, stops the build.
 

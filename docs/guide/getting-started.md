@@ -58,7 +58,7 @@ desktopengine validate ~/Projects/day-progress
 desktopengine pack ~/Projects/day-progress
 ```
 
-`pack` writes `<id>-<version>.zip` into the project's `dist/`. To import the .zip or the whole project folder, click the import button in the toolbar of All Wallpapers, Widgets or Pets in DesktopEngine, or choose File › Import…. What you import shows up by type: wallpapers in the wallpaper grid (filter the toolbar by Dynamic), widgets and pets on their own pages. Importing the same `id` again replaces the old version, and instances running on the desktop restart with the new one.
+`pack` writes `<id>-<version>.zip` into the project's `dist/`. To import it, click the import button in the toolbar of All Wallpapers, Widgets or Pets in DesktopEngine, or choose File › Import…. Import what `pack` makes: the app takes a folder too, but as it is, so a project folder would bring its other files along (`.env`, `node_modules`…) and a symbolic link in it is refused. What you import shows up by type: wallpapers in the wallpaper grid (filter the toolbar by Dynamic), widgets and pets on their own pages. Importing the same `id` again replaces the old version, and instances running on the desktop restart with the new one.
 
 For now content is shared as a .zip or a folder: there is no signing, review or online library yet.
 
