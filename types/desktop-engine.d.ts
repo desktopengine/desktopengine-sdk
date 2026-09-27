@@ -3465,7 +3465,7 @@ declare namespace DesktopEngine {
   // CommonJS
   // ---------------------------------------------------------------------------
 
-  /** The require function: resolves relative to the current module's directory; `.js` may be omitted and `.json` is supported; logs a warning if the file isn't found */
+  /** The require function: resolves relative to the current module's directory; `.js` may be omitted and `.json` is supported; like Node, a missing file throws an Error with code "MODULE_NOT_FOUND" */
   interface RequireFunction {
     /** Loads a module and returns its exports */
     (moduleId: string): any;
