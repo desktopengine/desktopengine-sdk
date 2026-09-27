@@ -2,6 +2,22 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 1.3.0 (2026-09-27)
+
+### Features
+
+- **component:** add gap, boxSizing and display: contents styles
+
+### Bug Fixes
+
+- hidden files like .env never go into a package
+- only the project's own dist, types and tsconfig stay out of the package, and links go in as what they link to
+- the CLI takes -h and -v
+- create quotes the folder in the command it suggests
+- dev doesn't report a disconnection when the app connects again
+- pack keeps the zip in its folder whatever the version says
+- dev rebuilds after a TypeScript config change, and create's hint keeps a dash folder a folder
+
 ## 1.2.0 (2026-09-27)
 
 ### Features
