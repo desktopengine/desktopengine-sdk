@@ -33,6 +33,8 @@ dist/package/
 
 Hidden files and folders, whose names start with a dot (`.env`, `.npmrc`, `.git`…), never go into the package, wherever they are: anyone who installs it can read what's in it. Keep API keys and tokens out of the other files too.
 
+`node_modules` folders and `.zip` files never go in either. `dist/`, `types/` and `tsconfig.json` are left out only at the root of the project: deeper, such as `assets/types/`, they're files of the package. A symbolic link goes in as the file or folder it links to, since the app doesn't install links; a link to nothing, or to a folder that contains it, stops the build.
+
 - The target is the JavaScriptCore of macOS 12 (as in Safari 15): newer syntax is transformed.
 - Only packages that don't need the DOM or Node.js work. The runtime has `performance.now()`; if a library also uses globals such as `window` or `document`, provide them first. three.js and PixiJS work, see [Drawing with WebGL or a rendering library](./wallpaper#drawing-with-webgl-or-a-rendering-library).
 - esbuild only strips TypeScript, it doesn't check types: your editor or `npx tsc` finds type errors.

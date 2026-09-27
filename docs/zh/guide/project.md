@@ -33,6 +33,8 @@ dist/package/
 
 名字以点开头的隐藏文件和文件夹（`.env`、`.npmrc`、`.git`…）在哪一层都不会放进包里：安装了这个包的人都能看到包里的内容。API 密钥和令牌也不要写在其它文件里。
 
+`node_modules` 文件夹和 `.zip` 文件也不会放进包里。`dist/`、`types/` 和 `tsconfig.json` 只在项目根目录下才排除，更深的层级（比如 `assets/types/`）里同名的是包自己的文件。符号链接按它指向的文件或文件夹放进包里（应用不安装符号链接）；指向不存在的文件、或指向包含它自己的文件夹时，构建会停下来报错。
+
 - 目标是 macOS 12 的 JavaScriptCore（相当于 Safari 15），更新的语法会被转换。
 - 只能用不依赖 DOM 和 Node.js 的包；运行时有 `performance.now()`，库如果还用到 `window`、`document` 等全局对象，要先自己补上。three.js 和 PixiJS 可以直接用，见[用 WebGL 或渲染引擎绘制](./wallpaper#用-webgl-或渲染引擎绘制)。
 - esbuild 只转换 TypeScript、不检查类型，类型错误由编辑器或 `npx tsc` 发现。
