@@ -2,6 +2,12 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 1.2.0 (2026-09-27)
+
+### Features
+
+- **window:** windows keep their size when dropped on a screen edge, unless allowsTiling
+
 ## 1.1.0 (2026-09-26)
 
 ### Features
