@@ -381,7 +381,9 @@ export async function main(argv: string[]): Promise<number> {
       console.log(`Created a ${type} mini program${renderer ? ` drawn with ${renderer}` : ''} in ${targetDir}:`);
       files.forEach((file) => console.log(`  ${file}`));
       // the templates drawn with a rendering library depend on npm packages
-      const folder = shellQuote(displayPath(targetDir));
+      // `-w` would be taken for an option: `./-w`
+      const shown = displayPath(targetDir);
+      const folder = shellQuote(shown.startsWith('-') ? `./${shown}` : shown);
       const install = files.includes('package.json') ? `cd ${folder} && npm install && desktopengine dev .` : `desktopengine dev ${folder}`;
       console.log(`\nNext: ${install}`);
       return 0;

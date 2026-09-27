@@ -263,6 +263,8 @@ test('listPackageFiles leaves out the build output and the types of the project,
   assert.deepEqual(listPackageFiles(dir), ['assets/dist/a.png', 'assets/tsconfig.json', 'assets/types/a.png', 'index.js']);
   assert.equal(affectsPackage('types/desktop-engine.d.ts'), false);
   assert.equal(affectsPackage('assets/types/a.png'), true);
+  // not in the package, but esbuild reads it when it bundles src/
+  assert.equal(affectsPackage('tsconfig.json'), true);
 });
 
 test('listPackageFiles takes a symbolic link as what it links to', () => {
@@ -367,6 +369,11 @@ test('the CLI creates, validates and packs a project', () => {
 
   result = run('unknown');
   assert.equal(result.status, 1);
+
+  // a folder whose name starts with a dash isn't taken for an option in the command it suggests
+  result = run('create', 'widget', './-w');
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Next: desktopengine dev \.\/-w$/m);
 });
 
 test('the built-in content of the app is valid and its shared code is in sync', {

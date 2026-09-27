@@ -56,8 +56,10 @@ export function listPackageFiles(packageDir: string): string[] {
   return files.sort();
 }
 
-/** Whether a changed file, relative to the project, can change the package. */
+/** Whether a changed file, relative to the project, can change the package: a file that goes into it, or the
+ * TypeScript config at the root, which esbuild reads when it bundles src/ (paths, jsx…). */
 export function affectsPackage(relativePath: string): boolean {
   const parts = relativePath.split(/[\\/]/);
+  if (parts.length === 1 && (parts[0] === 'tsconfig.json' || parts[0] === 'jsconfig.json')) return true;
   return !parts.some((part, index) => isIgnored(part, index === 0));
 }
