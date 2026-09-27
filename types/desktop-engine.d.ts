@@ -143,7 +143,8 @@ declare namespace DesktopEngine {
   /**
    * Display type: `none` hides the view; `contents` lays its children out as its parent's, without a box of its own:
    * no background, opacity or clipping, and no click, mouseenter, mouseleave or mousemove of its own (listen on the
-   * children). Components that draw their own content (Canvas, Image, Video) are hidden by `contents`, as on the web
+   * children). Components that draw their own content (Canvas, Image, Video) are hidden by `contents`, as on the web;
+   * a Window, which has no parent, keeps its box, as the root element does
    */
   type Display = 'flex' | 'none' | 'contents';
   /** Overflow behavior; clips subviews when not visible */
