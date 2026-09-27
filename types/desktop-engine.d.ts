@@ -765,7 +765,7 @@ declare namespace DesktopEngine {
     play(): void;
     /** Pauses playback */
     pause(): void;
-    /** Seeks to the given time (seconds) */
+    /** Seeks to the given time (seconds); throws a TypeError if it isn't a finite number */
     seek(time: number): void;
 
     /** waiting callback */
