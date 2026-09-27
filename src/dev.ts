@@ -382,9 +382,11 @@ export class DevServer extends EventEmitter<DevServerEvents> {
     const connection = acceptUpgrade(request, socket, head);
     if (!connection) return;
 
-    // one app at a time, the newest connection wins
-    this.client?.close(1000, 'replaced');
+    // one app at a time, the newest connection wins; the old one closes after it's replaced, so that isn't told as a
+    // disconnection
+    const previous = this.client;
     this.client = connection;
+    previous?.close(1000, 'replaced');
 
     connection.on('message', (data) => {
       let message: AppMessage;

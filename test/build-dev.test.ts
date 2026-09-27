@@ -259,10 +259,26 @@ test('dev serves the package to the app and relays its messages', async (t) => {
   const reload = await next('load');
   assert.equal(reload.revision, 2);
 
+  // the app connects again, e.g. after it restarted: the new connection replaces the old one, it isn't a disconnection
+  let disconnections = 0;
+  const countDisconnection = (): void => { disconnections++; };
+  server.on('disconnected', countDisconnection);
+  const replaced = new Promise<number>((resolve) => { socket.onclose = (event) => resolve(event.code); });
+  const second = new WebSocket(`ws://${base}/session?token=${server.token}`);
+  await new Promise<void>((resolve, reject) => {
+    second.onopen = () => resolve();
+    second.onerror = () => reject(new Error('could not connect'));
+  });
+  assert.equal(await replaced, 1000);
+  assert.equal(disconnections, 0);
+  server.off('disconnected', countDisconnection);
+
   const disconnected = once(server, 'disconnected');
-  const stopping = next('stop');
+  const stopping = new Promise<void>((resolve) => {
+    second.onmessage = (event) => { if (JSON.parse(String(event.data)).type === 'stop') resolve(); };
+  });
   await server.stop();
   await stopping;
   await disconnected;
-  socket.close();
+  second.close();
 });
