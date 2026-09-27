@@ -31,6 +31,8 @@ dist/package/
 └── assets/…          all files but src/, types/, tsconfig.json and the npm files are copied as they are
 ```
 
+Hidden files and folders, whose names start with a dot (`.env`, `.npmrc`, `.git`…), never go into the package, wherever they are: anyone who installs it can read what's in it. Keep API keys and tokens out of the other files too.
+
 - The target is the JavaScriptCore of macOS 12 (as in Safari 15): newer syntax is transformed.
 - Only packages that don't need the DOM or Node.js work. The runtime has `performance.now()`; if a library also uses globals such as `window` or `document`, provide them first. three.js and PixiJS work, see [Drawing with WebGL or a rendering library](./wallpaper#drawing-with-webgl-or-a-rendering-library).
 - esbuild only strips TypeScript, it doesn't check types: your editor or `npx tsc` finds type errors.

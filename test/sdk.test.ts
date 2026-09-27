@@ -15,6 +15,7 @@ import { validateManifest, validatePackage, englishText, TYPES } from '../src/ma
 import { createZip, readZip, crc32 } from '../src/zip.ts';
 import { createProject, packProject, listPackageFiles, defaultId, RENDERERS } from '../src/project.ts';
 import { buildProject } from '../src/build.ts';
+import { affectsPackage } from '../src/files.ts';
 import { parseArgs, formatMetrics } from '../src/cli.ts';
 
 const CLI = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
@@ -219,6 +220,22 @@ test('listPackageFiles skips hidden helpers and archives', () => {
   fs.writeFileSync(path.join(dir, 'assets', 'a.png'), '');
   fs.writeFileSync(path.join(dir, 'index.js'), '');
   assert.deepEqual(listPackageFiles(dir), ['assets/a.png', 'index.js']);
+});
+
+test('listPackageFiles leaves out hidden files, which can hold secrets', () => {
+  const dir = tempDir();
+  fs.writeFileSync(path.join(dir, 'index.js'), '');
+  fs.writeFileSync(path.join(dir, '.env'), 'API_KEY=secret');
+  fs.writeFileSync(path.join(dir, '.npmrc'), '//registry.npmjs.org/:_authToken=secret');
+  fs.mkdirSync(path.join(dir, '.vscode'));
+  fs.writeFileSync(path.join(dir, '.vscode', 'settings.json'), '{}');
+  fs.mkdirSync(path.join(dir, 'assets'));
+  fs.writeFileSync(path.join(dir, 'assets', '.env.local'), 'API_KEY=secret');
+  fs.writeFileSync(path.join(dir, 'assets', 'a.png'), '');
+  assert.deepEqual(listPackageFiles(dir), ['assets/a.png', 'index.js']);
+  assert.equal(affectsPackage('.env'), false);
+  assert.equal(affectsPackage('assets/.env.local'), false);
+  assert.equal(affectsPackage('assets/a.png'), true);
 });
 
 test('the CLI names a mini program by its English name', () => {
