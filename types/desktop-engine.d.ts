@@ -3468,10 +3468,10 @@ declare namespace DesktopEngine {
   interface Utils {
     /** Calls a constructor with an argument array: `new ctor(...args)`; returns null unless there are exactly 2 arguments, throws a TypeError if `constructor` isn't one or `args` isn't an object */
     applyNew<T>(constructor: new (...args: any[]) => T, args: ArrayLike<any>): T;
-    /** Runs a callback after a delay; delay must be a number, otherwise returns null without creating a timer; extra arguments aren't supported */
-    setTimeout(callback: VoidCallback, delay: number): number | null;
-    /** Runs a callback repeatedly; delay must be a number, otherwise returns null; extra arguments aren't supported */
-    setInterval(callback: VoidCallback, delay: number): number | null;
+    /** Runs a callback after a delay, see the global setTimeout */
+    setTimeout<A extends any[]>(callback: (...args: A) => void, delay?: number, ...args: A): number;
+    /** Runs a callback repeatedly, see the global setInterval */
+    setInterval<A extends any[]>(callback: (...args: A) => void, delay?: number, ...args: A): number;
     /** Cancels a setTimeout */
     clearTimeout(id: number | null | undefined): void;
     /** Cancels a setInterval */
@@ -3780,12 +3780,18 @@ declare var WebGLRenderingContext: DesktopEngine.WebGLContextConstructor<Desktop
 /** Stand-in class of WebGL 2 contexts, for `gl instanceof WebGL2RenderingContext`; can't be constructed */
 declare var WebGL2RenderingContext: DesktopEngine.WebGLContextConstructor<DesktopEngine.WebGL2RenderingContext>;
 
-/** Runs a callback after a delay; delay must be a number (milliseconds), otherwise returns null; extra arguments aren't supported */
-declare function setTimeout(callback: () => void, delay: number): number | null;
+/**
+ * Runs a callback after a delay in milliseconds, 0 by default, with the arguments after the delay. Like in browsers the
+ * delay is converted to a number, and NaN or a negative one is 0. Returns the id for clearTimeout, which is never 0.
+ */
+declare function setTimeout<A extends any[]>(callback: (...args: A) => void, delay?: number, ...args: A): number;
 /** Cancels a delayed callback */
 declare function clearTimeout(id: number | null | undefined): void;
-/** Runs a callback repeatedly; delay must be a number (milliseconds), otherwise returns null; extra arguments aren't supported */
-declare function setInterval(callback: () => void, delay: number): number | null;
+/**
+ * Runs a callback repeatedly, every `delay` milliseconds but at least 4, with the arguments after the delay. The delay
+ * is converted like setTimeout's. Returns the id for clearInterval, which is never 0.
+ */
+declare function setInterval<A extends any[]>(callback: (...args: A) => void, delay?: number, ...args: A): number;
 /** Cancels a repeating callback */
 declare function clearInterval(id: number | null | undefined): void;
 
