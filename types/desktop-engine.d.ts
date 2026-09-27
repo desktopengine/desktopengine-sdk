@@ -3264,7 +3264,8 @@ declare namespace DesktopEngine {
    * The global WebGLRenderingContext / WebGL2RenderingContext (also on DesktopEngine), set up by the Canvas module polyfill.
    * Stand-in classes for `instanceof` and `gl.constructor.name` (the contexts are native objects); they hold no constants.
    * `instanceof` compares Object.prototype.toString tags, so a WebGL 2 context is not `instanceof WebGLRenderingContext`
-   * (in browsers it is; TypeScript assumes it is).
+   * (the same as in browsers, where WebGL2RenderingContext doesn't inherit WebGLRenderingContext); check for WebGL 2 first,
+   * since the types make WebGL2RenderingContext extend WebGLRenderingContext and narrow the else branch to never.
    */
   interface WebGLContextConstructor<T> {
     /** Always throws TypeError('Illegal constructor') */
