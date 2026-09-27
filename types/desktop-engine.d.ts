@@ -650,6 +650,11 @@ declare namespace DesktopEngine {
      * Rectangles without a positive size are left out.
      */
     dragRegion: Rect[] | null;
+    /**
+     * Whether macOS may tile the window, e.g. to half the screen when it's dropped on a screen edge. false (default): it
+     * keeps its size and where it was dropped. Resizing it by its edges, zooming and full screen aren't affected.
+     */
+    allowsTiling: boolean;
     /** Shows the window and activates the app */
     show(): void;
     /** Closes the window (fires close) */

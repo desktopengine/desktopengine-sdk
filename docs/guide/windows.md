@@ -20,6 +20,7 @@ Windows are transparent and their styles have no corner radius: to round the cor
 
 - Pressing anywhere in a `widget` or `overlay` window drags it (the system's own window dragging): a drag gets `mousedown`, the window's `move`, and `mouseup` on release, with no `mousemove` during the drag; a click only gets `click`, no `mousedown` / `mouseup`.
 - The window's `dragRegion` limits where a press drags the window; elsewhere presses and drags go to the components (`mousedown`, `mousemove` while the button is down, `mouseup`), for controls such as dials and sliders. `null` (the default) is the whole window, `[]` nowhere.
+- A window dropped on a screen edge keeps its size and stays where it was dropped, though macOS still shows where it would tile it. Set the window's `allowsTiling` to `true` to let macOS tile it, e.g. to half the screen, and handle `resize`.
 - The window's `hitRegion` (an array of rectangles in points from the window's top left corner) limits the mouse to those parts: clicks, drags and hovers elsewhere pass through to the windows below. `null` (the default) is the whole window. Transparent parts of a window still catch the mouse by default, so an irregularly shaped pet should update it as it draws (see the pet template).
 - `mouseenter`, `mousemove` and `mouseleave` fire even when the window isn't the key window.
 - Event callbacks get plain objects, and `this` is the object that fired the event; the double click event is named `dbclick`.
