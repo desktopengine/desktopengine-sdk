@@ -3466,7 +3466,7 @@ declare namespace DesktopEngine {
 
   /** Native Utils object (its methods are mixed into DesktopEngine) */
   interface Utils {
-    /** Calls a constructor with an argument array: `new ctor(...args)`; returns null unless there are exactly 2 arguments */
+    /** Calls a constructor with an argument array: `new ctor(...args)`; returns null unless there are exactly 2 arguments, throws a TypeError if `constructor` isn't one or `args` isn't an object */
     applyNew<T>(constructor: new (...args: any[]) => T, args: ArrayLike<any>): T;
     /** Runs a callback after a delay; delay must be a number, otherwise returns null without creating a timer; extra arguments aren't supported */
     setTimeout(callback: VoidCallback, delay: number): number | null;
