@@ -108,6 +108,11 @@ function stringFlags(value: FlagValue | undefined): string[] {
   return (value === undefined ? [] : ([] as (string | boolean)[]).concat(value)).filter((item): item is string => typeof item === 'string');
 }
 
+/** A word for the shell, quoted when it has spaces or other special characters, e.g. a folder to copy from the output */
+export function shellQuote(word: string): string {
+  return /^[\w@%+=:,./-]+$/.test(word) ? word : `'${word.replace(/'/g, `'\\''`)}'`;
+}
+
 /** Relative to the current folder when it's inside it, absolute otherwise. */
 function displayPath(file: string): string {
   const relative = path.relative(process.cwd(), file);
@@ -376,7 +381,8 @@ export async function main(argv: string[]): Promise<number> {
       console.log(`Created a ${type} mini program${renderer ? ` drawn with ${renderer}` : ''} in ${targetDir}:`);
       files.forEach((file) => console.log(`  ${file}`));
       // the templates drawn with a rendering library depend on npm packages
-      const install = files.includes('package.json') ? `cd ${displayPath(targetDir)} && npm install && desktopengine dev .` : `desktopengine dev ${displayPath(targetDir)}`;
+      const folder = shellQuote(displayPath(targetDir));
+      const install = files.includes('package.json') ? `cd ${folder} && npm install && desktopengine dev .` : `desktopengine dev ${folder}`;
       console.log(`\nNext: ${install}`);
       return 0;
     }

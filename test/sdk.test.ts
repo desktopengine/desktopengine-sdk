@@ -16,7 +16,7 @@ import { createZip, readZip, crc32 } from '../src/zip.ts';
 import { createProject, packProject, listPackageFiles, defaultId, RENDERERS } from '../src/project.ts';
 import { buildProject } from '../src/build.ts';
 import { affectsPackage } from '../src/files.ts';
-import { parseArgs, formatMetrics } from '../src/cli.ts';
+import { parseArgs, formatMetrics, shellQuote } from '../src/cli.ts';
 
 const CLI = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
 /** The app's repository, when the SDK is its SDK/ folder rather than the standalone desktopengine-sdk repository */
@@ -282,6 +282,14 @@ test('the CLI names a mini program by its English name', () => {
   const result = spawnSync(process.execPath, [CLI, 'validate', dir], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /^Clock \(com\.example\.clock 1\.0\.0\): no problems found\./m);
+});
+
+test('shellQuote quotes folders the shell would split', () => {
+  assert.equal(shellQuote('my-clock'), 'my-clock');
+  assert.equal(shellQuote('../widgets/clock_2'), '../widgets/clock_2');
+  assert.equal(shellQuote('My Clock'), "'My Clock'");
+  assert.equal(shellQuote("Tom's clock"), "'Tom'\\''s clock'");
+  assert.equal(shellQuote('时钟'), "'时钟'");
 });
 
 test('parseArgs reads positional arguments and flags', () => {
