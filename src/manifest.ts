@@ -171,7 +171,7 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
   } else {
     validateLocalizedString(manifest.name, 'name', errors, warnings);
   }
-  if (requireString('version') && !/^\d+(\.\d+){0,2}([-+].+)?$/.test(manifest.version as string)) {
+  if (requireString('version') && !/^\d+(\.\d+){0,2}(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/.test(manifest.version as string)) {
     warnings.push(`"version" should be a semantic version, e.g. 1.0.0 (it is "${manifest.version}")`);
   }
 

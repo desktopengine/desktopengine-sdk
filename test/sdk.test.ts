@@ -194,6 +194,19 @@ for (const [type, renderers] of Object.entries(RENDERERS)) {
   }
 }
 
+test('pack names the zip with a version a file name can hold', async () => {
+  const dir = path.join(tempDir(), 'odd');
+  createProject({ type: 'widget', targetDir: dir });
+  const manifestPath = path.join(dir, 'manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  fs.writeFileSync(manifestPath, JSON.stringify({ ...manifest, version: '1.0.0-beta/../../x y' }));
+  const outDir = path.join(tempDir(), 'out');
+  const { output, warnings } = await packProject({ packageDir: dir, outDir });
+  assert.equal(path.dirname(output), outDir);
+  assert.equal(path.basename(output), 'com.example.odd-1.0.0-beta-..-..-x-y.zip');
+  assert.ok(warnings.some((warning) => warning.includes('semantic version')));
+});
+
 test('create refuses a non-empty folder and an unknown type', () => {
   const dir = tempDir();
   fs.writeFileSync(path.join(dir, 'file.txt'), 'x');

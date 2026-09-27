@@ -129,7 +129,9 @@ export async function packProject({ packageDir, outDir, minify = false }: PackOp
 
   const outputDir = outDir || path.join(packageDir, 'dist');
   fs.mkdirSync(outputDir, { recursive: true });
-  const output = path.join(outputDir, `${built.manifest.id}-${built.manifest.version}.zip`);
+  // the version is only checked with a warning: a / or another character a file name can't have becomes -
+  const version = String(built.manifest.version).replace(/[^\w.+-]/g, '-');
+  const output = path.join(outputDir, `${built.manifest.id}-${version}.zip`);
   fs.writeFileSync(output, zip);
   return { output, files: built.files, warnings: built.warnings };
 }
