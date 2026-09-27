@@ -859,9 +859,13 @@ declare namespace DesktopEngine {
     /** Alignment */
     position: ImagePosition;
 
-    /** load callback */
+    /** Called when the image of a src has loaded, once for each src set (the same one again too); changing position or size doesn't load it again */
     onload: EventHandler<this, void> | null | undefined;
-    /** error callback */
+    /**
+     * Called when a src can't be shown: a file that can't be read, a URL the image doesn't load (data: URLs, a path
+     * out of the package) or an http(s) URL without the "network" permission. A src replaced before it loaded calls
+     * neither callback.
+     */
     onerror: EventHandler<this, ErrorPayload> | null | undefined;
     /** Removes the onload callback */
     offload(): void;
