@@ -652,7 +652,8 @@ declare namespace DesktopEngine {
     dragRegion: Rect[] | null;
     /**
      * Whether macOS may tile the window, e.g. to half the screen when it's dropped on a screen edge. false (default): it
-     * keeps its size and where it was dropped. Resizing it by its edges, zooming and full screen aren't affected.
+     * keeps its size and where it was dropped. Tiling from the Window menu, a keyboard shortcut or a title bar double
+     * click set to fill is undone too; resizing by the edges, zooming and full screen aren't affected.
      */
     allowsTiling: boolean;
     /** Shows the window and activates the app */
