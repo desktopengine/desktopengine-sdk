@@ -42,6 +42,7 @@ Usage:
         --no-open                   print the URL that connects DesktopEngine instead of opening it
   desktopengine pack [folder] [--out <folder>] [--minify]
       Builds, checks and zips the package (into dist/ by default) for File › Import… in DesktopEngine
+  desktopengine -h, --help | -v, --version
 
 Projects with src/index.ts or src/index.js are bundled and can use import, TypeScript and npm packages;
 projects without src/ are packed as they are, with index.js at the root as the entry.
@@ -86,6 +87,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
       } else {
         set(key, true);
       }
+    } else if (/^-[A-Za-z]$/.test(arg)) {
+      // -h, -v: a short switch
+      set(arg.slice(1), true);
     } else {
       positional.push(arg);
     }

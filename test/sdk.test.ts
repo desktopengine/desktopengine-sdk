@@ -298,6 +298,10 @@ test('parseArgs reads positional arguments and flags', () => {
     positional: ['dev', 'dir'],
     flags: { perf: true, minify: true },
   });
+  // short switches; a value that starts with a dash stays a value
+  assert.deepEqual(parseArgs(['-v']), { positional: [], flags: { v: true } });
+  assert.deepEqual(parseArgs(['pack', '-h']), { positional: ['pack'], flags: { h: true } });
+  assert.deepEqual(parseArgs(['dev', '--position', '-10,20']), { positional: ['dev'], flags: { position: '-10,20' } });
 });
 
 test('formatMetrics sums up a second of the mini program', () => {
