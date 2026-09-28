@@ -1088,6 +1088,8 @@ declare namespace DesktopEngine {
     /** Shadow y offset */
     shadowOffsetY: number;
 
+    /** Whether the context was lost: the GPU stopped its work (see the canvas' contextlost event). It isn't restored */
+    isContextLost(): boolean;
     /** Saves the state */
     save(): void;
     /** Restores the state */
