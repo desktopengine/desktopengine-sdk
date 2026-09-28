@@ -896,11 +896,33 @@ declare namespace DesktopEngine {
   /** Objects that can be a source for drawImage / createPattern / texImage2D */
   type CanvasDrawable = Canvas | CanvasImage | ImageData;
 
+  /** webglcontextlost / contextlost payload */
+  interface ContextLostPayload {
+    /** "webglcontextlost" or "contextlost" */
+    readonly type: string;
+    /** Why the context was lost */
+    readonly statusMessage: string;
+    /** Does nothing: a lost context isn't restored */
+    preventDefault(): void;
+  }
+
+  /** Canvas event map */
+  interface CanvasEventMap extends ComponentEventMap {
+    /**
+     * The GPU stopped the work of the canvas' WebGL context (it took too long, e.g. a huge draw or a shader that loops
+     * for long, or it failed): the context is lost for good and nothing drawn shows any more, the canvas keeps what it
+     * last showed. Doesn't happen to content that stays within what the GPU can do in a frame
+     */
+    webglcontextlost: ContextLostPayload;
+    /** The same for a 2D context */
+    contextlost: ContextLostPayload;
+  }
+
   /**
    * Canvas component (implemented with OpenGL ES/ANGLE on Metal); defaults to 300x150 when no style is given.
    * On Macs whose GPU doesn't support Metal every getContext returns null and CanvasImage fails to load.
    */
-  interface Canvas extends ComponentBase<ComponentEventMap> {
+  interface Canvas extends ComponentBase<CanvasEventMap> {
     /** Drawing buffer width (pixels, 2 to 16383); uses the layout width if unset. The style only sets the displayed size: the buffer is stretched over it, like on the web */
     width: number;
     /** Drawing buffer height (pixels, 2 to 16383); uses the layout height if unset */
@@ -913,6 +935,15 @@ declare namespace DesktopEngine {
     getContext(type: 'webgl2', options?: CanvasContextOptions): WebGL2RenderingContext | null;
     /** Returns null for unsupported types (such as experimental-webgl2 or webgpu) */
     getContext(type: string, options?: CanvasContextOptions): CanvasRenderingContext2D | WebGLRenderingContext | WebGL2RenderingContext | null;
+
+    /** webglcontextlost callback */
+    onwebglcontextlost: EventHandler<this, ContextLostPayload> | null | undefined;
+    /** contextlost callback */
+    oncontextlost: EventHandler<this, ContextLostPayload> | null | undefined;
+    /** Removes the onwebglcontextlost callback */
+    offwebglcontextlost(): void;
+    /** Removes the oncontextlost callback */
+    offcontextlost(): void;
   }
 
   /** Canvas constructor */
@@ -1363,7 +1394,7 @@ declare namespace DesktopEngine {
 
     /** Gets the context attributes (fixed values) */
     getContextAttributes(): WebGLContextAttributes;
-    /** Always returns false */
+    /** Whether the context was lost: the GPU stopped its work (see the canvas' webglcontextlost event). It isn't restored */
     isContextLost(): boolean;
     /** Gets the list of supported extension names */
     getSupportedExtensions(): string[];
