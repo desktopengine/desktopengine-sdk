@@ -2,6 +2,17 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 1.4.0 (2026-09-30)
+
+### Features
+
+- content listening to parameterschange applies changed options without restarting
+
+### Bug Fixes
+
+- **canvas:** a canvas whose work the GPU stopped is lost, so it can't hang the GPU every frame
+- **canvas:** 2D contexts have isContextLost() too, as on the web
+
 ## 1.3.0 (2026-09-27)
 
 ### Features
