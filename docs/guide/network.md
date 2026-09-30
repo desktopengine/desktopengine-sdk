@@ -16,6 +16,7 @@ socket.onmessage = (event) => update(JSON.parse(event.data));
 socket.onclose = (event) => setTimeout(reconnect, 5000);
 ```
 
+- Addresses on the internet must be `https://` and `wss://`: plain `http://` and `ws://` fail as if offline (macOS App Transport Security). They still work with `localhost`, IP addresses and `*.local` names, for a development server on your Mac or local network.
 - Relative addresses (`data.json`, `./data.json`, `/data.json`) read files in the package, with no permission needed; a missing file is a 404 response. `data:` and `blob:` addresses work too.
 - There is no CORS: every response can be read. Each mini program has cookies of its own, kept in memory only.
 - `fetch` returns as soon as the headers arrive and the body is a stream (`response.body`, a `ReadableStream`) to read while it downloads; when nothing reads it, the download pauses after buffering about 1 MB. `text()`, `json()`, `arrayBuffer()`, `blob()` and `formData()` read the whole body. Like in browsers, `text()` always decodes UTF-8. The system buffers the first 512 bytes of `text/plain` responses (content sniffing) before handing them over, so services that push text piece by piece (server-sent events, say) should use `text/event-stream` or another type.

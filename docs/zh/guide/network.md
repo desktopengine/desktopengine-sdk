@@ -16,6 +16,7 @@ socket.onmessage = (event) => update(JSON.parse(event.data));
 socket.onclose = (event) => setTimeout(reconnect, 5000);
 ```
 
+- 互联网上的地址必须用 `https://` 和 `wss://`：普通的 `http://` 和 `ws://` 会像断网一样失败（macOS 的 App 传输安全）。`localhost`、IP 地址和 `*.local` 名称仍然可以用 http，方便连接本机或局域网里的开发服务器。
 - 相对地址（`data.json`、`./data.json`、`/data.json`）读取包内文件，不需要权限，文件不存在时是 404 响应；`data:` 和 `blob:` 地址也可以用。
 - 没有 CORS 限制，任何响应都能读取。每个小程序有自己的 Cookie，只保存在内存里。
 - `fetch` 收到响应头就返回，响应体是流（`response.body`，一个 `ReadableStream`），边下载边读；没人读的时候，缓冲约 1 MB 后暂停下载。`text()`、`json()`、`arrayBuffer()`、`blob()`、`formData()` 读完整个响应体。`text()` 与浏览器一样总是按 UTF-8 解码。系统会先缓冲 `text/plain` 响应的前 512 字节（内容嗅探）再交出来，要逐段推送文字（比如 server-sent events）的服务应该用 `text/event-stream` 等其他类型。
