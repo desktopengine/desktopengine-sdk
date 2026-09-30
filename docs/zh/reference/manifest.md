@@ -74,7 +74,7 @@
 | `color` | 颜色选择器 | `#RRGGBB` |
 | `choice` | 弹出菜单，`options` 为 `[{ "value": …, "title": "…" }]` | 某个 `value` |
 
-用户修改选项后，应用会重新启动这个实例（连续拖动滑块或输入时会合并成一次），新的取值在 `DesktopEngine.launchOptions.parameters` 里。
+用户修改选项后，新的取值在 `DesktopEngine.launchOptions.parameters` 里。监听了 `parameterschange` 的内容会在运行中应用它们，见[选项改变时](/zh/guide/launch-options#选项改变时)；其他内容由应用重新启动（连续拖动滑块或输入时会合并成一次）。
 
 ## 权限（permissions）
 

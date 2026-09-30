@@ -48,6 +48,9 @@ declare namespace DesktopEngine {
   /** A permission declared in manifest.json */
   type Permission = 'network' | 'files' | 'audio' | 'system-info' | 'now-playing' | 'window-positions';
 
+  /** The value of a parameter: a `toggle` is a boolean, a `number` a number, a `choice`, `color` or `text` a string */
+  type ParameterValue = boolean | number | string | null;
+
   /** Widget size, matching WidgetKit: small 164×164, medium 344×164, large 344×344 */
   type WidgetSize = 'small' | 'medium' | 'large';
 
@@ -77,8 +80,12 @@ declare namespace DesktopEngine {
     displays?: LaunchDisplay[];
     /** Top-left position of the window: where the user last dragged it, or a default computed by the app */
     position?: { x: number; y: number };
-    /** Values of the parameters in manifest.json (the user's value if set, otherwise the default) */
-    parameters?: Record<string, boolean | number | string | null>;
+    /**
+     * Values of the parameters in manifest.json (the user's value if set, otherwise the default). Current ones: when the
+     * user changes them, content that listens to `DesktopEngine.system`'s `parameterschange` keeps running and finds the
+     * new values here too
+     */
+    parameters?: Record<string, ParameterValue>;
     /** The user's preferred language, such as "zh-Hans-CN" */
     locale?: string;
     /**
@@ -541,6 +548,20 @@ declare namespace DesktopEngine {
   interface SystemEventMap {
     /** The system appearance changed (the user switched it, or Auto switched it at sunset / sunrise) */
     appearancechange: { appearance: Appearance };
+    /**
+     * The user changed the content's parameters. Content that listens to it (`addEventListener` or
+     * `onparameterschange`, set before the change) keeps running and applies them itself; without a listener the app
+     * restarts it with the new values. Can come several times a second while the user drags a slider.
+     */
+    parameterschange: ParametersChangePayload;
+  }
+
+  /** `parameterschange` of `DesktopEngine.system` */
+  interface ParametersChangePayload {
+    /** Every parameter's value, now also `DesktopEngine.launchOptions.parameters` */
+    parameters: Readonly<Record<string, ParameterValue>>;
+    /** The keys whose value changed */
+    changed: string[];
   }
 
   /** ScreenManager event map */
@@ -3379,6 +3400,10 @@ declare namespace DesktopEngine {
     onappearancechange: EventHandler<this, SystemEventMap['appearancechange']> | null | undefined;
     /** Removes the onappearancechange callback */
     offappearancechange(): void;
+    /** parameterschange callback */
+    onparameterschange: EventHandler<this, SystemEventMap['parameterschange']> | null | undefined;
+    /** Removes the onparameterschange callback */
+    offparameterschange(): void;
     /** Asks the runtime to run a garbage collection (asynchronously) */
     triggerGC(): void;
     /** CPU usage of the whole system since the previous call (0–1); the first call returns the average since boot. Needs the system-info permission, throws without it */
@@ -3615,6 +3640,7 @@ declare namespace DesktopEngine {
     readonly fs: FileSystem;
     /**
      * Read-only options passed in by the app at launch (size, display, position, user settings, etc.), injected before index.js runs.
+     * `parameters` follow the user's changes (`DesktopEngine.system`'s `parameterschange`): read them from here each time.
      * Provided when the DesktopEngine app launches the content; `desktopengine dev` simulates them from its command-line arguments; {} when loaded directly from the Develop menu.
      */
     readonly launchOptions: Readonly<LaunchOptions>;

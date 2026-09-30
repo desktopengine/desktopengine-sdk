@@ -74,7 +74,7 @@ You only declare the options; the app draws them as a native form in the details
 | `color` | A color well | `#RRGGBB` |
 | `choice` | A pop-up menu, `options` is `[{ "value": …, "title": "…" }]` | One of the `value`s |
 
-When the user changes an option, the app restarts the instance (dragging a slider or typing is coalesced into one restart), and the new values are in `DesktopEngine.launchOptions.parameters`.
+When the user changes an option, the new values are in `DesktopEngine.launchOptions.parameters`. Content that listens to `parameterschange` applies them while it keeps running, see [When options change](/guide/launch-options#when-options-change); the app restarts other content (dragging a slider or typing is coalesced into one restart).
 
 ## Permissions
 

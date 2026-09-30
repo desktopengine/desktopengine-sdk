@@ -18,9 +18,26 @@ options.screenSaver;  // 作为屏幕保护程序运行时为 { preview }，否�
 
 坐标与 `DesktopEngine.Window` 的样式一致：以主显示器左上角为原点，y 向下。完整的字段见 [`LaunchOptions`](/api/interfaces/DesktopEngine.LaunchOptions)。
 
-- `parameters` 是[选项](/zh/reference/manifest#选项-parameters)的取值，用户改了选项后内容会重新启动。
+- `parameters` 是[选项](/zh/reference/manifest#选项-parameters)的取值，见[选项改变时](#选项改变时)。
 - `permissions` 见[权限](/zh/reference/manifest#权限-permissions)，`displays` 见[跨显示器](./wallpaper#跨显示器)，`screenSaver` 见[屏幕保护程序](./wallpaper#屏幕保护程序)。
 - 在开发时用 `desktopengine dev --size / --level / --display / --span / --param / --position` 模拟这些值，见[命令行](/zh/reference/cli#dev)。
+
+## 选项改变时
+
+用户修改选项后，应用会用新的取值重新启动内容。监听 `DesktopEngine.system` 的 `parameterschange`，内容就会继续运行：自己应用新的取值，其余的保持原样，比如计时器剩下的时间、宠物走到的位置。
+
+```js
+const system = DesktopEngine.system;
+let accent = DesktopEngine.launchOptions.parameters?.accent ?? '#0A84FF';
+system.onparameterschange = (event) => {
+  accent = event.parameters.accent ?? '#0A84FF';
+  draw();
+};
+```
+
+- 在内容启动时就设好监听：用户每次修改选项，应用都会检查有没有监听。
+- `event.parameters` 是全部取值，`event.changed` 是变了的键；`DesktopEngine.launchOptions.parameters` 也是新的取值。
+- 拖动滑块时一秒会触发好几次：立即重绘，但重建场景这类耗时的工作等取值不再变化再做。
 
 ## 与应用通信
 

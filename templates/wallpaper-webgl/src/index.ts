@@ -6,11 +6,16 @@
 import { vertices, indices } from './cube';
 
 const options = DesktopEngine.launchOptions;
-const parameters = options.parameters ?? {};
-const color = hexToRGB(typeof parameters.color === 'string' ? parameters.color : '#5E8BFF');
-const parallax = parameters.parallax !== false;
+let color = [0, 0, 0];
+let parallax = true;
 // 'auto' follows the system appearance, 'light' / 'dark' stay put
-const appearance = typeof parameters.appearance === 'string' ? parameters.appearance : 'auto';
+let appearance = 'auto';
+function readParameters(parameters: Readonly<Record<string, DesktopEngine.ParameterValue>>): void {
+  color = hexToRGB(typeof parameters.color === 'string' ? parameters.color : '#5E8BFF');
+  parallax = parameters.parallax !== false;
+  appearance = typeof parameters.appearance === 'string' ? parameters.appearance : 'auto';
+}
+readParameters(options.parameters ?? {});
 
 /** Background and ambient light for dark and light; a light background needs more ambient light */
 const DARK = { background: [0.043, 0.063, 0.125], ambient: 0.25 };
@@ -98,7 +103,8 @@ gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
 
 const modelLocation = gl.getUniformLocation(program, 'model');
 const ambientLocation = gl.getUniformLocation(program, 'ambient');
-gl.uniform3fv(gl.getUniformLocation(program, 'color'), color);
+const colorLocation = gl.getUniformLocation(program, 'color');
+gl.uniform3fv(colorLocation, color);
 
 // Perspective projection, 45° vertical field of view
 const aspect = width / height;
@@ -114,14 +120,25 @@ gl.uniformMatrix4fv(gl.getUniformLocation(program, 'projection'), false, [
 gl.enable(gl.DEPTH_TEST);
 gl.viewport(0, 0, canvas.width, canvas.height);
 
-// Mouse parallax: the desktop window gets mousemove while the pointer is over the desktop
+// Mouse parallax: the desktop window gets mousemove while the pointer is over the desktop, and only while it's set
 let target = [0, 0];
 let lean = [0, 0];
-if (parallax) {
-  win.onmousemove = (event) => {
-    target = [(event.x / width - 0.5) * 2, (event.y / height - 0.5) * 2];
-  };
+function followMouse(): void {
+  win.onmousemove = parallax
+    ? (event) => {
+        target = [(event.x / width - 0.5) * 2, (event.y / height - 0.5) * 2];
+      }
+    : null;
+  if (!parallax) target = [0, 0];
 }
+followMouse();
+
+// The user changed an option: apply it, and the app doesn't restart the wallpaper
+DesktopEngine.system.onparameterschange = (event) => {
+  readParameters(event.parameters);
+  gl.uniform3fv(colorLocation, color);
+  followMouse();
+};
 
 let lightness = targetLightness();
 let lastTime = 0;

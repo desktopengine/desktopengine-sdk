@@ -18,9 +18,26 @@ options.screenSaver;  // { preview } when running as the screen saver, absent ot
 
 Coordinates are the ones of `DesktopEngine.Window` styles: the origin at the top left of the main display, y pointing down. See [`LaunchOptions`](/api/interfaces/DesktopEngine.LaunchOptions) for all the fields.
 
-- `parameters` are the values of the [options](/reference/manifest#options-parameters); the content restarts when the user changes them.
+- `parameters` are the values of the [options](/reference/manifest#options-parameters), see [When options change](#when-options-change).
 - See [Permissions](/reference/manifest#permissions) for `permissions`, [Spanning all displays](./wallpaper#spanning-all-displays) for `displays` and [Screen saver](./wallpaper#screen-saver) for `screenSaver`.
 - While developing, `desktopengine dev --size / --level / --display / --span / --param / --position` stand in for them, see [Command Line](/reference/cli#dev).
+
+## When options change
+
+When the user changes an option, the app restarts the content with the new values. Listen to `parameterschange` of `DesktopEngine.system` and it keeps running instead: apply the new values yourself, keeping everything else as it is, such as the time left on a timer or where a pet is walking.
+
+```js
+const system = DesktopEngine.system;
+let accent = DesktopEngine.launchOptions.parameters?.accent ?? '#0A84FF';
+system.onparameterschange = (event) => {
+  accent = event.parameters.accent ?? '#0A84FF';
+  draw();
+};
+```
+
+- Set the listener when the content starts: the app looks for one each time the user changes an option.
+- `event.parameters` has every value, `event.changed` the keys that changed; `DesktopEngine.launchOptions.parameters` has the new values too.
+- Dragging a slider fires it several times a second: redraw right away, but leave heavy work, such as rebuilding a scene, until the values stop changing.
 
 ## Talking to the app
 

@@ -4,9 +4,13 @@
 // Debug: desktopengine dev . --param color=#7ED957 --param speed=4
 
 const options = DesktopEngine.launchOptions;
-const parameters = options.parameters ?? {};
-const color = typeof parameters.color === 'string' ? parameters.color : '#FF9F43';
-const speed = typeof parameters.speed === 'number' ? parameters.speed : 2;
+let color = '#FF9F43';
+let speed = 2;
+function readParameters(parameters: Readonly<Record<string, DesktopEngine.ParameterValue>>): void {
+  color = typeof parameters.color === 'string' ? parameters.color : '#FF9F43';
+  speed = typeof parameters.speed === 'number' ? parameters.speed : 2;
+}
+readParameters(options.parameters ?? {});
 
 /** Window size and body radius, in points */
 const SIZE = 72;
@@ -152,6 +156,12 @@ function frame(time: number): void {
 // Walked or dragged onto a display with another scale: the next frame draws again
 win.ondevicepixelratiochange = () => {
   fitCanvas();
+  drawn = '';
+};
+
+// The user changed an option: it goes on where it is with the new color and speed, the app doesn't restart it
+DesktopEngine.system.onparameterschange = (event) => {
+  readParameters(event.parameters);
   drawn = '';
 };
 

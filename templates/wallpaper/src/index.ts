@@ -3,10 +3,16 @@
 // Debug: desktopengine dev . --param speed=3 --param appearance=dark
 
 const options = DesktopEngine.launchOptions;
-const parameters = options.parameters ?? {};
-const speed = typeof parameters.speed === 'number' ? parameters.speed : 1;
+let speed = 1;
 // 'auto' follows the system appearance, 'light' / 'dark' stay put
-const appearance = typeof parameters.appearance === 'string' ? parameters.appearance : 'auto';
+let appearance = 'auto';
+function readParameters(parameters: Readonly<Record<string, DesktopEngine.ParameterValue>>): void {
+  speed = typeof parameters.speed === 'number' ? parameters.speed : 1;
+  appearance = typeof parameters.appearance === 'string' ? parameters.appearance : 'auto';
+}
+readParameters(options.parameters ?? {});
+// The user changed an option: the next frames use it, and the app doesn't restart the wallpaper
+DesktopEngine.system.onparameterschange = (event) => readParameters(event.parameters);
 
 type RGB = [number, number, number];
 
@@ -46,6 +52,8 @@ const scenes = screens.map((screen) => {
 
 let lightness = targetLightness();
 let lastTime = 0;
+/** How far the patches have drifted: it grows with the speed, so a new speed carries on from where they are */
+let t = 0;
 
 // requestAnimationFrame stops while the app pauses content (on battery, behind a full-screen app)
 function draw(time: number): void {
@@ -54,7 +62,7 @@ function draw(time: number): void {
   lastTime = time;
   lightness += (targetLightness() - lightness) * (1 - Math.exp(-elapsed / 600));
 
-  const t = (time / 1000) * speed * 0.1;
+  t += (elapsed / 1000) * speed * 0.1;
   for (const { context, width, height } of scenes) {
     if (!context) continue;
     const background = context.createLinearGradient(0, 0, 0, height);

@@ -1,14 +1,21 @@
 // Dynamic widget: how much of today has passed. Size, position, level and parameters come from
-// DesktopEngine.launchOptions, set by the user in the inspector of the Widgets page. When the window is dragged,
-// the widget tells the app its position, which comes back on the next launch.
+// DesktopEngine.launchOptions, set by the user in the inspector of the Widgets page; parameters the user changes later
+// come with parameterschange. When the window is dragged, the widget tells the app its position, which comes back on
+// the next launch.
 // Debug: desktopengine dev . --size medium --param accent=#FF9F0A
 
 import { dayProgress, formatRemaining } from './progress';
 
 const options = DesktopEngine.launchOptions;
-const parameters = options.parameters ?? {};
-const accent = typeof parameters.accent === 'string' ? parameters.accent : '#0A84FF';
-const workday = parameters.workday === true;
+let accent = '#0A84FF';
+let workday = false;
+let appearance = 'auto';
+function readParameters(parameters: Readonly<Record<string, DesktopEngine.ParameterValue>>): void {
+  accent = typeof parameters.accent === 'string' ? parameters.accent : '#0A84FF';
+  workday = parameters.workday === true;
+  appearance = typeof parameters.appearance === 'string' ? parameters.appearance : 'auto';
+}
+readParameters(options.parameters ?? {});
 // The text drawn on the canvas follows the user's language, the same as the translations in manifest.json
 const chinese = (options.locale ?? '').startsWith('zh-Hans');
 
@@ -54,14 +61,15 @@ const palettes = {
   light: { background: '#FFFFFF', track: 'rgba(0,0,0,0.08)', label: 'rgba(0,0,0,0.85)', secondary: 'rgba(0,0,0,0.5)' },
 };
 // "auto" follows the system appearance (DesktopEngine.system.appearance) and redraws when it changes
-const followsSystem = parameters.appearance !== 'light' && parameters.appearance !== 'dark';
-let colors = palettes[followsSystem ? DesktopEngine.system.appearance : parameters.appearance === 'light' ? 'light' : 'dark'];
-if (followsSystem) {
-  DesktopEngine.system.onappearancechange = (event) => {
-    colors = palettes[event.appearance];
-    draw(context);
-  };
+function currentColors(): (typeof palettes)['dark'] {
+  return palettes[appearance === 'light' || appearance === 'dark' ? appearance : DesktopEngine.system.appearance];
 }
+DesktopEngine.system.onappearancechange = () => draw(context);
+// The user changed an option in the inspector: apply it, and the app doesn't restart the widget
+DesktopEngine.system.onparameterschange = (event) => {
+  readParameters(event.parameters);
+  draw(context);
+};
 
 /** Rounded rectangle path (styles don't support rounded corners, so they're drawn on the canvas; the window is transparent) */
 function roundedRect(ctx: DesktopEngine.CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
@@ -76,6 +84,7 @@ function roundedRect(ctx: DesktopEngine.CanvasRenderingContext2D, x: number, y: 
 
 function draw(ctx: DesktopEngine.CanvasRenderingContext2D): void {
   const { fraction, remaining } = dayProgress(new Date(), workday);
+  const colors = currentColors();
 
   ctx.clearRect(0, 0, width, height);
   roundedRect(ctx, 0, 0, width, height, 22);

@@ -6,11 +6,16 @@
 import * as THREE from './three';
 
 const options = DesktopEngine.launchOptions;
-const parameters = options.parameters ?? {};
-const color = typeof parameters.color === 'string' ? parameters.color : '#5E8BFF';
-const parallax = parameters.parallax !== false;
+let color = '#5E8BFF';
+let parallax = true;
 // 'auto' follows the system appearance, 'light' / 'dark' stay put
-const appearance = typeof parameters.appearance === 'string' ? parameters.appearance : 'auto';
+let appearance = 'auto';
+function readParameters(parameters: Readonly<Record<string, DesktopEngine.ParameterValue>>): void {
+  color = typeof parameters.color === 'string' ? parameters.color : '#5E8BFF';
+  parallax = parameters.parallax !== false;
+  appearance = typeof parameters.appearance === 'string' ? parameters.appearance : 'auto';
+}
+readParameters(options.parameters ?? {});
 
 /** Background and ambient light for dark and light; a light background needs more ambient light */
 const DARK = { background: new THREE.Color('#0B1020'), ambient: 0.35 };
@@ -44,10 +49,8 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
 camera.position.set(0, 0, 8);
 
-const knot = new THREE.Mesh(
-  new THREE.TorusKnotGeometry(1, 0.32, 200, 32),
-  new THREE.MeshPhysicalMaterial({ color, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.15 }),
-);
+const material = new THREE.MeshPhysicalMaterial({ color, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.15 });
+const knot = new THREE.Mesh(new THREE.TorusKnotGeometry(1, 0.32, 200, 32), material);
 scene.add(knot);
 
 const ambient = new THREE.HemisphereLight('#ffffff', '#445066', DARK.ambient);
@@ -59,14 +62,25 @@ const rim = new THREE.DirectionalLight('#9DB8FF', 1.5);
 rim.position.set(-4, -2, -3);
 scene.add(rim);
 
-// Mouse parallax: the desktop window gets mousemove while the pointer is over the desktop
+// Mouse parallax: the desktop window gets mousemove while the pointer is over the desktop, and only while it's set
 const target = new THREE.Vector2();
 const lean = new THREE.Vector2();
-if (parallax) {
-  win.onmousemove = (event) => {
-    target.set((event.x / width - 0.5) * 2, (event.y / height - 0.5) * 2);
-  };
+function followMouse(): void {
+  win.onmousemove = parallax
+    ? (event) => {
+        target.set((event.x / width - 0.5) * 2, (event.y / height - 0.5) * 2);
+      }
+    : null;
+  if (!parallax) target.set(0, 0);
 }
+followMouse();
+
+// The user changed an option: apply it, and the app doesn't restart the wallpaper
+DesktopEngine.system.onparameterschange = (event) => {
+  readParameters(event.parameters);
+  material.color.set(color);
+  followMouse();
+};
 
 const background = new THREE.Color();
 scene.background = background;

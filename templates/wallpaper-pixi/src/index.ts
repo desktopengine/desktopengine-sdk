@@ -7,11 +7,16 @@
 import * as PIXI from './pixi';
 
 const options = DesktopEngine.launchOptions;
-const parameters = options.parameters ?? {};
-const color = typeof parameters.color === 'string' ? parameters.color : '#5E8BFF';
-const parallax = parameters.parallax !== false;
+let color = '#5E8BFF';
+let parallax = true;
 // 'auto' follows the system appearance, 'light' / 'dark' stay put
-const appearance = typeof parameters.appearance === 'string' ? parameters.appearance : 'auto';
+let appearance = 'auto';
+function readParameters(parameters: Readonly<Record<string, DesktopEngine.ParameterValue>>): void {
+  color = typeof parameters.color === 'string' ? parameters.color : '#5E8BFF';
+  parallax = parameters.parallax !== false;
+  appearance = typeof parameters.appearance === 'string' ? parameters.appearance : 'auto';
+}
+readParameters(options.parameters ?? {});
 
 /** Background and how the lights blend: additive glows on dark, plain translucent discs on light */
 const DARK = new PIXI.Color('#0B1020');
@@ -90,14 +95,26 @@ async function main(): Promise<void> {
     return { ...layer, container, lights };
   });
 
-  // Mouse parallax: the desktop window gets mousemove while the pointer is over the desktop
+  // Mouse parallax: the desktop window gets mousemove while the pointer is over the desktop, and only while it's set
   const target = new PIXI.Point();
   const lean = new PIXI.Point();
-  if (parallax) {
-    win.onmousemove = (event) => {
-      target.set((event.x / width - 0.5) * 2, (event.y / height - 0.5) * 2);
-    };
+  function followMouse(): void {
+    win.onmousemove = parallax
+      ? (event) => {
+          target.set((event.x / width - 0.5) * 2, (event.y / height - 0.5) * 2);
+        }
+      : null;
+    if (!parallax) target.set(0, 0);
   }
+  followMouse();
+
+  // The user changed an option: apply it, and the app doesn't restart the wallpaper
+  DesktopEngine.system.onparameterschange = (event) => {
+    readParameters(event.parameters);
+    tint.setValue(color);
+    for (const layer of layers) for (const light of layer.lights) light.sprite.tint = tint;
+    followMouse();
+  };
 
   let lightness = targetLightness();
   const background = new PIXI.Color();
