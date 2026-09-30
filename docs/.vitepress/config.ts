@@ -42,7 +42,7 @@ const english: DefaultTheme.Config = {
       items: [
         { text: 'Releases', link: `${REPOSITORY}/releases` },
         { text: 'npm', link: 'https://www.npmjs.com/package/@desktopengine/sdk' },
-        { text: 'DesktopEngine', link: 'https://desktopengine.github.io' },
+        { text: 'DesktopEngine', link: 'https://desktopengine.app' },
       ],
     },
   ],
@@ -168,7 +168,7 @@ const chinese: DefaultTheme.Config = {
       items: [
         { text: '更新记录', link: `${REPOSITORY}/releases` },
         { text: 'npm', link: 'https://www.npmjs.com/package/@desktopengine/sdk' },
-        { text: 'DesktopEngine', link: 'https://desktopengine.github.io' },
+        { text: 'DesktopEngine', link: 'https://desktopengine.app' },
       ],
     },
   ],

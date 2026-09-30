@@ -11,7 +11,7 @@ SDK 包含：
 
 ## 安装
 
-需要 Node.js 18 或更新版本，以及安装了 [DesktopEngine](https://desktopengine.github.io) 的 Mac。
+需要 Node.js 18 或更新版本，以及安装了 [DesktopEngine](https://desktopengine.app) 的 Mac。
 
 ```bash
 npm install -g @desktopengine/sdk

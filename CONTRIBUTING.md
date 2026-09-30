@@ -34,7 +34,7 @@ npm run dev         # preview locally
 npm run build       # builds into docs/.vitepress/dist/
 ```
 
-GitHub Actions publishes it to <https://desktopengine.github.io/desktopengine-sdk/> after a push to `main`.
+GitHub Actions publishes it to <https://desktopengine.app/desktopengine-sdk/> after a push to `main`.
 
 ## Releases
 

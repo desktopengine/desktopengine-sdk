@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://desktopengine.github.io/desktopengine-sdk/manifest.schema.json",
+  "$id": "https://desktopengine.app/desktopengine-sdk/manifest.schema.json",
   "title": "DesktopEngine mini program manifest (manifest.json)",
-  "description": "At the root of the mini program package, next to the entry index.js. See https://desktopengine.github.io/desktopengine-sdk/reference/manifest",
+  "description": "At the root of the mini program package, next to the entry index.js. See https://desktopengine.app/desktopengine-sdk/reference/manifest",
   "type": "object",
   "required": ["id", "name", "type", "version"],
   "properties": {

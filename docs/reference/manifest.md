@@ -41,7 +41,7 @@ Add `$schema` to the manifest and editors such as VS Code complete and check its
 
 ```json
 {
-  "$schema": "https://desktopengine.github.io/desktopengine-sdk/manifest.schema.json",
+  "$schema": "https://desktopengine.app/desktopengine-sdk/manifest.schema.json",
   "id": "com.example.day-progress"
 }
 ```

@@ -1,4 +1,4 @@
-# Publishes the documentation site to GitHub Pages: https://desktopengine.github.io/desktopengine-sdk/
+# Publishes the documentation site to GitHub Pages: https://desktopengine.app/desktopengine-sdk/
 name: Docs
 
 on:

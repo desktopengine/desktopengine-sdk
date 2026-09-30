@@ -3,9 +3,9 @@
 [![npm](https://img.shields.io/npm/v/@desktopengine/sdk)](https://www.npmjs.com/package/@desktopengine/sdk)
 [![CI](https://github.com/desktopengine/desktopengine-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/desktopengine/desktopengine-sdk/actions/workflows/ci.yml)
 
-Make dynamic wallpapers, widgets and desktop pets for [DesktopEngine](https://desktopengine.github.io) in JavaScript or TypeScript.
+Make dynamic wallpapers, widgets and desktop pets for [DesktopEngine](https://desktopengine.app) in JavaScript or TypeScript.
 
-**Documentation: <https://desktopengine.github.io/desktopengine-sdk/>** · [简体中文](https://desktopengine.github.io/desktopengine-sdk/zh/)
+**Documentation: <https://desktopengine.app/desktopengine-sdk/>** · [简体中文](https://desktopengine.app/desktopengine-sdk/zh/)
 
 The SDK includes:
 
@@ -30,7 +30,7 @@ desktopengine dev ~/Projects/day-progress
 desktopengine pack ~/Projects/day-progress
 ```
 
-Then import the .zip in DesktopEngine with File › Import…. See the [documentation](https://desktopengine.github.io/desktopengine-sdk/guide/getting-started) for more.
+Then import the .zip in DesktopEngine with File › Import…. See the [documentation](https://desktopengine.app/desktopengine-sdk/guide/getting-started) for more.
 
 ## Contributing
 

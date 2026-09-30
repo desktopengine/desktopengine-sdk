@@ -11,7 +11,7 @@
 //   manifest.json. Streams, Blob, FormData, URL and TextEncoder / TextDecoder are available too.
 // - Audio and Web Audio (`new Audio(src)`, AudioContext) are available; sound needs the "audio" permission in manifest.json.
 // - localStorage / sessionStorage and a Node-style file system (`DesktopEngine.fs`) keep data between launches.
-// - Not implemented: DOM, import/ESM, IndexedDB, etc. (see https://desktopengine.github.io/desktopengine-sdk/guide/runtime).
+// - Not implemented: DOM, import/ESM, IndexedDB, etc. (see https://desktopengine.app/desktopengine-sdk/guide/runtime).
 //
 // Usage: set `"types": []` in tsconfig and include this file, or use `/// <reference path="..." />` in JS.
 

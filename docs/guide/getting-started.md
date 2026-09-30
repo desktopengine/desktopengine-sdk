@@ -11,7 +11,7 @@ The SDK includes:
 
 ## Install
 
-You need Node.js 18 or later, and a Mac with [DesktopEngine](https://desktopengine.github.io) installed.
+You need Node.js 18 or later, and a Mac with [DesktopEngine](https://desktopengine.app) installed.
 
 ```bash
 npm install -g @desktopengine/sdk
