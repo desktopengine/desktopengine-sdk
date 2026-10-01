@@ -82,6 +82,8 @@ export interface ContentSpec {
   /** A wallpaper that runs across all screens (manifest `wallpaper.span`) */
   span?: boolean;
   instanceId?: string;
+  /** Its own preview proxy instead of the desktop's, e.g. a link that lets it reach its network.domains only */
+  proxy?: string;
 }
 
 type ContentEvents = {
@@ -131,11 +133,16 @@ export class WebContent {
       position: 'absolute', left: '0', top: '0', border: '0', background: 'transparent', pointerEvents: 'none', colorScheme: 'normal',
     });
     if (desktop.options.frameURL) this.iframe.src = desktop.options.frameURL;
-    else this.iframe.srcdoc = frameDocument(__FRAME_RUNTIME__, { proxy: desktop.options.proxy });
+    else this.iframe.srcdoc = frameDocument(__FRAME_RUNTIME__, { proxy: this.proxy });
   }
 
   get type(): string | undefined {
     return this.spec.manifest?.type;
+  }
+
+  /** Where its requests go */
+  get proxy(): string | undefined {
+    return this.spec.proxy ?? this.desktop.options.proxy;
   }
 
   get parameters(): Record<string, ParameterValue> {
@@ -215,7 +222,7 @@ export class WebContent {
     this.emit('windows', this.windows);
     const replacement = this.iframe.cloneNode() as HTMLIFrameElement;
     if (this.desktop.options.frameURL) replacement.src = this.desktop.options.frameURL;
-    else replacement.srcdoc = frameDocument(__FRAME_RUNTIME__, { proxy: this.desktop.options.proxy });
+    else replacement.srcdoc = frameDocument(__FRAME_RUNTIME__, { proxy: this.proxy });
     this.iframe.replaceWith(replacement);
     this.iframe = replacement;
   }
@@ -428,7 +435,7 @@ export class WebDesktop {
       contentType: manifest.type,
       permissions,
       networkDomains: manifest.network?.domains ?? [],
-      proxy: this.options.proxy,
+      proxy: content.proxy,
       appearance: this.options.appearance ?? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'),
       apiVersion: 1,
       maxFramesPerSecond: this.options.maxFramesPerSecond ?? 0,
