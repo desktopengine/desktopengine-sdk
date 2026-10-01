@@ -68,3 +68,34 @@ desktopengine pack [folder] [--out <folder>] [--minify]
 ```
 
 构建、检查并打包成 `<id>-<version>.zip`（缺省放在项目的 `dist/` 下），在 DesktopEngine 里用「文件 › 导入…」导入。
+
+## login
+
+```bash
+desktopengine login [--api <url>]
+```
+
+登录 DesktopEngine 商店：显示一个短码并打开浏览器，在浏览器里用创作者账号确认这个短码。令牌保存在 `~/.config/desktopengine/credentials.json`（设置了 `$XDG_CONFIG_HOME` 时在它下面），只有你自己能读。发布需要创作者账号，目前需要邀请。
+
+`desktopengine logout [--api <url>]` 退出登录并删除令牌。
+
+## publish
+
+```bash
+desktopengine publish [folder] [options]
+```
+
+像 `pack` 一样打包项目，作为商店里对应条目的新版本上传。第一次发布时按 `manifest.json` 的 `id` 认领条目（`id` 必须以 `app.desktopengine.<你的命名空间>.` 开头），并用清单的 `name` 和 `description` 填写商店页面，之后在创作者后台修改。`version` 必须高于已发布的版本；还是草稿或被拒绝的版本会重新上传。
+
+上传后立即检查（和 `validate` 相同的规则，加上商店的：大小、文件、id 和命名空间），有问题时打印出来，命令以状态 1 退出。提交的版本先在审核用的 Mac 上试运行，再由审核员查看，通过后发布。
+
+| 选项 | 说明 |
+| --- | --- |
+| `--notes <text>` | 这个版本的新内容，审核员和用户都能看到 |
+| `--network-purpose <text>` | `network` 权限的用途；带这个权限的版本提交审核时必须填写 |
+| `--submit` | 上传后提交审核 |
+| `--test-link` | 生成一个链接，在审核前就能把这个版本装进 DesktopEngine（标为测试版），给你自己和测试者用 |
+| `--debug` | 测试链接装的副本可以用 Safari 网页检查器调试，只有你自己能安装 |
+| `--api <url>` | 使用别的商店 API；也可以用 `DESKTOPENGINE_API` |
+
+在 CI 里把 `DESKTOPENGINE_TOKEN` 设为 `login` 保存的令牌，不用在那里运行 `login`。

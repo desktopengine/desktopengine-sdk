@@ -9,7 +9,7 @@ Make dynamic wallpapers, widgets and desktop pets for [DesktopEngine](https://de
 
 The SDK includes:
 
-- The `desktopengine` command line tool: create, run and debug, build, validate and pack projects
+- The `desktopengine` command line tool: create, run and debug, build, validate and pack projects, and publish them to the store
 - `templates/`: project templates for wallpapers, widgets and desktop pets, plus WebGL, three.js and PixiJS versions for wallpapers
 - `types/desktop-engine.d.ts`: type declarations of the runtime API, for completion and type checking in editors
 - `schema/manifest.schema.json`: the JSON Schema of `manifest.json`

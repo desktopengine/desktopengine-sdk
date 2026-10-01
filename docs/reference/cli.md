@@ -68,3 +68,34 @@ desktopengine pack [folder] [--out <folder>] [--minify]
 ```
 
 Builds, validates and zips the package into `<id>-<version>.zip` (in the project's `dist/` by default), which File › Import… in DesktopEngine imports.
+
+## login
+
+```bash
+desktopengine login [--api <url>]
+```
+
+Signs in to the DesktopEngine store: it shows a short code and opens the browser, where you confirm the code with your creator account. The token is kept in `~/.config/desktopengine/credentials.json` (in `$XDG_CONFIG_HOME` when it's set), readable only by you. Publishing needs a creator account, which is by invitation for now.
+
+`desktopengine logout [--api <url>]` signs out and forgets the token.
+
+## publish
+
+```bash
+desktopengine publish [folder] [options]
+```
+
+Packs the project like `pack` and uploads it as a new version of its item in the store. The first time, it claims the item for the `id` in `manifest.json` (the id must start with `app.desktopengine.<your namespace>.`) and fills the store listing from the manifest's `name` and `description`; edit the listing in the creator console afterwards. `version` must be higher than the published one; a version that is still a draft, or was rejected, is uploaded again.
+
+The upload is checked right away (the same rules as `validate`, plus the store's: size, files, id and namespace). Problems are printed and the command exits with status 1. A submitted version is run on a review Mac and looked at by a reviewer before it's published.
+
+| Option | Description |
+| --- | --- |
+| `--notes <text>` | What's new in this version, shown to reviewers and users |
+| `--network-purpose <text>` | What the `network` permission is for; needed to submit a version that has it |
+| `--submit` | Submit the version for review after uploading it |
+| `--test-link` | Make a link that installs this version in DesktopEngine before it's reviewed, marked as a test, for you and your testers |
+| `--debug` | The test link's copy can be inspected in Safari's Web Inspector; only you can install it |
+| `--api <url>` | Another store API; also `DESKTOPENGINE_API` |
+
+In CI, set `DESKTOPENGINE_TOKEN` to the token `login` saved, instead of running `login` there.

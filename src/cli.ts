@@ -13,6 +13,7 @@ import type { Issues, Manifest } from './manifest.ts';
 import { createProject, packProject, RENDERERS } from './project.ts';
 import { buildProject, isBundledProject } from './build.ts';
 import { DevServer, launchRequest, openURL } from './dev.ts';
+import { apiBase, login, logout, publish } from './publish.ts';
 import type { AppMessage, Metrics } from './dev.ts';
 
 // one level below the SDK folder, in src/ and in dist/
@@ -42,6 +43,17 @@ Usage:
         --no-open                   print the URL that connects DesktopEngine instead of opening it
   desktopengine pack [folder] [--out <folder>] [--minify]
       Builds, checks and zips the package (into dist/ by default) for File › Import… in DesktopEngine
+  desktopengine login [--api <url>]
+      Signs in to the DesktopEngine store with a code you confirm in the browser
+  desktopengine logout [--api <url>]
+  desktopengine publish [folder] [options]
+      Packs the project and uploads it as a new version of its item in the store
+        --notes <text>              what's new in this version
+        --network-purpose <text>    what the network permission is for (needed to submit with it)
+        --submit                    submit the version for review
+        --test-link                 make a link that installs this version in DesktopEngine, marked as a test
+        --debug                     the test link's copy can be inspected in Safari's Web Inspector
+        --api <url>                 another store API (or DESKTOPENGINE_API); DESKTOPENGINE_TOKEN signs in for CI
   desktopengine -h, --help | -v, --version
 
 Projects with src/index.ts or src/index.js are bundled and can use import, TypeScript and npm packages;
@@ -54,6 +66,9 @@ const USAGE: Record<string, string> = {
   build: 'desktopengine build [folder] [--minify]',
   dev: 'desktopengine dev [folder] [options]',
   pack: 'desktopengine pack [folder] [--out <folder>] [--minify]',
+  login: 'desktopengine login [--api <url>]',
+  logout: 'desktopengine logout [--api <url>]',
+  publish: 'desktopengine publish [folder] [--notes <text>] [--network-purpose <text>] [--submit] [--test-link] [--debug] [--api <url>]',
 };
 
 export type FlagValue = string | boolean | (string | boolean)[];
@@ -64,7 +79,7 @@ export interface ParsedArgs {
 }
 
 /** Flags that never take a value: `dev --perf folder` keeps `folder` as the folder. */
-const SWITCHES = new Set(['help', 'h', 'version', 'v', 'minify', 'perf', 'open', 'span']);
+const SWITCHES = new Set(['help', 'h', 'version', 'v', 'minify', 'perf', 'open', 'span', 'submit', 'test-link', 'debug']);
 
 /** Flags given more than once become arrays, `--no-x` is `x: false`. */
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -424,6 +439,46 @@ export async function main(argv: string[]): Promise<number> {
       const { output, files, warnings } = await packProject({ packageDir, outDir, minify: flags.minify === true });
       printIssues({ errors: [], warnings });
       console.log(`Packed ${files.length} files: ${displayPath(output)}`);
+      return 0;
+    }
+    case 'login': {
+      const api = apiBase(stringFlag(flags.api));
+      const { email } = await login({
+        api,
+        prompt: (code, url) => {
+          console.log(`Confirm the code ${code} in the browser: ${url}`);
+          openURL(url).catch(() => undefined);
+        },
+      });
+      console.log(`Signed in as ${email}.`);
+      return 0;
+    }
+    case 'logout': {
+      const signedOut = await logout(apiBase(stringFlag(flags.api)));
+      console.log(signedOut ? 'Signed out.' : 'You weren\'t signed in.');
+      return 0;
+    }
+    case 'publish': {
+      const result = await publish({
+        projectDir: path.resolve(rest[0] || '.'),
+        api: apiBase(stringFlag(flags.api)),
+        notes: stringFlag(flags.notes),
+        networkPurpose: stringFlag(flags['network-purpose']),
+        submit: flags.submit === true,
+        testLink: flags['test-link'] === true,
+        debug: flags.debug === true,
+      });
+      printIssues({ errors: result.errors, warnings: result.warnings });
+      if (result.errors.length) {
+        console.error(`${result.id} ${result.version} was uploaded, but the checks found problems: fix them and publish again.`);
+        return 1;
+      }
+      if (result.testLink) console.log(`Test link: ${result.testLink}`);
+      console.log(
+        result.status === 'queued'
+          ? `${result.id} ${result.version} is submitted for review.`
+          : `${result.id} ${result.version} is uploaded as a draft: submit it with --submit, or in the creator console.`,
+      );
       return 0;
     }
     default:
