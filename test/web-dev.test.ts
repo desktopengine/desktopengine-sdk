@@ -10,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import type { Manifest } from '../src/manifest.ts';
-import { WebDevServer, allowedByManifest, webRuntimePath } from '../src/web-dev.ts';
+import { WebDevServer, allowedByManifest, isLocalAddress, webRuntimePath } from '../src/web-dev.ts';
 
 const manifest: Manifest = {
   id: 'com.example.web',
@@ -37,6 +37,16 @@ test('the web proxy reaches the domains of network.domains, as the engine does',
   assert.equal(allowed('https://[::1]/'), false);
   assert.equal(allowed('https://localhost/'), false);
   assert.equal(allowed('https://api.example.com/', { ...manifest, permissions: [] }), false, 'needs the permission');
+});
+
+test('the proxy refuses domains that resolve to the local network', () => {
+  for (const address of ['127.0.0.1', '10.1.2.3', '172.20.0.1', '192.168.1.1', '169.254.1.1', '100.64.0.1', '0.0.0.0', '224.0.0.1', '::1', '::', 'fe80::1', 'fd12::1', '::ffff:192.168.0.1']) {
+    assert.equal(isLocalAddress(address), true, address);
+  }
+  // fake-IP ranges of proxy software aren't
+  for (const address of ['93.184.216.34', '198.18.0.5', 'fc00::5', '2606:4700::1111', '172.32.0.1']) {
+    assert.equal(isLocalAddress(address), false, address);
+  }
 });
 
 test('dev --web serves the desktop page, the build, its files and the logs', async (t) => {

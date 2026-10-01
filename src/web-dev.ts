@@ -18,7 +18,9 @@
 import { execFile } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import dns from 'node:dns/promises';
 import http from 'node:http';
+import net from 'node:net';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { fileURLToPath } from 'node:url';
@@ -73,6 +75,86 @@ export function allowedByManifest(manifest: Manifest, url: URL): boolean {
     if (normalized.startsWith('*.')) return host.length > normalized.length - 1 && host.endsWith(normalized.slice(1));
     return host === normalized;
   });
+}
+
+/**
+ * Whether an address is the computer's own or on its network, as the engine checks: loopback, private, link-local,
+ * shared (CGNAT), multicast and reserved. 198.18.0.0/15 and fc00::/18 aren't: proxy software's fake-IP mode resolves
+ * every domain there.
+ */
+export function isLocalAddress(address: string): boolean {
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
+  if (mapped) return isLocalAddress(mapped[1]);
+  if (net.isIPv4(address)) {
+    const [a, b] = address.split('.').map(Number);
+    return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b < 32)
+      || (a === 192 && b === 168) || (a === 100 && b >= 64 && b < 128) || (a === 192 && b === 0);
+  }
+  const value = address.toLowerCase();
+  if (value === '::' || value === '::1') return true;
+  const first = parseInt(value.split(':')[0] || '0', 16);
+  // fe80::/10 link-local, ff00::/8 multicast, fc00::/7 unique local except the fake-IP range fc00::/18
+  if ((first & 0xffc0) === 0xfe80 || (first & 0xff00) === 0xff00) return true;
+  if ((first & 0xfe00) === 0xfc00) {
+    const second = parseInt(value.split(':')[1] || '0', 16);
+    return !(first === 0xfc00 && second < 0x4000);
+  }
+  return false;
+}
+
+const REDIRECTS = 5;
+
+/**
+ * The preview proxy of `dev --web` (and the review node's web check): `?url=` with GET or HEAD, to the domains of the
+ * manifest's network.domains that don't resolve to the local network, following redirects that stay there, without
+ * cookies or credentials either way, at most 20 MB. `report` hears every request's URL and status or error.
+ */
+export async function proxyPreviewRequest(
+  manifest: Manifest | null,
+  url: URL,
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+  report: (url: string, status: number | string) => void = () => undefined,
+): Promise<void> {
+  // the sandboxed frame has an opaque origin
+  const cors = { 'Access-Control-Allow-Origin': '*' };
+  const fail = (status: number, message: string, target?: string): void => {
+    if (target) report(target, message);
+    response.writeHead(status, { 'Content-Type': 'text/plain', ...cors }).end(message);
+  };
+  let target: URL;
+  try {
+    target = new URL(url.searchParams.get('url') ?? '');
+  } catch {
+    return fail(400, 'bad url');
+  }
+  if (request.method !== 'GET' && request.method !== 'HEAD') return fail(405, 'the preview only sends GET and HEAD', target.href);
+  try {
+    for (let hop = 0; ; hop++) {
+      if (!manifest || !allowedByManifest(manifest, target)) return fail(403, 'not in network.domains', target.href);
+      const addresses = await dns.lookup(target.hostname, { all: true });
+      if (addresses.some(({ address }) => isLocalAddress(address))) return fail(403, `${target.hostname} resolves to the local network`, target.href);
+      const upstream = await fetch(target, {
+        method: request.method,
+        headers: { Accept: String(request.headers.accept ?? '*/*'), 'User-Agent': 'DesktopEngine-Preview/1' },
+        redirect: 'manual',
+      });
+      const location = upstream.headers.get('location');
+      if (upstream.status >= 300 && upstream.status < 400 && location) {
+        if (hop >= REDIRECTS) return fail(508, 'too many redirects', target.href);
+        target = new URL(location, target);
+        continue;
+      }
+      const body = Buffer.from(await upstream.arrayBuffer());
+      if (body.length > PROXY_LIMIT) return fail(502, 'the response is too large for the preview', target.href);
+      report(target.href, upstream.status);
+      response.writeHead(upstream.status, { 'Content-Type': upstream.headers.get('content-type') ?? 'application/octet-stream', 'Cache-Control': 'no-store', ...cors });
+      response.end(request.method === 'HEAD' ? undefined : body);
+      return;
+    }
+  } catch (error) {
+    fail(502, (error as Error).message, target.href);
+  }
 }
 
 export class WebDevServer extends EventEmitter<WebDevServerEvents> {
@@ -226,52 +308,13 @@ export class WebDevServer extends EventEmitter<WebDevServerEvents> {
       }
       return send(204, 'text/plain', '');
     }
-    if (url.pathname === '/proxy') return this.proxy(url, request, response, cors);
+    if (url.pathname === '/proxy') return this.proxy(url, request, response);
     send(404, 'text/plain', 'not found');
   }
 
-  /** GET only, no cookies or credentials either way, to the manifest's domains, at most PROXY_LIMIT */
-  private async proxy(url: URL, request: http.IncomingMessage, response: http.ServerResponse, cors: Record<string, string>): Promise<void> {
+  private async proxy(url: URL, request: http.IncomingMessage, response: http.ServerResponse): Promise<void> {
     const manifest = this.build?.manifest;
-    let target: URL;
-    try {
-      target = new URL(url.searchParams.get('url') ?? '');
-    } catch {
-      response.writeHead(400, cors).end('bad url');
-      return;
-    }
-    if (!manifest || !allowedByManifest(manifest, target)) {
-      this.emit('proxy', { url: target.href, status: 'not in network.domains' });
-      response.writeHead(403, cors).end('not in network.domains');
-      return;
-    }
-    if (request.method !== 'GET' && request.method !== 'HEAD') {
-      response.writeHead(405, cors).end('only GET');
-      return;
-    }
-    try {
-      const upstream = await fetch(target, {
-        method: request.method,
-        headers: { Accept: String(request.headers.accept ?? '*/*'), 'User-Agent': 'DesktopEngine-Preview/1' },
-        redirect: 'follow',
-      });
-      // a redirect may only end on an allowed domain too
-      if (!allowedByManifest(manifest, new URL(upstream.url))) {
-        response.writeHead(403, cors).end('redirected out of network.domains');
-        return;
-      }
-      const body = Buffer.from(await upstream.arrayBuffer());
-      if (body.length > PROXY_LIMIT) {
-        response.writeHead(502, cors).end('the response is too large for the preview');
-        return;
-      }
-      this.emit('proxy', { url: target.href, status: upstream.status });
-      response.writeHead(upstream.status, { 'Content-Type': upstream.headers.get('content-type') ?? 'application/octet-stream', 'Cache-Control': 'no-store', ...cors });
-      response.end(request.method === 'HEAD' ? undefined : body);
-    } catch (error) {
-      this.emit('proxy', { url: target.href, status: (error as Error).message });
-      response.writeHead(502, cors).end((error as Error).message);
-    }
+    await proxyPreviewRequest(manifest ?? null, url, request, response, (target, status) => this.emit('proxy', { url: target, status }));
   }
 }
 
