@@ -20,7 +20,8 @@ export type { Rect, WebScreen, WindowState, ParameterValue };
 
 /**
  * The page to serve at `DesktopOptions.frameURL`, on a site of its own: the frame runtime with a Content Security Policy
- * that lets contents reach only the preview proxy, as each frame gets by default
+ * that lets contents reach only the preview proxy, as each frame gets by default. A frame that navigates away from it
+ * (to a page without that policy) is stopped.
  */
 export function framePage(options: { proxy?: string } = {}): string {
   return frameDocument(__FRAME_RUNTIME__, options);
@@ -42,7 +43,10 @@ export interface DesktopOptions {
   scale?: number;
   /**
    * A page on an origin of its own that runs the frame runtime (`framePage()`), for sites where
-   * the contents must be on another site than the page; by default each frame is an opaque-origin srcdoc document
+   * the contents must be on another site than the page; by default each frame is an opaque-origin srcdoc document.
+   * Use one for contents you don't trust: browsers that don't give sandboxed frames a process of their own (Safari
+   * among them) run a srcdoc frame on the page's thread, where a content's endless loop freezes the page and
+   * `terminate()` never gets to run.
    */
   frameURL?: string;
   /** The preview proxy: http(s) and ws(s) requests go to `<proxy>?url=…`. Without one, contents have no network */

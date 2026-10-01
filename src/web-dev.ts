@@ -254,6 +254,8 @@ export class WebDevServer extends EventEmitter<WebDevServerEvents> {
   readonly projectDir: string;
   readonly launch: LaunchRequest;
   readonly token = crypto.randomBytes(18).toString('hex');
+  /** Only for the proxy: the frame gets it, and its content can't use it to read the project or write to the terminal */
+  readonly proxyToken = crypto.randomBytes(18).toString('hex');
   port: number;
   revision = 0;
   private build: { packageDir: string; manifest: Manifest; files: string[] } | null = null;
@@ -340,7 +342,7 @@ export class WebDevServer extends EventEmitter<WebDevServerEvents> {
 
   private authorized(url: URL): boolean {
     const token = Buffer.from(url.searchParams.get('token') ?? '');
-    const expected = Buffer.from(this.token);
+    const expected = Buffer.from(url.pathname === '/proxy' ? this.proxyToken : this.token);
     return token.length === expected.length && crypto.timingSafeEqual(token, expected);
   }
 
@@ -359,7 +361,7 @@ export class WebDevServer extends EventEmitter<WebDevServerEvents> {
     const send = (status: number, type: string, body: string | Buffer): void => {
       response.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store', ...cors }).end(body);
     };
-    if (url.pathname === '/') return send(200, 'text/html; charset=utf-8', desktopPage(this.token));
+    if (url.pathname === '/') return send(200, 'text/html; charset=utf-8', desktopPage(this.token, this.proxyToken));
     if (url.pathname === '/desktop.js') return send(200, 'text/javascript; charset=utf-8', fs.readFileSync(webRuntimePath()));
     if (url.pathname === '/events') {
       response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
@@ -412,7 +414,7 @@ export class WebDevServer extends EventEmitter<WebDevServerEvents> {
 }
 
 /** A Mac desktop: a wallpaper, the menu bar, the Dock, and the project on it */
-function desktopPage(token: string): string {
+function desktopPage(token: string, proxyToken: string): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -459,7 +461,7 @@ let appearance = matchMedia('(prefers-color-scheme: light)').matches ? 'light' :
 root.dataset.appearance = appearance;
 const desktop = new WebDesktop(document.getElementById('desktop'), {
   insets: { top: 24, bottom: 70 },
-  proxy: location.origin + api('/proxy'),
+  proxy: location.origin + '/proxy?token=' + ${JSON.stringify(proxyToken)},
   appearance,
   muted: true,
 });

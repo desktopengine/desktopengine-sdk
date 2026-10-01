@@ -111,10 +111,17 @@ test('dev --web serves the desktop page, the build, its files and the logs', asy
   await fetch(`${base}/log?token=${server.token}`, { method: 'POST', body: JSON.stringify({ kind: 'exception', message: 'Error: boom', stack: 'at desktopengine:///Web/index.js:1:1' }) });
   assert.deepEqual(await logged, { kind: 'exception', level: undefined, message: 'Error: boom', stack: 'at desktopengine:///Web/index.js:1:1' });
 
-  const denied = await get(`/proxy?url=${encodeURIComponent('https://example.com/')}`);
+  // the frame's token is the proxy's only: its content can't read the project or write to the terminal
+  assert.match(await (await get('/')).text(), new RegExp(`/proxy\\?token=' \\+ "${server.proxyToken}"`));
+  assert.equal((await get('/package', server.proxyToken)).status, 403);
+  assert.equal((await get('/log', server.proxyToken)).status, 403);
+  const undeclared = `/proxy?url=${encodeURIComponent('https://example.com/')}`;
+  assert.equal((await get(undeclared)).status, 403, 'the page token is not the proxy token');
+  const denied = await get(undeclared, server.proxyToken);
   assert.equal(denied.status, 403);
   assert.equal(denied.headers.get('access-control-allow-origin'), '*', 'the sandboxed frame reads the answer');
-  assert.equal((await get(`/proxy?url=${encodeURIComponent('https://127.0.0.1/')}`)).status, 403);
+  assert.match(await denied.text(), /network\.domains|not declared|isn't/i);
+  assert.equal((await get(`/proxy?url=${encodeURIComponent('https://127.0.0.1/')}`, server.proxyToken)).status, 403);
 
   // the page hears of every build
   const events = await get('/events');
