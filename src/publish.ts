@@ -41,8 +41,10 @@ function readCredentials(): Credentials {
 function writeCredentials(credentials: Credentials): void {
   const file = credentialsFile();
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  fs.writeFileSync(file, JSON.stringify(credentials, null, 2), { mode: 0o600 });
-  fs.chmodSync(file, 0o600);
+  // a new file made readable only by its owner, then moved over the old one: the token is never in a file others can read
+  const temporary = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, JSON.stringify(credentials, null, 2), { mode: 0o600, flag: 'wx' });
+  fs.renameSync(temporary, file);
 }
 
 /** The token for this API: DESKTOPENGINE_TOKEN (for CI), or the one `login` kept */
