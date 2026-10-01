@@ -275,7 +275,7 @@ export class WindowImpl extends ComponentImpl {
     return state.screens.find((screen) => inside(screen.bounds)) ?? state.screens[0];
   }
 
-  /** §11.1: widget and overlay windows stay below the menu bar and cover at most half of a display */
+  /** widget and overlay windows stay below the menu bar and cover at most half of a display */
   private restricted(frame: Rect): Rect {
     if (!allowedTypes() || (this.type !== 'widget' && this.type !== 'overlay')) return frame;
     const screen = this.screen();
