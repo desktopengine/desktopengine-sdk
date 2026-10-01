@@ -18,6 +18,14 @@ declare const __FRAME_RUNTIME__: string;
 
 export type { Rect, WebScreen, WindowState, ParameterValue };
 
+/**
+ * The page to serve at `DesktopOptions.frameURL`, on a site of its own: the frame runtime with a Content Security Policy
+ * that lets contents reach only the preview proxy, as each frame gets by default
+ */
+export function framePage(options: { proxy?: string } = {}): string {
+  return frameDocument(__FRAME_RUNTIME__, options);
+}
+
 export interface ScreenSpec {
   /** Points */
   width: number;
@@ -33,7 +41,7 @@ export interface DesktopOptions {
   /** devicePixelRatio of the contents; the page's, at most 2, by default */
   scale?: number;
   /**
-   * A page on an origin of its own that runs the frame runtime (`frame.html` of the SDK's web build), for sites where
+   * A page on an origin of its own that runs the frame runtime (`framePage()`), for sites where
    * the contents must be on another site than the page; by default each frame is an opaque-origin srcdoc document
    */
   frameURL?: string;
