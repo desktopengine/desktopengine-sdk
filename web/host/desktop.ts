@@ -123,6 +123,8 @@ export class WebContent {
   private listeners = new Map<string, Set<(value: never) => void>>();
   private ready = false;
   private stopped = false;
+  /** New parameters were sent and their answer hasn't come */
+  private awaitingParameters = false;
   private parameterValues: Record<string, ParameterValue>;
 
   constructor(
@@ -140,8 +142,24 @@ export class WebContent {
     Object.assign(this.iframe.style, {
       position: 'absolute', left: '0', top: '0', border: '0', background: 'transparent', pointerEvents: 'none', colorScheme: 'normal',
     });
+    this.watchNavigation(this.iframe);
     if (desktop.options.frameURL) this.iframe.src = desktop.options.frameURL;
     else this.iframe.srcdoc = frameDocument(__FRAME_RUNTIME__, { proxy: this.proxy });
+  }
+
+  /**
+   * The frame's page loads once. A second load is the content leaving it for a page of its own, past the page's
+   * content security policy (a sandboxed frame can still navigate itself): it's stopped.
+   */
+  private watchNavigation(iframe: HTMLIFrameElement): void {
+    let loads = 0;
+    iframe.addEventListener('load', () => {
+      loads += 1;
+      if (loads > 1 && iframe === this.iframe && !this.stopped) {
+        this.emit('exception', { message: 'the content left its page (it navigated its frame), so it was stopped' });
+        this.stop();
+      }
+    });
   }
 
   get type(): string | undefined {
@@ -176,6 +194,8 @@ export class WebContent {
   receive(message: FrameMessage): void {
     switch (message?.type) {
       case 'ready': {
+        // once per frame: the launch (with the package's files) isn't handed out again
+        if (this.ready) break;
         this.ready = true;
         const files: Record<string, ArrayBuffer> = {};
         for (const [path, data] of Object.entries(this.spec.files ?? {})) files[path] = data.slice(0);
@@ -187,7 +207,7 @@ export class WebContent {
         this.emit('launched', undefined);
         break;
       case 'windows':
-        this.windows = Array.isArray(message.windows) ? message.windows : [];
+        this.windows = sanitizeWindows(message.windows, this.type);
         this.emit('windows', this.windows);
         break;
       case 'console':
@@ -204,7 +224,10 @@ export class WebContent {
         this.emit('stats', { framesPerSecond: this.framesPerSecond });
         break;
       case 'parameters-result':
-        // like the app: content that doesn't apply new parameters itself starts again with them
+        // like the app: content that doesn't apply new parameters itself starts again with them (only an answer to
+        // parameters that were sent counts)
+        if (!this.awaitingParameters) break;
+        this.awaitingParameters = false;
         if (!message.handled) this.restart();
         break;
     }
@@ -215,6 +238,7 @@ export class WebContent {
     const changed = Object.keys(values).filter((key) => values[key] !== this.parameterValues[key]);
     if (!changed.length) return;
     this.parameterValues = { ...this.parameterValues, ...values };
+    this.awaitingParameters = this.ready && !this.stopped;
     this.post({ type: 'parameters', parameters: this.parameters, changed });
   }
 
@@ -226,9 +250,11 @@ export class WebContent {
     }
     this.post({ type: 'stop' });
     this.ready = false;
+    this.awaitingParameters = false;
     this.windows = [];
     this.emit('windows', this.windows);
     const replacement = this.iframe.cloneNode() as HTMLIFrameElement;
+    this.watchNavigation(replacement);
     if (this.desktop.options.frameURL) replacement.src = this.desktop.options.frameURL;
     else replacement.srcdoc = frameDocument(__FRAME_RUNTIME__, { proxy: this.proxy });
     this.iframe.replaceWith(replacement);
@@ -257,6 +283,49 @@ export class WebContent {
     }
     return found;
   }
+}
+
+/** At most this many windows of a content count, as the engine allows */
+const MAX_WINDOWS = 16;
+/** A window's stacking within its content: a content can't rank its windows above another content's */
+const MAX_Z = 10_000;
+
+/**
+ * The windows a frame says it has, as the host can trust them: the types its kind of content may make (a wallpaper only
+ * desktop windows), finite frames, stacking within bounds, and regions that are lists of rectangles. Anything else is
+ * dropped rather than allowed to break hit testing for every content.
+ */
+export function sanitizeWindows(value: unknown, contentType: string | undefined): WindowState[] {
+  if (!Array.isArray(value)) return [];
+  const allowed = contentType === 'wallpaper' ? ['desktop'] : contentType === 'widget' || contentType === 'pet' ? ['widget', 'overlay'] : null;
+  const finite = (number: unknown): number | null => (typeof number === 'number' && Number.isFinite(number) ? number : null);
+  const rect = (raw: unknown): Rect | null => {
+    const r = raw as Partial<Rect> | null;
+    const [x, y, width, height] = [finite(r?.x), finite(r?.y), finite(r?.width), finite(r?.height)];
+    return x === null || y === null || width === null || height === null || width < 0 || height < 0 ? null : { x, y, width, height };
+  };
+  const rects = (raw: unknown): Rect[] | null => {
+    if (raw === null || raw === undefined || !Array.isArray(raw)) return null;
+    return raw.slice(0, 64).map(rect).filter((entry): entry is Rect => entry !== null);
+  };
+  const windows: WindowState[] = [];
+  for (const raw of value.slice(0, MAX_WINDOWS)) {
+    const win = raw as Partial<WindowState> | null;
+    const frame = rect(win?.frame);
+    const type = typeof win?.type === 'string' ? win.type : '';
+    if (!frame || (allowed && !allowed.includes(type))) continue;
+    windows.push({
+      id: String(win?.id ?? ''),
+      type,
+      frame,
+      visible: win?.visible === true,
+      z: Math.min(Math.max(finite(win?.z) ?? 0, 0), MAX_Z),
+      hitRegion: rects(win?.hitRegion),
+      dragRegion: rects(win?.dragRegion),
+      movable: win?.movable === true,
+    });
+  }
+  return windows;
 }
 
 function defaultParameters(manifest?: ManifestInfo): Record<string, ParameterValue> {

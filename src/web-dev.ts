@@ -20,6 +20,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import dns from 'node:dns/promises';
 import http from 'node:http';
+import https from 'node:https';
 import net from 'node:net';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
@@ -31,6 +32,8 @@ import type { Manifest } from './manifest.ts';
 
 const REBUILD_DELAY = 150;
 const PROXY_LIMIT = 20 * 1024 * 1024;
+/** A proxied request, redirects included, ends after this */
+const PROXY_TIMEOUT = 30_000;
 
 export interface WebDevServerEvents {
   built: [info: { revision: number; manifest: Manifest; warnings: string[] }];
@@ -83,8 +86,16 @@ export function allowedByManifest(manifest: Manifest, url: URL): boolean {
  * every domain there.
  */
 export function isLocalAddress(address: string): boolean {
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
-  if (mapped) return isLocalAddress(mapped[1]);
+  if (net.isIPv6(address)) {
+    // IPv6 addresses that carry an IPv4 one: mapped, compatible, NAT64 (64:ff9b::/96) and 6to4 (2002::/16)
+    const words = ipv6Words(address);
+    const embedded = (high: number, low: number) => `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
+    const zeros = (count: number) => words.slice(0, count).every((word) => word === 0);
+    if (zeros(5) && words[5] === 0xffff) return isLocalAddress(embedded(words[6], words[7]));
+    if (zeros(6) && (words[6] || words[7] > 1)) return isLocalAddress(embedded(words[6], words[7]));
+    if (words[0] === 0x64 && words[1] === 0xff9b && words.slice(2, 6).every((word) => word === 0)) return isLocalAddress(embedded(words[6], words[7]));
+    if (words[0] === 0x2002) return isLocalAddress(embedded(words[1], words[2]));
+  }
   if (net.isIPv4(address)) {
     const [a, b] = address.split('.').map(Number);
     return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b < 32)
@@ -102,7 +113,89 @@ export function isLocalAddress(address: string): boolean {
   return false;
 }
 
+/** The eight 16-bit words of an IPv6 address */
+function ipv6Words(address: string): number[] {
+  let value = address.toLowerCase().split('%')[0];
+  // a dotted IPv4 tail is two words
+  const dotted = /(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(value);
+  if (dotted) {
+    const [a, b, c, d] = dotted.slice(1).map(Number);
+    value = `${value.slice(0, dotted.index)}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+  const [head, tail] = value.split('::');
+  const parse = (part: string | undefined) => (part ? part.split(':').map((word) => parseInt(word, 16) || 0) : []);
+  const front = parse(head);
+  const back = parse(tail);
+  return tail === undefined ? front : [...front, ...Array(8 - front.length - back.length).fill(0), ...back];
+}
+
 const REDIRECTS = 5;
+
+class ProxyError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+/**
+ * One request, connecting only to an address that was checked: the check is in the lookup the connection itself uses,
+ * so the name can't resolve to something else between the check and the connection (DNS rebinding)
+ */
+function requestOnce(target: URL, method: string, accept: string, deadline: number): Promise<http.IncomingMessage> {
+  if (net.isIP(target.hostname.replace(/^\[|\]$/g, ''))) return Promise.reject(new ProxyError(403, 'an address, not a domain'));
+  const client = target.protocol === 'https:' ? https : target.protocol === 'http:' ? http : null;
+  if (!client) return Promise.reject(new ProxyError(403, `${target.protocol} isn't http or https`));
+  return new Promise((resolve, reject) => {
+    const outgoing = client.request(target, {
+      method,
+      // the body is passed on as it comes: no compression to undo
+      headers: { Accept: accept, 'Accept-Encoding': 'identity', 'User-Agent': 'DesktopEngine-Preview/1' },
+      timeout: Math.max(deadline - Date.now(), 1),
+      lookup: (hostname: string, options: { all?: boolean }, callback: (...args: unknown[]) => void) => {
+        dns.lookup(hostname, { all: true }).then(
+          (addresses) => {
+            if (!addresses.length || addresses.some(({ address }) => isLocalAddress(address))) {
+              callback(new ProxyError(403, `${hostname} resolves to the local network`));
+            } else if (options.all) {
+              callback(null, addresses);
+            } else {
+              callback(null, addresses[0].address, addresses[0].family);
+            }
+          },
+          (error: Error) => callback(error),
+        );
+      },
+    } as https.RequestOptions, resolve);
+    outgoing.on('timeout', () => outgoing.destroy(new ProxyError(504, 'the server took too long')));
+    outgoing.on('error', reject);
+    outgoing.end();
+  });
+}
+
+/** The body, up to PROXY_LIMIT bytes and the deadline: no more is read */
+function readLimited(incoming: http.IncomingMessage, deadline: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let length = 0;
+    const timer = setTimeout(() => incoming.destroy(new ProxyError(504, 'the server took too long')), Math.max(deadline - Date.now(), 1));
+    incoming.on('data', (chunk: Buffer) => {
+      length += chunk.length;
+      if (length > PROXY_LIMIT) incoming.destroy(new ProxyError(502, 'the response is too large for the preview'));
+      else chunks.push(chunk);
+    });
+    incoming.on('end', () => {
+      clearTimeout(timer);
+      resolve(Buffer.concat(chunks));
+    });
+    incoming.on('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+  });
+}
 
 /**
  * The preview proxy of `dev --web` (and the review node's web check): `?url=` with GET or HEAD, to the domains of the
@@ -129,31 +222,31 @@ export async function proxyPreviewRequest(
     return fail(400, 'bad url');
   }
   if (request.method !== 'GET' && request.method !== 'HEAD') return fail(405, 'the preview only sends GET and HEAD', target.href);
+  const deadline = Date.now() + PROXY_TIMEOUT;
   try {
     for (let hop = 0; ; hop++) {
       if (!manifest || !allowedByManifest(manifest, target)) return fail(403, 'not in network.domains', target.href);
-      const addresses = await dns.lookup(target.hostname, { all: true });
-      if (addresses.some(({ address }) => isLocalAddress(address))) return fail(403, `${target.hostname} resolves to the local network`, target.href);
-      const upstream = await fetch(target, {
-        method: request.method,
-        headers: { Accept: String(request.headers.accept ?? '*/*'), 'User-Agent': 'DesktopEngine-Preview/1' },
-        redirect: 'manual',
-      });
-      const location = upstream.headers.get('location');
-      if (upstream.status >= 300 && upstream.status < 400 && location) {
+      const upstream = await requestOnce(target, request.method, String(request.headers.accept ?? '*/*'), deadline);
+      const location = upstream.headers.location;
+      const status = upstream.statusCode ?? 502;
+      if (status >= 300 && status < 400 && location) {
+        upstream.resume();
         if (hop >= REDIRECTS) return fail(508, 'too many redirects', target.href);
         target = new URL(location, target);
         continue;
       }
-      const body = Buffer.from(await upstream.arrayBuffer());
-      if (body.length > PROXY_LIMIT) return fail(502, 'the response is too large for the preview', target.href);
-      report(target.href, upstream.status);
-      response.writeHead(upstream.status, { 'Content-Type': upstream.headers.get('content-type') ?? 'application/octet-stream', 'Cache-Control': 'no-store', ...cors });
+      if (Number(upstream.headers['content-length']) > PROXY_LIMIT) {
+        upstream.destroy();
+        return fail(502, 'the response is too large for the preview', target.href);
+      }
+      const body = request.method === 'HEAD' ? Buffer.alloc(0) : await readLimited(upstream, deadline);
+      report(target.href, status);
+      response.writeHead(status, { 'Content-Type': upstream.headers['content-type'] ?? 'application/octet-stream', 'Cache-Control': 'no-store', ...cors });
       response.end(request.method === 'HEAD' ? undefined : body);
       return;
     }
   } catch (error) {
-    fail(502, (error as Error).message, target.href);
+    fail(error instanceof ProxyError ? error.status : 502, (error as Error).message, target.href);
   }
 }
 
