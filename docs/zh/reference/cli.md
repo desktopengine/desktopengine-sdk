@@ -93,6 +93,9 @@ desktopengine publish [folder] [options]
 | --- | --- |
 | `--notes <text>` | 这个版本的新内容，审核员和用户都能看到 |
 | `--network-purpose <text>` | `network` 权限的用途；带这个权限的版本提交审核时必须填写 |
+| `--category <category>` | 商店里的分类，例如 `clock`；第一次提交时必须填写。分类列表见商店 API 的 `GET /v1/categories` |
+| `--copyright <origin>` | 内容的来源：`original`（原创）、`licensed`（已获授权）或 `open`（公共领域或开放许可）；第一次提交时必须填写 |
+| `--copyright-note <text>` | `licensed` 时写明授权方；`open` 时写明许可，例如 `CC BY 4.0` |
 | `--submit` | 上传后提交审核 |
 | `--test-link` | 生成一个链接，在审核前就能把这个版本装进 DesktopEngine（标为测试版），给你自己和测试者用 |
 | `--debug` | 测试链接装的副本可以用 Safari 网页检查器调试，只有你自己能安装 |

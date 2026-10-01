@@ -93,6 +93,9 @@ The upload is checked right away (the same rules as `validate`, plus the store's
 | --- | --- |
 | `--notes <text>` | What's new in this version, shown to reviewers and users |
 | `--network-purpose <text>` | What the `network` permission is for; needed to submit a version that has it |
+| `--category <category>` | The store's category for it, e.g. `clock`: needed to submit the first time. The categories are listed by `GET /v1/categories` of the store API |
+| `--copyright <origin>` | Where the content comes from: `original`, `licensed` or `open`; needed to submit the first time |
+| `--copyright-note <text>` | With `licensed`, who licensed it to you; with `open`, the license, e.g. `CC BY 4.0` |
 | `--submit` | Submit the version for review after uploading it |
 | `--test-link` | Make a link that installs this version in DesktopEngine before it's reviewed, marked as a test, for you and your testers |
 | `--debug` | The test link's copy can be inspected in Safari's Web Inspector; only you can install it |

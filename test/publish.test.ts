@@ -115,12 +115,13 @@ test('publish claims the item, uploads the package and submits it', async (t) =>
     if (route === 'PUT /v1/items/app.desktopengine.acme.clock/versions/1.0.0/upload') {
       return { json: { version: '1.0.0', status: 'draft', report: { errors: [], warnings: ['a warning'], flags: [] } } };
     }
+    if (route === 'PATCH /v1/items/app.desktopengine.acme.clock/details') return { json: { ok: true, pending: false } };
     if (route === 'POST /v1/items/app.desktopengine.acme.clock/versions/1.0.0/test-link') return { status: 201, json: { url: 'desktopengine://install?test=1' } };
     if (route === 'POST /v1/items/app.desktopengine.acme.clock/versions/1.0.0/submit') return { json: { version: '1.0.0', status: 'queued' } };
     return { status: 404, json: { error: `unexpected ${route}` } };
   });
 
-  const result = await publish({ projectDir: project, api, notes: 'first', submit: true, testLink: true, log: () => {} });
+  const result = await publish({ projectDir: project, api, notes: 'first', submit: true, testLink: true, category: 'clock', copyright: 'original', log: () => {} });
   assert.deepEqual(result, { id: 'app.desktopengine.acme.clock', version: '1.0.0', status: 'queued', warnings: ['a warning'], errors: [], testLink: 'desktopengine://install?test=1' });
 
   const claim = requests.find((request) => request.method === 'POST' && request.url === '/v1/items')!;
@@ -136,6 +137,10 @@ test('publish claims the item, uploads the package and submits it', async (t) =>
   const names = readZip(upload.body).map((entry) => entry.name);
   assert.ok(names.includes('manifest.json') && names.includes('index.js'));
   assert.ok(!names.some((name) => name.startsWith('src/')));
+  // the store details go before submitting
+  const details = requests.findIndex((request) => request.url.endsWith('/details'));
+  assert.deepEqual(JSON.parse(requests[details].body.toString()), { category: 'clock', copyright: 'original' });
+  assert.ok(details < requests.findIndex((request) => request.url.endsWith('/submit')));
   const link = requests.find((request) => request.url.endsWith('/test-link'))!;
   assert.deepEqual(JSON.parse(link.body.toString()), { debuggable: false });
 });
