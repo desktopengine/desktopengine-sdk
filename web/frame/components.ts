@@ -312,6 +312,8 @@ export class WindowImpl extends ComponentImpl {
   }
 
   show(): void {
+    // as in the app: a destroyed window is gone for good
+    if (!windows.has(this)) throw new Error('This window was destroyed; make a new one to show it again');
     if (this.shown) return;
     this.shown = true;
     if (!this.element.isConnected) document.body.appendChild(this.element);

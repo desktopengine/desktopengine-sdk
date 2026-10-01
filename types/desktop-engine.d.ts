@@ -709,7 +709,10 @@ declare namespace DesktopEngine {
     show(): void;
     /** Closes the window (fires close) */
     close(): void;
-    /** Releases listeners and drops the strong reference to the JS object; a window stays retained after creation until this is called */
+    /**
+     * Closes the window for good, releases listeners and drops the strong reference to the JS object; a window stays
+     * retained after creation until this is called. A destroyed window can't be shown again (show() throws).
+     */
     destroy(): void;
     /**
      * Window doesn't support remove
