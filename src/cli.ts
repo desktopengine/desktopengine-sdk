@@ -14,7 +14,8 @@ import { createProject, packProject, RENDERERS } from './project.ts';
 import { buildProject, isBundledProject } from './build.ts';
 import { DevServer, launchRequest, openURL } from './dev.ts';
 import { apiBase, login, logout, publish } from './publish.ts';
-import type { AppMessage, Metrics } from './dev.ts';
+import type { AppMessage, LaunchRequest, Metrics } from './dev.ts';
+import { WebDevServer, openInBrowser, webRuntimePath } from './web-dev.ts';
 
 // one level below the SDK folder, in src/ and in dist/
 const { version } = createRequire(import.meta.url)('../package.json') as { version: string };
@@ -40,6 +41,7 @@ Usage:
         --position <x,y>            window position
         --port <port>               random by default
         --perf                      show the frame rate, frame time, CPU and wake-ups of the mini program
+        --web                       run it in the browser instead, as the store's preview does
         --no-open                   print the URL that connects DesktopEngine instead of opening it
   desktopengine pack [folder] [--out <folder>] [--minify]
       Builds, checks and zips the package (into dist/ by default) for File › Import… in DesktopEngine
@@ -82,7 +84,7 @@ export interface ParsedArgs {
 }
 
 /** Flags that never take a value: `dev --perf folder` keeps `folder` as the folder. */
-const SWITCHES = new Set(['help', 'h', 'version', 'v', 'minify', 'perf', 'open', 'span', 'submit', 'test-link', 'debug']);
+const SWITCHES = new Set(['help', 'h', 'version', 'v', 'minify', 'perf', 'open', 'span', 'web', 'submit', 'test-link', 'debug']);
 
 /** Flags given more than once become arrays, `--no-x` is `x: false`. */
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -281,6 +283,7 @@ async function dev(projectDir: string, flags: Record<string, FlagValue>): Promis
     return 1;
   }
   const shouldOpen = flags.open !== false;
+  if (flags.web === true) return webDev(projectDir, launch, port, shouldOpen);
   const perf = flags.perf === true;
   const server = new DevServer({ projectDir, launch, port, metrics: perf });
   const status = perf ? new StatusLine() : null;
@@ -354,6 +357,48 @@ async function dev(projectDir: string, flags: Record<string, FlagValue>): Promis
       process.off('SIGTERM', stop);
       clearTimeout(connectTimer);
       status?.close();
+      server.stop().then(resolve, resolve);
+    };
+    process.on('SIGINT', stop);
+    process.on('SIGTERM', stop);
+  });
+  return 0;
+}
+
+/** `dev --web`: the browser instead of the app; the store previews mini programs with the same web runtime */
+async function webDev(projectDir: string, launch: LaunchRequest, port: number, shouldOpen: boolean): Promise<number> {
+  const server = new WebDevServer({ projectDir, launch, port });
+  server.on('built', ({ revision, manifest: built, warnings: buildWarnings }) => {
+    buildWarnings.forEach((message) => console.warn(`warning: ${message}`));
+    if (revision > 1) console.log(`${time()} ${color.dim(`Rebuilt "${englishText(built.name)}", the page runs it again`)}`);
+  });
+  server.on('build-failed', (error) => console.error(`${time()} ${color.red(error.message)}`));
+  server.on('log', (entry) => {
+    if (entry.kind === 'host-message') printAppMessage({ type: 'host', message: JSON.parse(entry.message) } as AppMessage);
+    else if (entry.kind === 'exception') printAppMessage({ type: 'exception', message: entry.message, stack: entry.stack } as AppMessage);
+    else printAppMessage({ type: 'console', level: entry.level ?? 'log', message: entry.message } as AppMessage);
+  });
+  server.on('proxy', ({ url, status }) => {
+    const text = `${time()} ${color.dim(`fetch ${url}: ${status}`)}`;
+    if (typeof status === 'number' && status < 400) console.log(text);
+    else console.warn(color.yellow(text));
+  });
+
+  try {
+    webRuntimePath();
+  } catch (error) {
+    console.error(color.red((error as Error).message));
+    return 1;
+  }
+  await server.start();
+  console.log(`Serving ${displayPath(projectDir)} to the browser, press Ctrl-C to stop:\n  ${server.url}`);
+  console.log(color.dim('The web preview is close to DesktopEngine, not the same: check it in the app too'));
+  if (shouldOpen) openInBrowser(server.url).catch(() => undefined);
+
+  await new Promise<void>((resolve) => {
+    const stop = (): void => {
+      process.off('SIGINT', stop);
+      process.off('SIGTERM', stop);
       server.stop().then(resolve, resolve);
     };
     process.on('SIGINT', stop);

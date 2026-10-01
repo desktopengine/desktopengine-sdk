@@ -18,6 +18,7 @@ npm run build       # compiles into dist/
 ```
 
 - `src/`: `cli.ts` is the entry; `manifest.ts` holds the manifest rules, the same as the app's; `build.ts` bundles a mini program's `src/` with esbuild; `dev.ts` and `websocket.ts` are `desktopengine dev`, see the [dev protocol](docs/reference/dev-protocol.md) for how it talks to the app.
+- `web/`: the web runtime, the JavaScript API implemented on top of a browser, for `dev --web` and the store's previews. `frame/` runs in a sandboxed iframe per mini program (`realm.ts` keeps the browser's globals from it), `host/desktop.ts` is the page's side (`WebDesktop`: the screens, the windows' hit testing and dragging), `protocol.ts` the messages between them. `npm run build` bundles it into `dist/web/` (`web/build.mjs`); keep it in step with `types/desktop-engine.d.ts`.
 - `templates/`: the project templates of `create`, kept small as a starting point. `<type>-<renderer>/` (e.g. `wallpaper-three`) are the versions of `create --renderer`, see `RENDERERS` in `src/project.ts`.
 - `types/desktop-engine.d.ts`: the type declarations of the runtime API, kept to what the engine really provides.
 - Code comments and command line output are in English.

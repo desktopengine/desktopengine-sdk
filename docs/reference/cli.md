@@ -42,8 +42,20 @@ Runs the project in DesktopEngine, rebuilds and reloads it when files change, an
 | `--port <port>` | The port to listen on, random by default |
 | `--perf` | Shows the frame rate, frame time, CPU, wake-ups and memory, see [Performance](/guide/performance#measuring) |
 | `--no-open` | Prints the URL that connects DesktopEngine instead of opening it |
+| `--web` | Runs it in the browser instead, see [In the browser](#in-the-browser) |
 
 These options stand in for what the user picks in the details pane: the [`launchOptions`](/guide/launch-options) your content reads are the same as once installed.
+
+### In the browser
+
+`dev --web` runs the project on a page that looks like a Mac desktop, in the web runtime the DesktopEngine store uses to let people try content before they install it. It doesn't need the app, so it works on any computer with a browser; it rebuilds and reloads on changes and prints the console in the terminal like `dev`. The menu bar of the page switches between light and dark, turns the sound on and starts the content again, and for widgets picks the size.
+
+The web runtime implements the same JavaScript API on top of the browser: windows are positioned elements, canvases are the browser's canvases. Your content only sees the globals it has in DesktopEngine, not `window`, `document` or the DOM, so it takes the same paths as in the app. It is close, not the same: check your content in the app before you publish it. Differences:
+
+- Requests (`fetch`, `XMLHttpRequest`, images and videos) to the domains of [`network.domains`](/guide/network#domains) go through a proxy, GET and HEAD only, without cookies; WebSocket isn't available with `dev --web`.
+- Files in `defile://usr/`, `localStorage` and `sessionStorage` are kept in memory and gone when the page reloads.
+- The scroll wheel doesn't reach the content, and keyboard events never do (as in the app).
+- `DesktopEngine.system.cpuUsage()` and `memoryUsage()` return made-up values that change slowly: a web page can't see the computer's.
 
 ## build
 

@@ -1,0 +1,14 @@
+{
+  "//": "The declarations of desktop.js, made by build.mjs",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "rewriteRelativeImportExtensions": true,
+    "rootDir": ".",
+    "outDir": "../dist/web",
+    "newLine": "lf"
+  },
+  "include": ["host/desktop.ts"]
+}

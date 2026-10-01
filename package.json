@@ -39,11 +39,11 @@
     "provenance": true
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node web/build.mjs",
     "prepare": "npm run build",
     "start": "node src/cli.ts",
     "test": "node --test \"test/*.test.ts\"",
-    "typecheck": "tsc -p tsconfig.json && tsc -p templates/tsconfig.json && tsc -p templates/tsconfig.renderers.json"
+    "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json && tsc -p templates/tsconfig.json && tsc -p templates/tsconfig.renderers.json"
   },
   "dependencies": {
     "esbuild": "^0.28.2"
