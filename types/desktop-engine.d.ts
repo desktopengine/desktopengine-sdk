@@ -483,9 +483,9 @@ declare namespace DesktopEngine {
     focus: void;
     /** The window stopped being the main window */
     blur: void;
-    /** A key was pressed (once listened to, the key is not passed further down) */
+    /** A key was pressed (once listened to, the key is not passed further down). Only content that comes with DesktopEngine gets the keyboard: for other content it never fires */
     keydown: KeyboardPayload;
-    /** A key was released (once listened to, the key is not passed further down) */
+    /** A key was released (once listened to, the key is not passed further down). Only content that comes with DesktopEngine gets the keyboard: for other content it never fires */
     keyup: KeyboardPayload;
     /** devicePixelRatio changed: the window moved to a display with another scale, or the display's scale changed */
     devicepixelratiochange: void;
@@ -731,9 +731,9 @@ declare namespace DesktopEngine {
     onfocus: EventHandler<this, void> | null | undefined;
     /** blur callback (not supported by the desktop type) */
     onblur: EventHandler<this, void> | null | undefined;
-    /** keydown callback (not supported by the desktop type) */
+    /** keydown callback (not supported by the desktop type; only content that comes with DesktopEngine gets the keyboard) */
     onkeydown: EventHandler<this, KeyboardPayload> | null | undefined;
-    /** keyup callback (not supported by the desktop type) */
+    /** keyup callback (not supported by the desktop type; only content that comes with DesktopEngine gets the keyboard) */
     onkeyup: EventHandler<this, KeyboardPayload> | null | undefined;
     /** devicepixelratiochange callback */
     ondevicepixelratiochange: EventHandler<this, void> | null | undefined;
@@ -761,7 +761,11 @@ declare namespace DesktopEngine {
 
   /** Window constructor */
   interface WindowConstructor {
-    /** Creates a window (call show() to display it) */
+    /**
+     * Creates a window (call show() to display it). Throws for a type the content's type can't use, and when the
+     * content already has 16 windows (destroy() the ones it no longer needs). Widget and overlay windows stay below the
+     * menu bar and cover at most half of a display.
+     */
     new (options?: WindowOptions): Window;
   }
 

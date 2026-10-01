@@ -16,7 +16,7 @@ socket.onmessage = (event) => update(JSON.parse(event.data));
 socket.onclose = (event) => setTimeout(reconnect, 5000);
 ```
 
-- 互联网上的地址必须用 `https://` 和 `wss://`：普通的 `http://` 和 `ws://` 会像断网一样失败（macOS 的 App 传输安全）。`localhost`、IP 地址和 `*.local` 名称仍然可以用 http，方便连接本机或局域网里的开发服务器。
+- 地址必须用 `https://` 和 `wss://`：普通的 `http://` 和 `ws://` 会像断网一样失败（macOS 的 App 传输安全）。
 - 相对地址（`data.json`、`./data.json`、`/data.json`）读取包内文件，不需要权限，文件不存在时是 404 响应；`data:` 和 `blob:` 地址也可以用。
 - 没有 CORS 限制，任何响应都能读取。每个小程序有自己的 Cookie，只保存在内存里。
 - `fetch` 收到响应头就返回，响应体是流（`response.body`，一个 `ReadableStream`），边下载边读；没人读的时候，缓冲约 1 MB 后暂停下载。`text()`、`json()`、`arrayBuffer()`、`blob()`、`formData()` 读完整个响应体。`text()` 与浏览器一样总是按 UTF-8 解码。系统会先缓冲 `text/plain` 响应的前 512 字节（内容嗅探）再交出来，要逐段推送文字（比如 server-sent events）的服务应该用 `text/event-stream` 等其他类型。
@@ -27,3 +27,17 @@ socket.onclose = (event) => setTimeout(reconnect, 5000);
 - 内容被移除或停止时，进行中的请求和连接会被取消，不会再有回调。
 
 没有 `network` 权限（用户拒绝了）时内容照常运行，要显示离线状态，不要反复重试。
+
+## 域名
+
+内容只能连接清单里列出的域名，和权限写在一起：
+
+```json
+"permissions": ["network"],
+"network": { "domains": ["api.example.com", "*.tile.example.org"] }
+```
+
+- 每一项是一个主机名，或者 `*.` 加域名表示它的所有子域名（`*.example.org` 不包括 `example.org` 本身，两个都用就都列上）。不写协议、端口和路径；最多 32 个。
+- 所有从网络加载的东西都按它来：`fetch`、`XMLHttpRequest`、`WebSocket`、远程图片、视频和音频，重定向也一样。其他地址会像不存在一样失败，控制台里会说明原因。
+- 内容连不到你的 Mac 和局域网：不能列 IP 地址、`localhost` 和 `.local` 名称，列出的域名如果解析到回环、私有或链路本地地址也会被拒绝。开发时也请用有域名的服务器。
+- `desktopengine dev` 也按同样的规则运行，那里能用的，发布后同样能用。`desktopengine validate` 会检查这份列表。

@@ -63,5 +63,6 @@ try {
 
 - The asynchronous functions run one at a time in order, off the JavaScript thread, so they don't hold up drawing; the `Sync` ones wait. Prefer the asynchronous ones for big files.
 - Errors are Node's: `error.code` is `'ENOENT'` (no such file), `'EEXIST'`, `'ENOTDIR'`, `'EISDIR'`, `'ENOTEMPTY'`, `'EACCES'` (writing to the package, or a path outside of these places) or `'EINVAL'` (not a file path); `error.path` is the path given.
+- The content's files can take up to 100 MB in `defile://usr/`, and as much again in `defile://temp/`. A write that would go over fails with `'ENOSPC'`, as when a disk is full; removing files makes room.
 - Binary data is an `ArrayBuffer` instead of a Buffer. There are no file handles, streams or `watch`.
 - `fetch`, `CanvasImage`, `Image`, `Video` and `Audio` load `defile://` files too. Those take URLs, so a name with spaces or `%` is percent-encoded there (`encodeURI`), unlike in `DesktopEngine.fs`.

@@ -15,6 +15,8 @@ export const MANIFEST_FILE = 'manifest.json';
 export const ENTRY_FILE = 'index.js';
 /** `DesktopEngine.apiVersion` these types and rules describe. */
 export const API_VERSION = 1;
+/** The most domains `network.domains` may list */
+export const MAX_NETWORK_DOMAINS = 32;
 
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9.-]*$/;
 /** BCP 47 language tag, e.g. en, zh-Hans, pt-BR */
@@ -63,6 +65,8 @@ export interface Manifest {
   widget?: { sizes: WidgetSize[] };
   wallpaper?: { span?: boolean };
   permissions?: string[];
+  /** With the `network` permission: the only hosts it may reach, `api.example.com` or `*.example.com` */
+  network?: { domains: string[] };
   parameters?: Parameter[];
 }
 
@@ -126,6 +130,19 @@ function validateLocalizedString(value: unknown, where: string, errors: string[]
     warnings.push(`"${where}" has no "en" translation, used when none of the user's languages match`);
   }
   return usable;
+}
+
+/**
+ * A host name on the internet, or `*.` and one for its subdomains: no IP address, `localhost` or `.local` name, no
+ * scheme, port or path. The same rule as the app's.
+ */
+export function isValidNetworkDomain(domain: string): boolean {
+  const host = domain.toLowerCase();
+  const name = host.startsWith('*.') ? host.slice(2) : host;
+  if (name.length > 253 || name === 'localhost' || name.endsWith('.localhost') || name.endsWith('.local')) return false;
+  const labels = name.split('.');
+  if (labels.length < 2 || !/[a-z]/.test(labels[labels.length - 1])) return false;
+  return labels.every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label));
 }
 
 /** A relative path that stays inside the package. */
@@ -260,6 +277,36 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
     }
   }
 
+  const { network } = manifest;
+  const declaresNetwork = Array.isArray(permissions) && permissions.includes('network');
+  let domains: unknown[] = [];
+  if (network !== undefined) {
+    if (!isPlainObject(network)) {
+      errors.push('"network" must be an object');
+    } else if (network.domains !== undefined && !Array.isArray(network.domains)) {
+      errors.push('"network.domains" must be an array');
+    } else {
+      domains = (network.domains as unknown[] | undefined) ?? [];
+      domains.forEach((domain, index) => {
+        if (typeof domain !== 'string' || !isValidNetworkDomain(domain)) {
+          errors.push(`"network.domains[${index}]" must be a domain name such as api.example.com or *.example.com, not an address, localhost or a URL (it is ${JSON.stringify(domain)})`);
+        }
+      });
+      if (new Set(domains).size !== domains.length) {
+        warnings.push('"network.domains" lists a domain twice');
+      }
+      if (domains.length > MAX_NETWORK_DOMAINS) {
+        errors.push(`"network.domains" can list at most ${MAX_NETWORK_DOMAINS} domains`);
+      }
+      if (!declaresNetwork && domains.length > 0) {
+        warnings.push('"network.domains" has no effect without the "network" permission');
+      }
+    }
+  }
+  if (declaresNetwork && domains.length === 0) {
+    errors.push('The "network" permission needs "network.domains": the domains it connects to, e.g. { "domains": ["api.example.com"] }. It can reach no others');
+  }
+
   const { parameters } = manifest;
   if (parameters !== undefined) {
     if (!Array.isArray(parameters)) {
@@ -272,7 +319,7 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
     }
   }
 
-  const known = new Set(['id', 'name', 'type', 'version', 'author', 'description', 'icon', 'preview', 'widget', 'wallpaper', 'permissions', 'parameters', 'apiVersion', '$schema']);
+  const known = new Set(['id', 'name', 'type', 'version', 'author', 'description', 'icon', 'preview', 'widget', 'wallpaper', 'permissions', 'network', 'parameters', 'apiVersion', '$schema']);
   Object.keys(manifest)
     .filter((key) => !known.has(key))
     .forEach((key) => warnings.push(`The app ignores the unknown field "${key}"`));

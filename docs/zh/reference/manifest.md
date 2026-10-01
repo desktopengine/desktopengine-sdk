@@ -31,6 +31,7 @@
 | `widget.sizes` | | 小组件支持的尺寸：`small` 164×164、`medium` 344×164、`large` 344×344，缺省为 `small` |
 | `wallpaper.span` | | 为 `true` 时壁纸可以跨所有显示器，见[跨显示器](/zh/guide/wallpaper#跨显示器) |
 | `permissions` | | 需要的权限，见[权限](#权限-permissions) |
+| `network.domains` | 有 `network` 时必填 | 要连接的域名，见[网络](/zh/guide/network#域名) |
 | `parameters` | | 用户可调的选项，见[选项](#选项-parameters) |
 
 `desktopengine validate` 按应用的规则检查清单，应用会拒绝导入不合规则的包。
@@ -80,7 +81,7 @@
 
 | 权限 | 含义 |
 | --- | --- |
-| `network` | 连接互联网 |
+| `network` | 连接 `network.domains` 里的域名 |
 | `files` | 读取用户选择的文件 |
 | `audio` | 播放声音 |
 | `system-info` | CPU、内存、网络用量 |
@@ -100,7 +101,14 @@ if (permissions.includes('network')) {
 }
 ```
 
-由运行时强制执行的权限：`network`（没有它不能联网，见[网络](/zh/guide/network)）、`audio`（没有它不能发出声音，见[音频](/zh/guide/audio)）、`system-info`（没有它 `cpuUsage()` / `memoryUsage()` 抛出错误）。`files`、`now-playing`、`window-positions` 目前还没有对应的 API，声明的作用是让用户知情。`desktopengine dev` 和「开发」菜单载入的内容由开发者自己运行，不询问，得到声明的全部权限；没有声明的同样用不了。
+声明 `network` 时要列出内容连接的域名；它只能连这些域名，询问权限时也会把它们列给用户看：
+
+```json
+"permissions": ["network"],
+"network": { "domains": ["api.example.com", "*.tile.example.org"] }
+```
+
+由运行时强制执行的权限：`network`（没有它不能联网，有它也只能连列出的域名，见[网络](/zh/guide/network#域名)）、`audio`（没有它不能发出声音，见[音频](/zh/guide/audio)）、`system-info`（没有它 `cpuUsage()` / `memoryUsage()` 抛出错误）。`files`、`now-playing`、`window-positions` 目前还没有对应的 API，声明的作用是让用户知情。`desktopengine dev` 和「开发」菜单载入的内容由开发者自己运行，不询问，得到声明的全部权限；没有声明的同样用不了。
 
 ## API 版本
 

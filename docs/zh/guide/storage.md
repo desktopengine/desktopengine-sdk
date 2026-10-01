@@ -63,5 +63,6 @@ try {
 
 - 异步函数按调用顺序逐个在 JavaScript 线程之外执行，不会卡住绘制；`Sync` 版本会等待完成。大文件优先用异步函数。
 - 错误和 Node 一样：`error.code` 是 `'ENOENT'`（文件不存在）、`'EEXIST'`、`'ENOTDIR'`、`'EISDIR'`、`'ENOTEMPTY'`、`'EACCES'`（写包里的文件，或者路径在这些位置之外）或 `'EINVAL'`（不是文件路径）；`error.path` 是传入的路径。
+- 内容的文件在 `defile://usr/` 里最多占 100 MB，`defile://temp/` 里另有同样多。超出的写入会以 `'ENOSPC'` 失败，和磁盘满了一样；删掉文件就能腾出空间。
 - 二进制数据是 `ArrayBuffer`，不是 Buffer。没有文件句柄、流和 `watch`。
 - `fetch`、`CanvasImage`、`Image`、`Video` 和 `Audio` 也能加载 `defile://` 文件。它们接受的是 URL，所以名称里的空格和 `%` 要做百分号编码（`encodeURI`），这一点和 `DesktopEngine.fs` 不同。

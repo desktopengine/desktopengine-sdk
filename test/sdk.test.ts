@@ -11,7 +11,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { validateManifest, validatePackage, englishText, TYPES } from '../src/manifest.ts';
+import { validateManifest, validatePackage, englishText, isValidNetworkDomain, TYPES } from '../src/manifest.ts';
 import { createZip, readZip, crc32 } from '../src/zip.ts';
 import { createProject, packProject, listPackageFiles, defaultId, RENDERERS } from '../src/project.ts';
 import { buildProject } from '../src/build.ts';
@@ -108,6 +108,32 @@ test('unknown permissions and fields are warnings, not errors', () => {
   assert.deepEqual(errors, []);
   assert.ok(warnings.some((message) => message.includes('camera')));
   assert.ok(warnings.some((message) => message.includes('extra')));
+});
+
+test('the network permission reaches only the domains it lists', () => {
+  const online = { ...minimal, permissions: ['network'], network: { domains: ['api.example.com', '*.tile.example.org'] } };
+  assert.deepEqual(validateManifest(online), { errors: [], warnings: [] });
+
+  const { errors } = validateManifest({ ...minimal, permissions: ['network'] });
+  assert.ok(errors.some((message) => message.includes('network.domains')));
+
+  for (const domain of ['https://api.example.com', 'api.example.com:443', 'api.example.com/v1', '127.0.0.1', '[::1]', 'localhost', 'printer.local', '*', 'com', '-a.example.com']) {
+    const result = validateManifest({ ...minimal, permissions: ['network'], network: { domains: [domain] } });
+    assert.ok(result.errors.some((message) => message.includes('network.domains[0]')), domain);
+  }
+
+  const unused = validateManifest({ ...minimal, network: { domains: ['api.example.com'] } });
+  assert.deepEqual(unused.errors, []);
+  assert.ok(unused.warnings.some((message) => message.includes('no effect')));
+});
+
+test('domain names follow the rule of the app', () => {
+  assert.ok(isValidNetworkDomain('API.Example.com'));
+  assert.ok(isValidNetworkDomain('xn--fiqs8s.xn--fiqz9s'));
+  assert.ok(isValidNetworkDomain('*.example.com'));
+  assert.ok(!isValidNetworkDomain('*.com.'));
+  assert.ok(!isValidNetworkDomain('10.0.0.1'));
+  assert.ok(!isValidNetworkDomain('example.123'));
 });
 
 test('text can be translated', () => {

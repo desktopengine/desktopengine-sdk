@@ -31,6 +31,7 @@
 | `widget.sizes` | | The sizes of a widget: `small` 164×164, `medium` 344×164, `large` 344×344; `small` by default |
 | `wallpaper.span` | | `true` when a wallpaper can span all displays, see [Spanning all displays](/guide/wallpaper#spanning-all-displays) |
 | `permissions` | | The permissions it needs, see [Permissions](#permissions) |
+| `network.domains` | With `network` | The domains it connects to, see [Network](/guide/network#domains) |
 | `parameters` | | Options users can change, see [Options](#options-parameters) |
 
 `desktopengine validate` checks the manifest by the app's rules; the app refuses packages that break them.
@@ -80,7 +81,7 @@ When the user changes an option, the new values are in `DesktopEngine.launchOpti
 
 | Permission | Meaning |
 | --- | --- |
-| `network` | Connect to the internet |
+| `network` | Connect to the domains in `network.domains` |
 | `files` | Read files the user chooses |
 | `audio` | Play sound |
 | `system-info` | CPU, memory and network usage |
@@ -100,7 +101,14 @@ if (permissions.includes('network')) {
 }
 ```
 
-The runtime enforces `network` (no network without it, see [Network](/guide/network)), `audio` (no sound without it, see [Audio](/guide/audio)) and `system-info` (`cpuUsage()` / `memoryUsage()` throw without it). `files`, `now-playing` and `window-positions` have no API yet; declaring them tells users. Content run by `desktopengine dev` or the Develop menu is yours, so it isn't asked and gets every permission it declares; the ones it doesn't declare are off there too.
+With `network`, list the domains the content connects to; it can reach those and nothing else, and the permission prompt shows them to users:
+
+```json
+"permissions": ["network"],
+"network": { "domains": ["api.example.com", "*.tile.example.org"] }
+```
+
+The runtime enforces `network` (no network without it, and only the listed domains with it, see [Network](/guide/network#domains)), `audio` (no sound without it, see [Audio](/guide/audio)) and `system-info` (`cpuUsage()` / `memoryUsage()` throw without it). `files`, `now-playing` and `window-positions` have no API yet; declaring them tells users. Content run by `desktopengine dev` or the Develop menu is yours, so it isn't asked and gets every permission it declares; the ones it doesn't declare are off there too.
 
 ## API versions
 
