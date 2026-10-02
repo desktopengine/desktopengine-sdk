@@ -2,6 +2,12 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 2.2.0 (2026-10-02)
+
+### Features
+
+- Screen.visibleFrame is a display's area without the menu bar and the Dock, kept current as the Dock is resized, moved or hidden
+
 ## 2.1.0 (2026-10-02)
 
 ### Features
