@@ -1,10 +1,11 @@
 {
-  "//": "Compiles src/ into dist/, what the npm package runs: npm run build. Without source maps and declarations, src/ isn't published",
+  "//": "Compiles src/ into dist/, what the npm package runs: npm run build. Declarations let other projects import its modules (dist/manifest.js's validateManifest); no source maps, src/ isn't published",
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": false,
     "rootDir": "src",
     "outDir": "dist",
+    "declaration": true,
     "newLine": "lf"
   },
   "include": ["src/**/*.ts"]
