@@ -14,7 +14,7 @@ import { CanvasImageImpl, CanvasImpl, ComponentImpl, componentOf, ImageImpl, Vid
 import { Evented, defineEvents } from './events.ts';
 import { createFileSystem, loadPackage, requireFrom } from './files.ts';
 import { installNetwork } from './network.ts';
-import { cancelAnimationFrame, clearTimer, requestAnimationFrame, setInterval, setTimeout, startStats } from './scheduler.ts';
+import { cancelAnimationFrame, clearTimer, hostFrame, requestAnimationFrame, setInterval, setTimeout, startStats } from './scheduler.ts';
 import { guard, hasPermission, report, send, state } from './state.ts';
 import { installStorage } from './storage.ts';
 
@@ -391,6 +391,9 @@ scope.addEventListener('message', (event: MessageEvent) => {
       break;
     case 'pointer':
       if (state.launch) pointer(message);
+      break;
+    case 'frame':
+      hostFrame();
       break;
     case 'move-window':
       windowById(message.window)?.moveTo(message.x, message.y);

@@ -124,6 +124,8 @@ export class WebContent {
   framesPerSecond = 0;
   /** Stacking among the contents; widgets and pets come to the front when pressed */
   order = 0;
+  /** It has animation frame callbacks waiting: the desktop sends it its display frames */
+  wantsFrames = false;
   private listeners = new Map<string, Set<(value: never) => void>>();
   private ready = false;
   private stopped = false;
@@ -227,6 +229,10 @@ export class WebContent {
         this.framesPerSecond = Number(message.framesPerSecond) || 0;
         this.emit('stats', { framesPerSecond: this.framesPerSecond });
         break;
+      case 'frames':
+        this.wantsFrames = message.wanted === true;
+        if (this.wantsFrames) this.desktop.startFrames();
+        break;
       case 'parameters-result':
         // like the app: content that doesn't apply new parameters itself starts again with them (only an answer to
         // parameters that were sent counts)
@@ -255,6 +261,7 @@ export class WebContent {
     this.post({ type: 'stop' });
     this.ready = false;
     this.awaitingParameters = false;
+    this.wantsFrames = false;
     this.windows = [];
     this.emit('windows', this.windows);
     const replacement = this.iframe.cloneNode() as HTMLIFrameElement;
@@ -362,6 +369,7 @@ export class WebDesktop {
   private nextOrder = 1;
   private scaleFactor = 1;
   private resizeTimer = 0;
+  private frameRequest = 0;
   private readonly resizeObserver: ResizeObserver;
   private readonly intersectionObserver: IntersectionObserver;
   private readonly onMessage = (event: MessageEvent) => {
@@ -370,6 +378,18 @@ export class WebDesktop {
     }
   };
   private readonly onVisibility = () => this.updateAllPlayback();
+  /** The page's display frames, passed on to the contents waiting for one (see `frame` in the protocol) */
+  private readonly onFrame = () => {
+    this.frameRequest = 0;
+    if (!this.playing) return;
+    let wanted = false;
+    for (const content of this.contents) {
+      if (!content.wantsFrames) continue;
+      wanted = true;
+      content.post({ type: 'frame' });
+    }
+    if (wanted) this.frameRequest = requestAnimationFrame(this.onFrame);
+  };
 
   constructor(
     readonly container: HTMLElement,
@@ -492,7 +512,19 @@ export class WebDesktop {
     this.updateAllPlayback();
   }
 
+  /** Whether contents draw: what `playback` tells them (suspended or rendering paused otherwise) */
+  private get playing(): boolean {
+    return document.visibilityState !== 'hidden' && !this.paused && this.visible;
+  }
+
+  /** @internal: a content asked for frames, or the desktop can be seen again */
+  startFrames(): void {
+    if (!this.frameRequest && this.playing && [...this.contents].some((content) => content.wantsFrames)) this.frameRequest = requestAnimationFrame(this.onFrame);
+  }
+
   destroy(): void {
+    cancelAnimationFrame(this.frameRequest);
+    this.frameRequest = 0;
     for (const content of [...this.contents]) this.terminate(content);
     window.removeEventListener('message', this.onMessage);
     document.removeEventListener('visibilitychange', this.onVisibility);
@@ -589,6 +621,7 @@ export class WebDesktop {
 
   private updateAllPlayback(): void {
     for (const content of this.contents) this.updatePlayback(content);
+    this.startFrames();
   }
 
   // MARK: The pointer

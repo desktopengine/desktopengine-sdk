@@ -7,6 +7,11 @@
 // paused (the page is hidden, the desktop scrolled away) and keeps to the lower of the host's frame rate and
 // DesktopEngine.preferredFramesPerSecond; timers of a suspended content run at most once a second. Exceptions in
 // callbacks are reported, the next ones still run.
+//
+// Frames come from the host: while callbacks wait, the frame asks for them (`frames`) and the host sends a `frame`
+// message on each of its own display frames. The frame's own requestAnimationFrame can't be relied on: browsers slow
+// it down in cross-origin frames the visitor hasn't interacted with, which a content's frame never is (it doesn't take
+// the mouse). Until the host's first frame arrives (and with hosts that don't send them) the frame's own drive it.
 
 import { contentFunction } from './realm.ts';
 import { guard, send, state } from './state.ts';
@@ -21,6 +26,8 @@ const nativeSetInterval = globalThis.setInterval.bind(globalThis);
 let callbacks = new Map<number, FrameCallback>();
 let nextFrameId = 1;
 let looping = false;
+/** The host sends frames: the native ones aren't asked for any more */
+let hostDriven = false;
 let lastFrame = -Infinity;
 let frames = 0;
 
@@ -31,10 +38,10 @@ function frameInterval(): number {
 
 function loop(time: number): void {
   if (!callbacks.size) {
-    looping = false;
+    setLooping(false);
     return;
   }
-  requestNativeFrame(loop);
+  if (!hostDriven) requestNativeFrame(loop);
   if (state.suspended || state.renderingPaused) return;
   const interval = frameInterval();
   // a couple of milliseconds early still counts: frames don't come exactly on time
@@ -48,14 +55,25 @@ function loop(time: number): void {
 
 const requestNativeFrame: (callback: FrameRequestCallback) => number = globalThis.requestAnimationFrame.bind(globalThis);
 
+/** Starts or stops the frames, telling the host whether to send its own */
+function setLooping(value: boolean): void {
+  if (looping === value) return;
+  looping = value;
+  if (looping && !hostDriven) requestNativeFrame(loop);
+  send({ type: 'frames', wanted: looping });
+}
+
+/** One of the host's display frames */
+export function hostFrame(): void {
+  hostDriven = true;
+  if (looping) loop(performance.now());
+}
+
 export function requestAnimationFrame(callback: FrameCallback): number {
   if (typeof callback !== 'function') throw new TypeError('requestAnimationFrame needs a function');
   const id = nextFrameId++;
   callbacks.set(id, callback);
-  if (!looping) {
-    looping = true;
-    requestNativeFrame(loop);
-  }
+  setLooping(true);
   return id;
 }
 

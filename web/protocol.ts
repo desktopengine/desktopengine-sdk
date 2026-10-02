@@ -82,6 +82,12 @@ export type HostMessage =
   | { type: 'screens'; screens: WebScreen[] }
   /** suspended: everything stops (timers once a second); renderingPaused: only drawing */
   | { type: 'playback'; suspended: boolean; renderingPaused: boolean; muted: boolean; maxFramesPerSecond: number }
+  /**
+   * A display frame, sent while the frame asked for them (`frames`). Browsers slow requestAnimationFrame down in
+   * cross-origin frames the visitor hasn't interacted with (Safari to about 20–30 a second), and contents' frames never
+   * take the mouse: the page's own frames drive their animation instead.
+   */
+  | { type: 'frame' }
   | { type: 'stop' };
 
 /** A window as the host sees it: where it is and which parts take the mouse */
@@ -108,6 +114,8 @@ export type FrameMessage =
   /** postMessage('host', …): move, close */
   | { type: 'host-message'; message: unknown }
   | { type: 'stats'; framesPerSecond: number }
+  /** Whether it has animation frame callbacks waiting: the host sends `frame` messages while it does */
+  | { type: 'frames'; wanted: boolean }
   /** Whether the content applied new parameters itself (it listens to parameterschange); the host restarts it otherwise */
   | { type: 'parameters-result'; handled: boolean };
 
