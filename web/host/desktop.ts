@@ -252,12 +252,17 @@ export class WebContent {
     this.post({ type: 'parameters', parameters: this.parameters, changed });
   }
 
-  /** Starts it again, e.g. after its code changed */
+  /**
+   * Starts it again, e.g. after its code changed. A widget or pet starts where its window is now (kept on its screen),
+   * not where it was first launched, unless `spec` gives it a position.
+   */
   restart(spec?: Partial<ContentSpec>): void {
+    const frame = this.windows.find((win) => win.visible && win.type !== 'desktop')?.frame;
     if (spec) {
       this.spec = { ...this.spec, ...spec };
       if (spec.manifest || spec.parameters) this.parameterValues = { ...defaultParameters(this.spec.manifest), ...this.spec.parameters, ...spec.parameters };
     }
+    if (frame && spec?.position === undefined) this.spec.position = this.desktop.keptOnScreen(frame, this.spec.screen);
     this.post({ type: 'stop' });
     this.ready = false;
     this.awaitingParameters = false;
@@ -474,6 +479,13 @@ export class WebDesktop {
       // like a display changing resolution: the contents start again on the new screens
       for (const content of this.contents) content.restart();
     }, 250);
+  }
+
+  /** @internal: where a window at `frame` goes on the screen numbered `screen`, moved in so all of it is on it */
+  keptOnScreen(frame: Rect, screen = 0): { x: number; y: number } {
+    const area = this.screens[Math.min(screen, this.screens.length - 1)].visibleFrame;
+    const clamp = (value: number, start: number, free: number) => Math.round(Math.min(Math.max(value, start), start + Math.max(free, 0)));
+    return { x: clamp(frame.x, area.x, area.width - frame.width), y: clamp(frame.y, area.y, area.height - frame.height) };
   }
 
   /** Starts a mini program on the desktop */
