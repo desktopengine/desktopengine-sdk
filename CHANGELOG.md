@@ -2,6 +2,12 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 2.1.0 (2026-10-02)
+
+### Features
+
+- the package ships type declarations for its modules, so other projects can import validateManifest from dist/manifest.js with its types
+
 ## 2.0.0 (2026-10-02)
 
 The first stable release. Changes since the 1.4.0 preview:
