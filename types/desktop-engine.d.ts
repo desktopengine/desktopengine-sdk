@@ -36,7 +36,7 @@ declare namespace DesktopEngine {
     name: string;
     /** The whole screen */
     frame: Rect;
-    /** The usable area, excluding the menu bar and the Dock */
+    /** The usable area, excluding the menu bar and the Dock, at launch; `Screen.visibleFrame` is the current one */
     visibleFrame: Rect;
     /** Pixel scale factor; 2 on Retina */
     scale: number;
@@ -566,7 +566,7 @@ declare namespace DesktopEngine {
 
   /** ScreenManager event map */
   interface ScreenManagerEventMap {
-    /** The screen configuration changed (displays connected or disconnected, resolution, etc.) */
+    /** The screen configuration changed: displays connected, disconnected or arranged, a resolution, or the menu bar or the Dock moved, resized or hid */
     change: void;
   }
 
@@ -3377,6 +3377,8 @@ declare namespace DesktopEngine {
     readonly isInMirrorSet: boolean;
     /** Bounds in global coordinates (points, origin at the top-left of the main display) */
     readonly bounds: Rect;
+    /** `bounds` without the menu bar and the Dock, in the same coordinates */
+    readonly visibleFrame: Rect;
     /** Resolution in pixels */
     readonly resolution: Size;
     /** Physical size (millimeters) */

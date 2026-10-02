@@ -54,6 +54,7 @@ function screenObject(screen: WebScreen, index: number): Record<string, unknown>
     isBuiltin: index === 0,
     isInMirrorSet: false,
     bounds: { ...screen.bounds },
+    visibleFrame: { ...screen.visibleFrame },
     resolution: { width: screen.bounds.width * screen.scale, height: screen.bounds.height * screen.scale },
     physicalSize: { width: Math.round(screen.bounds.width * 0.2), height: Math.round(screen.bounds.height * 0.2) },
   });
