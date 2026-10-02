@@ -262,7 +262,9 @@ export class WebContent {
       this.spec = { ...this.spec, ...spec };
       if (spec.manifest || spec.parameters) this.parameterValues = { ...defaultParameters(this.spec.manifest), ...this.spec.parameters, ...spec.parameters };
     }
-    if (frame && spec?.position === undefined) this.spec.position = this.desktop.keptOnScreen(frame, this.spec.screen);
+    // a widget given another size is kept on its screen in that size
+    const size = this.type === 'widget' ? widgetSize(this.spec) : null;
+    if (frame && spec?.position === undefined) this.spec.position = this.desktop.keptOnScreen({ ...frame, ...size?.dimensions }, this.spec.screen);
     this.post({ type: 'stop' });
     this.ready = false;
     this.awaitingParameters = false;
@@ -342,6 +344,13 @@ export function sanitizeWindows(value: unknown, contentType: string | undefined)
     });
   }
   return windows;
+}
+
+/** The size a widget launches in: the one asked for when its manifest has it, else its first; and its points */
+function widgetSize(spec: ContentSpec): { size: string; dimensions: { width: number; height: number } } {
+  const sizes = spec.manifest?.widget?.sizes ?? [];
+  const size = spec.size && (!sizes.length || sizes.includes(spec.size)) ? spec.size : sizes[0] ?? 'small';
+  return { size, dimensions: WIDGET_SIZES[size] ?? WIDGET_SIZES.small };
 }
 
 function defaultParameters(manifest?: ManifestInfo): Record<string, ParameterValue> {
@@ -590,9 +599,7 @@ export class WebDesktop {
       options.display = display(screen);
     }
     if (type === 'widget') {
-      const sizes = spec.manifest?.widget?.sizes ?? [];
-      const size = spec.size && (!sizes.length || sizes.includes(spec.size)) ? spec.size : (sizes[0] as keyof typeof WIDGET_SIZES) ?? 'small';
-      const dimensions = WIDGET_SIZES[size] ?? WIDGET_SIZES.small;
+      const { size, dimensions } = widgetSize(spec);
       options.size = size;
       options.width = dimensions.width;
       options.height = dimensions.height;
