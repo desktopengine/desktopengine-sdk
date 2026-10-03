@@ -2,6 +2,12 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 2.2.3 (2026-10-03)
+
+### Bug Fixes
+
+- Audio elements in the web runtime pause while the content is paused and go on afterwards, as in the app
+
 ## 2.2.2 (2026-10-03)
 
 ### Bug Fixes
