@@ -2,6 +2,12 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 2.2.1 (2026-10-03)
+
+### Bug Fixes
+
+- content with the audio permission plays sound in the web runtime in Safari, its frame taking the pointer over its windows
+
 ## 2.2.0 (2026-10-02)
 
 ### Features
