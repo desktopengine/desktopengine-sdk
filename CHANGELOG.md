@@ -2,6 +2,12 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 2.2.2 (2026-10-03)
+
+### Bug Fixes
+
+- Audio elements in the web runtime follow the sound being turned on and off, keep the muted content sets, and play once the browser allows it instead of failing
+
 ## 2.2.1 (2026-10-03)
 
 ### Bug Fixes
