@@ -77,6 +77,17 @@ const screenManager = new ScreenManagerImpl();
 // MARK: Audio
 
 const audioContexts = new Set<{ context: AudioContext; wantsRunning: boolean }>();
+/** Audio elements playing, or waiting to: they follow the sound being turned on and off */
+const audioElements = new Set<HTMLAudioElement>();
+/** The Audio elements that leave audioElements when they end */
+const endWatched = new WeakSet<HTMLAudioElement>();
+/** muted as the content set it on each Audio element; the element itself is muted too while the sound is off */
+const contentMuted = new WeakMap<HTMLMediaElement, boolean>();
+/** play() calls the browser held back until the visitor pressed in the frame, started when the sound may start */
+const heldPlays = new Map<HTMLAudioElement, { resolve: () => void; reject: (error: unknown) => void }[]>();
+const nativeMuted = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'muted')!;
+const nativePlay = HTMLMediaElement.prototype.play;
+const nativePause = HTMLMediaElement.prototype.pause;
 
 function audioAllowed(): boolean {
   return hasPermission('audio') && !state.muted && !state.suspended;
@@ -89,6 +100,23 @@ function applyAudio(): void {
     else entry.context.suspend().catch(() => undefined);
   }
   for (const video of allVideos()) video.applyAudio();
+  for (const element of audioElements) applyElementAudio(element);
+  for (const [element, held] of heldPlays) {
+    nativePlay.call(element).then(() => {
+      if (heldPlays.get(element) !== held) return;
+      heldPlays.delete(element);
+      for (const play of held) play.resolve();
+    }, (error: unknown) => {
+      if ((error instanceof DOMException && error.name === 'NotAllowedError') || heldPlays.get(element) !== held) return;
+      heldPlays.delete(element);
+      audioElements.delete(element);
+      for (const play of held) play.reject(error);
+    });
+  }
+}
+
+function applyElementAudio(element: HTMLMediaElement): void {
+  nativeMuted.set!.call(element, (contentMuted.get(element) ?? false) || state.muted || !hasPermission('audio'));
 }
 
 /** Without the audio permission an AudioContext stays suspended and play() fails, as in the app */
@@ -117,13 +145,48 @@ function installAudio(): void {
   }
   const NativeAudio = scope.Audio;
   if (NativeAudio) {
-    const play = HTMLMediaElement.prototype.play;
+    Object.defineProperty(HTMLAudioElement.prototype, 'muted', {
+      configurable: true,
+      enumerable: true,
+      get(this: HTMLAudioElement) {
+        return contentMuted.get(this) ?? false;
+      },
+      set(this: HTMLAudioElement, value: unknown) {
+        contentMuted.set(this, Boolean(value));
+        applyElementAudio(this);
+      },
+    });
     HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
-      if (!hasPermission('audio') && !(this instanceof HTMLVideoElement)) {
+      if (!(this instanceof HTMLAudioElement)) return nativePlay.call(this);
+      if (!hasPermission('audio')) {
         return Promise.reject(new DOMException('playing sound needs the "audio" permission in manifest.json', 'NotAllowedError'));
       }
-      if (this instanceof HTMLAudioElement) this.muted = state.muted;
-      return play.call(this);
+      const element = this;
+      if (!endWatched.has(element)) {
+        endWatched.add(element);
+        element.addEventListener('ended', () => audioElements.delete(element));
+      }
+      audioElements.add(element);
+      applyElementAudio(element);
+      // a browser plays sound in the frame only after the visitor pressed in it: the play waits for that (applyAudio)
+      // instead of failing, as there is nothing to wait for in the app
+      return nativePlay.call(element).catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === 'NotAllowedError')) throw error;
+        return new Promise<void>((resolve, reject) => {
+          const held = heldPlays.get(element) ?? [];
+          held.push({ resolve, reject });
+          heldPlays.set(element, held);
+        });
+      });
+    };
+    HTMLMediaElement.prototype.pause = function (this: HTMLMediaElement) {
+      if (this instanceof HTMLAudioElement) {
+        const held = heldPlays.get(this);
+        heldPlays.delete(this);
+        audioElements.delete(this);
+        for (const play of held ?? []) play.reject(new DOMException('The play() request was interrupted by a call to pause()', 'AbortError'));
+      }
+      nativePause.call(this);
     };
   }
 }
