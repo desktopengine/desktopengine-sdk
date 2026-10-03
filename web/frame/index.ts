@@ -9,7 +9,7 @@
 // the pointer, and tells the host where its windows are.
 
 import { contentFunction } from './realm.ts';
-import type { HostMessage, LaunchMessage, ParameterValue, WebScreen } from '../protocol.ts';
+import type { FrameMessage, HostMessage, LaunchMessage, ParameterValue, WebScreen } from '../protocol.ts';
 import { CanvasImageImpl, CanvasImpl, ComponentImpl, componentOf, ImageImpl, VideoImpl, WindowImpl, allVideos, allWindows, reportWindows, windowById } from './components.ts';
 import { Evented, defineEvents } from './events.ts';
 import { createFileSystem, loadPackage, requireFrom } from './files.ts';
@@ -126,6 +126,35 @@ function installAudio(): void {
       return play.call(this);
     };
   }
+}
+
+/**
+ * While the pointer is over one of its windows and sound is on, the host lets the frame of a content that may play
+ * sound take the pointer: a press in the frame itself is what lets it start sound (Safari counts no events the host
+ * passes on, and lets an AudioContext start only for a few seconds after one). The frame resumes its audio in the
+ * press and passes the events back to the host, which sends them on to the content like its own.
+ */
+function installPointerInput(): void {
+  const forward = (kind: Extract<FrameMessage, { type: 'input' }>['kind']) => (event: PointerEvent) => {
+    if (kind === 'down' && event.button === 0) applyAudio();
+    send({
+      type: 'input',
+      kind,
+      x: event.clientX,
+      y: event.clientY,
+      pointerId: event.pointerId,
+      button: event.button,
+      ctrlKey: event.ctrlKey,
+      altKey: event.altKey,
+      metaKey: event.metaKey,
+      shiftKey: event.shiftKey,
+    });
+  };
+  scope.addEventListener('pointermove', forward('move'));
+  scope.addEventListener('pointerdown', forward('down'));
+  scope.addEventListener('pointerup', forward('up'));
+  scope.addEventListener('pointercancel', forward('cancel'));
+  document.documentElement.addEventListener('pointerleave', forward('leave'));
 }
 
 // MARK: Console
@@ -254,6 +283,7 @@ function launch(message: LaunchMessage): void {
   installNetwork(scope);
   installStorage(scope);
   installAudio();
+  if (hasPermission('audio')) installPointerInput();
   installConsole();
 
   const desktopEngine = createGlobal(message);
@@ -395,6 +425,9 @@ scope.addEventListener('message', (event: MessageEvent) => {
       break;
     case 'frame':
       hostFrame();
+      break;
+    case 'cursor':
+      document.documentElement.style.cursor = String(message.cursor);
       break;
     case 'move-window':
       windowById(message.window)?.moveTo(message.x, message.y);

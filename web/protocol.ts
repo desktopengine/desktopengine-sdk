@@ -88,6 +88,8 @@ export type HostMessage =
    * take the mouse: the page's own frames drive their animation instead.
    */
   | { type: 'frame' }
+  /** The pointer's look while the frame takes the pointer (see `input`): the host's grab and grabbing */
+  | { type: 'cursor'; cursor: string }
   | { type: 'stop' };
 
 /** A window as the host sees it: where it is and which parts take the mouse */
@@ -117,7 +119,25 @@ export type FrameMessage =
   /** Whether it has animation frame callbacks waiting: the host sends `frame` messages while it does */
   | { type: 'frames'; wanted: boolean }
   /** Whether the content applied new parameters itself (it listens to parameterschange); the host restarts it otherwise */
-  | { type: 'parameters-result'; handled: boolean };
+  | { type: 'parameters-result'; handled: boolean }
+  /**
+   * The pointer's events in the frame itself, passed back to the host to handle as its own. Browsers let a frame play
+   * sound only after the visitor pressed in it (Safari counts no events the host passes on), so while the pointer is
+   * over a window of content that may play sound, the host lets its frame take the pointer. Points are global, like
+   * the host's: the frame covers the screens from their origin.
+   */
+  | {
+      type: 'input';
+      kind: 'move' | 'down' | 'up' | 'cancel' | 'leave';
+      x: number;
+      y: number;
+      pointerId: number;
+      button: number;
+      ctrlKey: boolean;
+      altKey: boolean;
+      metaKey: boolean;
+      shiftKey: boolean;
+    };
 
 /** The frame's page, made by the host: the content's permissions decide what it may connect to */
 export function frameDocument(runtime: string, { proxy }: { proxy?: string } = {}): string {

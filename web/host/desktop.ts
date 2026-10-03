@@ -54,7 +54,10 @@ export interface DesktopOptions {
   appearance?: 'light' | 'dark';
   /** Frames per second at most, 0 for the display's */
   maxFramesPerSecond?: number;
-  /** Sound is off until the visitor turns it on, by default */
+  /**
+   * Sound is off, by default. While it's on, the frame of a content that may play sound takes the pointer when it's
+   * over one of its windows: browsers start a frame's sound only after the visitor pressed in that frame.
+   */
   muted?: boolean;
   /** The language contents are told, navigator.language by default */
   locale?: string;
@@ -172,6 +175,11 @@ export class WebContent {
     return this.spec.manifest?.type;
   }
 
+  /** It may play sound: its frame takes the pointer over its windows while the desktop's sound is on */
+  get mayPlaySound(): boolean {
+    return (this.spec.permissions ?? this.spec.manifest?.permissions ?? []).includes('audio');
+  }
+
   /** Where its requests go */
   get proxy(): string | undefined {
     return this.spec.proxy ?? this.desktop.options.proxy;
@@ -240,6 +248,9 @@ export class WebContent {
         this.awaitingParameters = false;
         if (!message.handled) this.restart();
         break;
+      case 'input':
+        this.desktop.frameInput(this, message);
+        break;
     }
   }
 
@@ -271,6 +282,7 @@ export class WebContent {
     this.wantsFrames = false;
     this.windows = [];
     this.emit('windows', this.windows);
+    this.desktop.releasePointer(this);
     const replacement = this.iframe.cloneNode() as HTMLIFrameElement;
     this.watchNavigation(replacement);
     if (this.desktop.options.frameURL) replacement.src = this.desktop.options.frameURL;
@@ -372,12 +384,24 @@ interface Press {
   moved: boolean;
 }
 
+/** What the desktop reads of a pointer event, from the page or passed back by a frame */
+interface PointerInput {
+  pointerId: number;
+  button: number;
+  ctrlKey: boolean;
+  altKey: boolean;
+  metaKey: boolean;
+  shiftKey: boolean;
+}
+
 export class WebDesktop {
   readonly element: HTMLDivElement;
   screens: WebScreen[] = [];
   readonly contents = new Set<WebContent>();
   private hovered: { content: WebContent; window: WindowState } | null = null;
   private press: Press | null = null;
+  /** The content whose frame takes the pointer (see `input` in the protocol) */
+  private pointerTaker: WebContent | null = null;
   private visible = true;
   private paused = false;
   private nextOrder = 1;
@@ -424,12 +448,21 @@ export class WebDesktop {
       this.updateAllPlayback();
     }, { rootMargin: '120px' });
     this.intersectionObserver.observe(container);
-    this.element.addEventListener('pointermove', (event) => this.pointerMove(event));
-    this.element.addEventListener('pointerdown', (event) => this.pointerDown(event));
-    this.element.addEventListener('pointerup', (event) => this.pointerUp(event));
+    this.element.addEventListener('pointermove', (event) => this.pointerMove(this.point(event), event));
+    this.element.addEventListener('pointerdown', (event) => {
+      const hit = this.pointerDown(this.point(event), event);
+      if (!hit) return;
+      if (hit.type !== 'desktop') event.preventDefault();
+      this.element.setPointerCapture(event.pointerId);
+    });
+    this.element.addEventListener('pointerup', (event) => {
+      if (this.element.hasPointerCapture(event.pointerId)) this.element.releasePointerCapture(event.pointerId);
+      this.pointerUp(this.point(event), event);
+    });
     this.element.addEventListener('pointercancel', (event) => this.pointerCancel(event));
+    // the pointer going into the frame that takes it still hovers that frame's window
     this.element.addEventListener('pointerleave', () => {
-      if (!this.press) this.setHovered(null, { x: 0, y: 0 }, null);
+      if (!this.press && !this.pointerTaker) this.setHovered(null, { x: 0, y: 0 }, null);
     });
     // a finger on a widget works it instead of scrolling the page
     this.element.addEventListener('touchstart', (event) => {
@@ -511,6 +544,7 @@ export class WebDesktop {
 
   terminate(content: WebContent): void {
     if (!this.contents.delete(content)) return;
+    this.releasePointer(content);
     if (this.hovered?.content === content) this.hovered = null;
     if (this.press?.content === content) this.press = null;
     content.detach();
@@ -524,6 +558,7 @@ export class WebDesktop {
 
   setMuted(muted: boolean): void {
     this.options.muted = muted;
+    if (muted && this.pointerTaker && !this.press) this.takePointer(null);
     this.updateAllPlayback();
   }
 
@@ -663,7 +698,7 @@ export class WebDesktop {
     return best ? { content: best.content, window: best.window } : null;
   }
 
-  private pointer(content: WebContent, kind: Extract<HostMessage, { type: 'pointer' }>['kind'], windowId: string | null, point: { x: number; y: number }, event: PointerEvent | null): void {
+  private pointer(content: WebContent, kind: Extract<HostMessage, { type: 'pointer' }>['kind'], windowId: string | null, point: { x: number; y: number }, event: PointerInput | null): void {
     content.post({
       type: 'pointer',
       kind,
@@ -677,7 +712,7 @@ export class WebDesktop {
     });
   }
 
-  private setHovered(hit: { content: WebContent; window: WindowState } | null, point: { x: number; y: number }, event: PointerEvent | null): void {
+  private setHovered(hit: { content: WebContent; window: WindowState } | null, point: { x: number; y: number }, event: PointerInput | null): void {
     const previous = this.hovered;
     if (previous && (previous.content !== hit?.content || previous.window.id !== hit?.window.id)) {
       this.pointer(previous.content, 'leave', previous.window.id, point, event);
@@ -691,8 +726,7 @@ export class WebDesktop {
     return win.dragRegion.some((rect) => inside(rect, x - win.frame.x, y - win.frame.y));
   }
 
-  private pointerMove(event: PointerEvent): void {
-    const point = this.point(event);
+  private pointerMove(point: { x: number; y: number }, event: PointerInput): void {
     const press = this.press;
     if (press && press.pointerId === event.pointerId) {
       this.dragMove(press, point, event);
@@ -701,16 +735,15 @@ export class WebDesktop {
     const hit = this.windowAt(point.x, point.y);
     this.setHovered(hit, point, event);
     if (hit) this.pointer(hit.content, 'move', hit.window.id, point, event);
-    this.element.style.cursor = hit && this.movesAt(hit.window, point.x, point.y) ? 'grab' : '';
+    this.takePointer(hit && hit.content.mayPlaySound && !(this.options.muted ?? true) ? hit.content : null);
+    this.setCursor(hit && this.movesAt(hit.window, point.x, point.y) ? 'grab' : '');
   }
 
-  private pointerDown(event: PointerEvent): void {
-    if (event.button !== 0 || this.press) return;
-    const point = this.point(event);
+  /** The window pressed, if the press is on one */
+  private pointerDown(point: { x: number; y: number }, event: PointerInput): WindowState | null {
+    if (event.button !== 0 || this.press) return null;
     const hit = this.windowAt(point.x, point.y);
-    if (!hit) return;
-    if (hit.window.type !== 'desktop') event.preventDefault();
-    this.element.setPointerCapture(event.pointerId);
+    if (!hit) return null;
     this.bringToFront(hit.content);
     const movesWindow = this.movesAt(hit.window, point.x, point.y);
     this.press = {
@@ -725,9 +758,10 @@ export class WebDesktop {
     };
     // a press that moves the window reaches the contents only once it turns into a drag; a click just clicks
     if (!movesWindow) this.pointer(hit.content, 'down', hit.window.id, point, event);
+    return hit.window;
   }
 
-  private dragMove(press: Press, point: { x: number; y: number }, event: PointerEvent): void {
+  private dragMove(press: Press, point: { x: number; y: number }, event: PointerInput): void {
     const dx = point.x - press.start.x;
     const dy = point.y - press.start.y;
     if (!press.moved && Math.hypot(dx, dy) > 3) press.moved = true;
@@ -739,7 +773,7 @@ export class WebDesktop {
     if (!press.dragging) {
       press.dragging = true;
       this.pointer(press.content, 'down', press.window.id, press.start, event);
-      this.element.style.cursor = 'grabbing';
+      this.setCursor('grabbing');
     }
     const next = this.clamp(press.window, press.origin.x + dx, press.origin.y + dy);
     press.content.post({ type: 'move-window', window: press.window.id, x: next.x, y: next.y });
@@ -755,27 +789,93 @@ export class WebDesktop {
     };
   }
 
-  private pointerUp(event: PointerEvent): void {
+  private pointerUp(point: { x: number; y: number }, event: PointerInput): void {
     const press = this.press;
     if (!press || press.pointerId !== event.pointerId) return;
     this.press = null;
-    if (this.element.hasPointerCapture(event.pointerId)) this.element.releasePointerCapture(event.pointerId);
-    const point = this.point(event);
     if (press.movesWindow) {
       if (press.dragging) this.pointer(press.content, 'up', press.window.id, point, event);
       else this.pointer(press.content, 'click', press.window.id, press.start, event);
     } else {
       this.pointer(press.content, 'up', press.window.id, point, event);
     }
-    this.pointerMove(event);
+    this.pointerMove(point, event);
   }
 
-  private pointerCancel(event: PointerEvent): void {
+  private pointerCancel(event: PointerInput): void {
     const press = this.press;
     if (!press || press.pointerId !== event.pointerId) return;
     this.press = null;
     if (press.dragging || !press.movesWindow) this.pointer(press.content, 'up', press.window.id, press.start, event);
     this.setHovered(null, press.start, event);
-    this.element.style.cursor = '';
+    this.setCursor('');
+  }
+
+  private setCursor(cursor: string): void {
+    this.element.style.cursor = cursor;
+    this.pointerTaker?.post({ type: 'cursor', cursor });
+  }
+
+  /**
+   * Lets one content's frame take the pointer, or none: the frame then gets the visitor's presses itself, which its
+   * sound needs, and passes the events back (`frameInput`). It covers the screens, so it gives the pointer back as soon
+   * as the pointer leaves its windows; during a press it keeps it until the press ends.
+   */
+  private takePointer(content: WebContent | null): void {
+    if (content === this.pointerTaker) return;
+    if (this.pointerTaker) this.pointerTaker.iframe.style.pointerEvents = 'none';
+    this.pointerTaker = content;
+    if (content) content.iframe.style.pointerEvents = 'auto';
+  }
+
+  /** @internal: the content stopped or starts again in a new frame */
+  releasePointer(content: WebContent): void {
+    if (this.pointerTaker === content) this.takePointer(null);
+  }
+
+  /**
+   * @internal: the pointer's events in the frame that takes it. The frame is the content's, so it's believed only as
+   * far as it reaches the content itself: a press counts only on its own window and while the page has the visitor's
+   * activation (a press in a child frame gives it to the page too), and only the frame that takes the pointer, or that
+   * was pressed, is heard.
+   */
+  frameInput(content: WebContent, message: Extract<FrameMessage, { type: 'input' }>): void {
+    const press = this.press;
+    if (content !== this.pointerTaker && press?.content !== content) return;
+    const x = Number(message.x);
+    const y = Number(message.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    const point = { x, y };
+    const event: PointerInput = {
+      pointerId: Number(message.pointerId) || 0,
+      button: Number(message.button) || 0,
+      ctrlKey: message.ctrlKey === true,
+      altKey: message.altKey === true,
+      metaKey: message.metaKey === true,
+      shiftKey: message.shiftKey === true,
+    };
+    switch (message.kind) {
+      case 'move':
+        this.pointerMove(point, event);
+        break;
+      case 'down': {
+        if (navigator.userActivation && !navigator.userActivation.isActive) return;
+        if (this.windowAt(x, y)?.content !== content) return;
+        this.pointerDown(point, event);
+        break;
+      }
+      case 'up':
+        if (press?.content === content) this.pointerUp(point, event);
+        break;
+      case 'cancel':
+        if (press?.content === content) this.pointerCancel(event);
+        break;
+      case 'leave':
+        if (press) return;
+        this.takePointer(null);
+        this.setHovered(null, point, event);
+        this.setCursor('');
+        break;
+    }
   }
 }
