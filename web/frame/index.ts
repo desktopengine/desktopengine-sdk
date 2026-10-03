@@ -83,7 +83,10 @@ const audioElements = new Set<HTMLAudioElement>();
 const endWatched = new WeakSet<HTMLAudioElement>();
 /** muted as the content set it on each Audio element; the element itself is muted too while the sound is off */
 const contentMuted = new WeakMap<HTMLMediaElement, boolean>();
-/** play() calls the browser held back until the visitor pressed in the frame, started when the sound may start */
+/**
+ * Audio elements to start when the sound may start (applyAudio), with the play() calls waiting for it: ones the browser
+ * held back until the visitor pressed in the frame, and ones paused while the content is (suspended)
+ */
 const heldPlays = new Map<HTMLAudioElement, { resolve: () => void; reject: (error: unknown) => void }[]>();
 const nativeMuted = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'muted')!;
 const nativePlay = HTMLMediaElement.prototype.play;
@@ -101,6 +104,15 @@ function applyAudio(): void {
   }
   for (const video of allVideos()) video.applyAudio();
   for (const element of audioElements) applyElementAudio(element);
+  if (state.suspended) {
+    // as in the app: playing Audio elements pause while the content is paused, and go on afterwards
+    for (const element of audioElements) {
+      if (element.paused) continue;
+      nativePause.call(element);
+      if (!heldPlays.has(element)) heldPlays.set(element, []);
+    }
+    return;
+  }
   for (const [element, held] of heldPlays) {
     nativePlay.call(element).then(() => {
       if (heldPlays.get(element) !== held) return;
@@ -168,15 +180,17 @@ function installAudio(): void {
       }
       audioElements.add(element);
       applyElementAudio(element);
+      const hold = () => new Promise<void>((resolve, reject) => {
+        const held = heldPlays.get(element) ?? [];
+        held.push({ resolve, reject });
+        heldPlays.set(element, held);
+      });
+      if (state.suspended) return hold();
       // a browser plays sound in the frame only after the visitor pressed in it: the play waits for that (applyAudio)
       // instead of failing, as there is nothing to wait for in the app
       return nativePlay.call(element).catch((error: unknown) => {
         if (!(error instanceof DOMException && error.name === 'NotAllowedError')) throw error;
-        return new Promise<void>((resolve, reject) => {
-          const held = heldPlays.get(element) ?? [];
-          held.push({ resolve, reject });
-          heldPlays.set(element, held);
-        });
+        return hold();
       });
     };
     HTMLMediaElement.prototype.pause = function (this: HTMLMediaElement) {
