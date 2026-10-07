@@ -2,6 +2,12 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 2.4.1 (2026-10-07)
+
+### Bug Fixes
+
+- On the web, DesktopEngine.input follows the pointer over the whole desktop, also over the page's own windows on top of it, as in the app
+
 ## 2.4.0 (2026-10-07)
 
 API version 3 (was 2): packages with `"apiVersion": 3` need an app that has it.
