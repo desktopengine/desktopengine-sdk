@@ -2,6 +2,14 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 2.3.0 (2026-10-07)
+
+API version 2 (was 1): packages with `"apiVersion": 2` need an app that has it.
+
+### Features
+
+- desktop pets are now desktop companions: the type is companion (API 2), and pet keeps working as its old name
+
 ## 2.2.3 (2026-10-03)
 
 ### Bug Fixes
