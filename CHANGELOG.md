@@ -2,6 +2,12 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 2.5.0 (2026-10-07)
+
+### Features
+
+- publish takes release notes in other languages with --notes-<locale>, e.g. --notes-zh-Hans; the store shows them in the visitor's language
+
 ## 2.4.1 (2026-10-07)
 
 ### Bug Fixes
