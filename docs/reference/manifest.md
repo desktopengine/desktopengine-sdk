@@ -22,7 +22,7 @@
 | --- | --- | --- |
 | `id` | Yes | A unique identifier in reverse domain name form, only letters, digits, dots and hyphens, e.g. `com.example.clock` |
 | `name` | Yes | The name shown in the library, can be translated, see [Localization](#localization) |
-| `type` | Yes | `wallpaper`, `widget` or `pet` (desktop pet) |
+| `type` | Yes | `wallpaper`, `widget` or `companion` (desktop companion), see [Types](#types) |
 | `version` | Yes | The version, semantic versioning is recommended, e.g. `1.0.0` |
 | `apiVersion` | | The lowest runtime API version it needs, see [API versions](#api-versions) |
 | `author` | | The author, shown in the details pane |
@@ -35,6 +35,16 @@
 | `parameters` | | Options users can change, see [Options](#options-parameters) |
 
 `desktopengine validate` checks the manifest by the app's rules; the app refuses packages that break them.
+
+## Types
+
+| `type` | What it is |
+| --- | --- |
+| `wallpaper` | A dynamic wallpaper: fills a display (or all of them, see `wallpaper.span`) below every window |
+| `widget` | Sits where the user puts it, on the desktop or above all windows, in the sizes of `widget.sizes` |
+| `companion` | A desktop companion: a character, a mascot, a little vehicle, a game… that lives above all windows and moves around the screen on its own |
+
+`companion` needs `"apiVersion": 2`. Apps with API 1 know companions by their old name, `pet`: a manifest that still says `pet` works everywhere and the app treats it as `companion`, `validate` only warns. `launchOptions.type` is the type as the manifest writes it.
 
 ## JSON Schema
 
@@ -112,8 +122,9 @@ The runtime enforces `network` (no network without it, and only the listed domai
 
 ## API versions
 
-The runtime has an integer API version that goes up when APIs are added: `DesktopEngine.apiVersion` in JavaScript. This SDK describes version 1 (the first line of `desktopengine --help` shows it too). When you use an API added later, put its version in `"apiVersion"` and apps with an older API refuse to import the package and ask users to update; or leave it out and check `DesktopEngine.apiVersion` at run time to fall back.
+The runtime has an integer API version that goes up when APIs are added: `DesktopEngine.apiVersion` in JavaScript. This SDK describes version 2 (the first line of `desktopengine --help` shows it too). When you use an API added later, put its version in `"apiVersion"` and apps with an older API refuse to import the package and ask users to update; or leave it out and check `DesktopEngine.apiVersion` at run time to fall back.
 
 | Version | Added |
 | --- | --- |
 | 1 | The first version |
+| 2 | The `companion` type, formerly `pet` |

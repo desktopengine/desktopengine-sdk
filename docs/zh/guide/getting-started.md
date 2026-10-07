@@ -29,7 +29,7 @@ desktopengine create widget ~/Projects/day-progress --id com.example.day-progres
 desktopengine dev ~/Projects/day-progress
 ```
 
-`create` 的类型可以是 `wallpaper`（壁纸）、`widget`（小组件）或 `pet`（桌面伙伴），生成的项目结构见[项目和构建](./project)。
+`create` 的类型可以是 `wallpaper`（壁纸）、`widget`（小组件）或 `companion`（桌面伙伴：角色、吉祥物，或者任何在窗口之上的屏幕上活动的东西），生成的项目结构见[项目和构建](./project)。
 
 `dev` 会打开 DesktopEngine 并在其中运行这个小程序：
 

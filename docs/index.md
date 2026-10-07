@@ -4,7 +4,7 @@ layout: home
 hero:
   name: DesktopEngine SDK
   text: Live content for the Mac desktop
-  tagline: Make dynamic wallpapers, widgets and desktop pets for DesktopEngine in JavaScript or TypeScript
+  tagline: Make dynamic wallpapers, widgets and desktop companions for DesktopEngine in JavaScript or TypeScript
   image:
     src: /logo.png
     alt: DesktopEngine
@@ -21,7 +21,7 @@ hero:
 
 features:
   - title: Three kinds of content
-    details: Dynamic wallpapers fill a display and can run as the screen saver; widgets sit on the desktop or float above windows; pets keep you company above everything.
+    details: Dynamic wallpapers fill a display and can run as the screen saver; widgets sit on the desktop or float above windows; companions move around above everything.
   - title: APIs you know
     details: Canvas 2D, WebGL 2, fetch, WebSocket, Web Audio and Streams. three.js and PixiJS work out of the box.
   - title: One command to debug

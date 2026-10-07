@@ -238,6 +238,9 @@ test('create refuses a non-empty folder and an unknown type', () => {
   fs.writeFileSync(path.join(dir, 'file.txt'), 'x');
   assert.throws(() => createProject({ type: 'widget', targetDir: dir }), /isn't empty/);
   assert.throws(() => createProject({ type: 'gadget', targetDir: path.join(dir, 'x') }), /Unsupported type/);
+  // the old name of companion
+  createProject({ type: 'pet', targetDir: path.join(dir, 'p') });
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'p', 'manifest.json'), 'utf8')).type, 'companion');
   assert.throws(() => createProject({ type: 'scene', targetDir: path.join(dir, 'w') }), /Unsupported type "scene"/);
   assert.throws(() => createProject({ type: 'wallpaper', renderer: 'babylon', targetDir: path.join(dir, 'y') }), /Unsupported renderer "babylon" for wallpaper/);
   assert.throws(() => createProject({ type: 'widget', renderer: 'pixi', targetDir: path.join(dir, 'z') }), /widget has no renderer templates/);

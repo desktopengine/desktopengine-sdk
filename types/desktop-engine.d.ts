@@ -42,8 +42,8 @@ declare namespace DesktopEngine {
     scale: number;
   }
 
-  /** The content type declared in manifest.json */
-  type ContentType = 'wallpaper' | 'widget' | 'pet';
+  /** The content type declared in manifest.json, as it's written there: `pet` is the old name of `companion` */
+  type ContentType = 'wallpaper' | 'widget' | 'companion' | 'pet';
 
   /** A permission declared in manifest.json */
   type Permission = 'network' | 'files' | 'audio' | 'system-info' | 'now-playing' | 'window-positions';
@@ -660,7 +660,7 @@ declare namespace DesktopEngine {
    * Window types:
    * - desktop: desktop level (wallpapers), below the desktop icons, visible in all Spaces
    * - widget: a widget pinned to the desktop, above the desktop icons, borderless with a transparent background, draggable
-   * - overlay: floats above all windows, borderless with a transparent background, visible in all Spaces (floating widgets, desktop pets)
+   * - overlay: floats above all windows, borderless with a transparent background, visible in all Spaces (floating widgets, desktop companions)
    * - panel: a floating panel (with a title bar)
    * - normal: a regular window (default)
    * desktop, widget and overlay windows don't activate the app when shown, so they don't take focus from the current app.
@@ -671,7 +671,7 @@ declare namespace DesktopEngine {
   interface WindowOptions extends ComponentOptions {
     /**
      * Window type; defaults to a regular window. The content's type limits it and `new` throws for the others:
-     * a wallpaper makes desktop windows, widgets and pets widget and overlay windows (`launchOptions.windowType`)
+     * a wallpaper makes desktop windows, widgets and companions widget and overlay windows (`launchOptions.windowType`)
      */
     type?: WindowType;
     /** Parent window; the new window is shown above it as a child window */
@@ -688,7 +688,7 @@ declare namespace DesktopEngine {
     readonly childWindows: Window[];
     /**
      * The parts of the window that take the mouse, in points from its top left corner. Elsewhere clicks, drags and hovering
-     * go through to whatever is below, e.g. around the shape of a desktop pet. null (default): the whole window.
+     * go through to whatever is below, e.g. around the shape of a desktop companion. null (default): the whole window.
      * Rectangles without a positive size are left out.
      */
     hitRegion: Rect[] | null;
@@ -5391,7 +5391,7 @@ declare function mixin(instances: object[], target: object): void;
 declare function promisify(obj: object): void;
 
 /**
- * Sends a message to the app. Widgets and desktop pets placed on the desktop use `'host'` to report the window position or to ask to be removed.
+ * Sends a message to the app. Widgets and desktop companions placed on the desktop use `'host'` to report the window position or to ask to be removed.
  */
 declare function postMessage(name: 'host', message: DesktopEngine.HostMessage): void;
 /** Sends a message to the app (native side), received by the handler the app registered for name */

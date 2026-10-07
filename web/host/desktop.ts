@@ -6,13 +6,13 @@
 // A desktop on a web page that runs DesktopEngine mini programs, as the app runs them on the Mac. Each mini program
 // runs in its own iframe, sandboxed with an opaque origin: it can't reach the page, its cookies or its storage. The
 // iframes lie over the screens without taking the mouse; the desktop finds the window under the pointer from what the
-// frames report (frames, hit and drag regions), passes the pointer on, and moves widgets and pets when they're dragged.
+// frames report (frames, hit and drag regions), passes the pointer on, and moves widgets and companions when they're dragged.
 //
 //   const desktop = new WebDesktop(element, { insets: { top: 24, bottom: 64 } });
 //   const content = desktop.launch({ name: 'Clock', code, manifest, files });
 //   content.on('console', ({ level, message }) => …);
 
-import { frameDocument, type FrameMessage, type HostMessage, type ParameterValue, type Rect, type WebScreen, type WindowState } from '../protocol.ts';
+import { API_VERSION, frameDocument, type FrameMessage, type HostMessage, type ParameterValue, type Rect, type WebScreen, type WindowState } from '../protocol.ts';
 
 declare const __FRAME_RUNTIME__: string;
 
@@ -66,7 +66,8 @@ export interface DesktopOptions {
 /** What the desktop needs to know of manifest.json */
 export interface ManifestInfo {
   id?: string;
-  type?: 'wallpaper' | 'widget' | 'pet';
+  /** `pet` is the old name of `companion` */
+  type?: 'wallpaper' | 'widget' | 'companion' | 'pet';
   apiVersion?: number;
   permissions?: string[];
   network?: { domains?: string[] };
@@ -88,7 +89,7 @@ export interface ContentSpec {
   parameters?: Record<string, ParameterValue>;
   /** small, medium or large, for a widget */
   size?: 'small' | 'medium' | 'large';
-  /** On the desktop, or above everything; pets float, the rest stay on the desktop, by default */
+  /** On the desktop, or above everything; companions float, the rest stay on the desktop, by default */
   level?: 'desktop' | 'floating';
   /** Where its window starts, global points */
   position?: { x: number; y: number };
@@ -125,7 +126,7 @@ export class WebContent {
   iframe: HTMLIFrameElement;
   windows: WindowState[] = [];
   framesPerSecond = 0;
-  /** Stacking among the contents; widgets and pets come to the front when pressed */
+  /** Stacking among the contents; widgets and companions come to the front when pressed */
   order = 0;
   /** It has animation frame callbacks waiting: the desktop sends it its display frames */
   wantsFrames = false;
@@ -171,8 +172,8 @@ export class WebContent {
     });
   }
 
-  get type(): string | undefined {
-    return this.spec.manifest?.type;
+  get type(): ContentKind | undefined {
+    return contentKind(this.spec.manifest?.type);
   }
 
   /** It may play sound: its frame takes the pointer over its windows while the desktop's sound is on */
@@ -264,7 +265,7 @@ export class WebContent {
   }
 
   /**
-   * Starts it again, e.g. after its code changed. A widget or pet starts where its window is now (kept on its screen),
+   * Starts it again, e.g. after its code changed. A widget or companion starts where its window is now (kept on its screen),
    * not where it was first launched, unless `spec` gives it a position.
    */
   restart(spec?: Partial<ContentSpec>): void {
@@ -317,6 +318,14 @@ export class WebContent {
 
 /** At most this many windows of a content count, as the engine allows */
 const MAX_WINDOWS = 16;
+export type ContentKind = 'wallpaper' | 'widget' | 'companion';
+
+/** A manifest's type as the desktop treats it: `pet` is the old name of `companion`; undefined for anything else */
+export function contentKind(type: unknown): ContentKind | undefined {
+  if (type === 'pet') return 'companion';
+  return type === 'wallpaper' || type === 'widget' || type === 'companion' ? type : undefined;
+}
+
 /** A window's stacking within its content: a content can't rank its windows above another content's */
 const MAX_Z = 10_000;
 
@@ -327,7 +336,8 @@ const MAX_Z = 10_000;
  */
 export function sanitizeWindows(value: unknown, contentType: string | undefined): WindowState[] {
   if (!Array.isArray(value)) return [];
-  const allowed = contentType === 'wallpaper' ? ['desktop'] : contentType === 'widget' || contentType === 'pet' ? ['widget', 'overlay'] : null;
+  const kind = contentKind(contentType);
+  const allowed = kind === 'wallpaper' ? ['desktop'] : kind === 'widget' || kind === 'companion' ? ['widget', 'overlay'] : null;
   const finite = (number: unknown): number | null => (typeof number === 'number' && Number.isFinite(number) ? number : null);
   const rect = (raw: unknown): Rect | null => {
     const r = raw as Partial<Rect> | null;
@@ -601,12 +611,12 @@ export class WebDesktop {
       files,
       options: this.launchOptions(content, permissions),
       screens: this.screens,
-      contentType: manifest.type,
+      contentType: contentKind(manifest.type),
       permissions,
       networkDomains: manifest.network?.domains ?? [],
       proxy: content.proxy,
       appearance: this.options.appearance ?? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'),
-      apiVersion: 1,
+      apiVersion: API_VERSION,
       maxFramesPerSecond: this.options.maxFramesPerSecond ?? 0,
       muted: this.options.muted ?? true,
     };
@@ -616,7 +626,7 @@ export class WebDesktop {
   private launchOptions(content: WebContent, permissions: string[]): Record<string, unknown> {
     const spec = content.spec;
     const type = spec.manifest?.type;
-    const level = spec.level ?? (type === 'pet' ? 'floating' : 'desktop');
+    const level = spec.level ?? (contentKind(type) === 'companion' ? 'floating' : 'desktop');
     const display = (screen: WebScreen) => ({ id: screen.id, name: screen.name, frame: { ...screen.bounds }, visibleFrame: { ...screen.visibleFrame }, scale: screen.scale });
     const options: Record<string, unknown> = {
       instanceId: spec.instanceId ?? `web-${instances}`,
@@ -650,7 +660,7 @@ export class WebDesktop {
     return options;
   }
 
-  /** Wallpapers at the bottom, then widgets and pets in the order they were last pressed */
+  /** Wallpapers at the bottom, then widgets and companions in the order they were last pressed */
   private stack(): void {
     for (const content of this.contents) content.iframe.style.zIndex = String(content.type === 'wallpaper' ? content.order : 1000 + content.order);
   }

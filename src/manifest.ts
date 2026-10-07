@@ -7,14 +7,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 // The rules of the app, which refuses packages it can't decode.
-export const TYPES = ['wallpaper', 'widget', 'pet'] as const;
+export const TYPES = ['wallpaper', 'widget', 'companion'] as const;
+/** Old names of types, still accepted: apps with API 1 know companions only as `pet`. */
+export const TYPE_ALIASES: Readonly<Record<string, ContentType>> = { pet: 'companion' };
+/** The API version that introduced each type's current name, for types newer than API 1 */
+export const TYPE_API_VERSIONS: Readonly<Partial<Record<ContentType, number>>> = { companion: 2 };
 export const WIDGET_SIZES = ['small', 'medium', 'large'] as const;
 export const PERMISSIONS = ['network', 'files', 'audio', 'system-info', 'now-playing', 'window-positions'] as const;
 export const PARAMETER_TYPES = ['toggle', 'number', 'text', 'color', 'choice'] as const;
 export const MANIFEST_FILE = 'manifest.json';
 export const ENTRY_FILE = 'index.js';
 /** `DesktopEngine.apiVersion` these types and rules describe. */
-export const API_VERSION = 1;
+export const API_VERSION = 2;
 /** The most domains `network.domains` may list */
 export const MAX_NETWORK_DOMAINS = 32;
 
@@ -76,6 +80,12 @@ export interface Issues {
 }
 
 type JSONObject = Record<string, unknown>;
+
+/** The type a manifest's `type` stands for, its old name included; `undefined` for an unknown one. */
+export function contentType(value: unknown): ContentType | undefined {
+  if (isOneOf(TYPES, value)) return value;
+  return typeof value === 'string' && Object.hasOwn(TYPE_ALIASES, value) ? TYPE_ALIASES[value] : undefined;
+}
 
 export function isOneOf<T extends string>(list: readonly T[], value: unknown): value is T {
   return typeof value === 'string' && (list as readonly string[]).includes(value);
@@ -203,8 +213,17 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
 
   if (manifest.type === undefined) {
     errors.push('"type" is missing');
-  } else if (!isOneOf(TYPES, manifest.type)) {
+  } else if (contentType(manifest.type) === undefined) {
     errors.push(`"type" must be one of ${TYPES.join(', ')} (it is ${JSON.stringify(manifest.type)})`);
+  } else if (!isOneOf(TYPES, manifest.type)) {
+    const type = contentType(manifest.type)!;
+    warnings.push(`"type" ${manifest.type} is the old name of ${type}: apps read it as ${type}. Use "${type}" with "apiVersion": ${TYPE_API_VERSIONS[type] ?? 1} unless the package must also work in apps with an older API`);
+  } else {
+    const needed = TYPE_API_VERSIONS[manifest.type];
+    if (needed !== undefined && !(typeof apiVersion === 'number' && apiVersion >= needed)) {
+      const oldName = Object.keys(TYPE_ALIASES).find((name) => TYPE_ALIASES[name] === manifest.type);
+      errors.push(`"type" ${manifest.type} needs "apiVersion": ${needed} or later${oldName ? ` (apps with an older API know it as ${oldName})` : ''}`);
+    }
   }
 
   if (manifest.author !== undefined && typeof manifest.author !== 'string') {

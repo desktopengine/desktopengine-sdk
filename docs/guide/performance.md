@@ -1,12 +1,12 @@
 # Performance and Pausing
 
-Wallpapers, widgets and desktop pets stay on the desktop all day, so they should take as little CPU, GPU and power as they can.
+Wallpapers, widgets and desktop companions stay on the desktop all day, so they should take as little CPU, GPU and power as they can.
 
 ## Pausing
 
 The app decides when to stop drawing, mute or pause content by its type, after Wallpaper Engine's playback rules. Users set the rules for wallpapers in Settings › Wallpaper › Playback:
 
-| When | Wallpapers (dynamic and video) | Widgets and desktop pets |
+| When | Wallpapers (dynamic and video) | Widgets and desktop companions |
 | --- | --- | --- |
 | None of the content's windows can be seen (covered, or in another app's full screen Space) | Stop drawing | Stop drawing |
 | A full screen app is on the wallpaper's display | By the setting: keep running, mute or pause (pause by default) | Not affected |
@@ -24,7 +24,7 @@ The app does all this: the content doesn't check for any of it. Users set the fr
 ## Frame rate
 
 - Content that doesn't need every frame (slow scenery, widgets with a low frame rate) should set `DesktopEngine.preferredFramesPerSecond = 30` rather than skip every other frame in its `requestAnimationFrame` callback: the engine doesn't run the skipped frames at all and doesn't wake the thread, so wake-ups are halved. It applies when the display's refresh rate is a multiple of it (60, 30, 20, 15, 12… at 60 Hz), otherwise every frame runs. It can change at any time; `0` (the default) follows the display. The app's limit (30 fps on battery, say) still applies, and the lower of the two wins.
-- Stop `requestAnimationFrame` when nothing moves, and redraw only when the picture changes (as the pet template does). When there is no frame to draw, the app stops driving the mini program's frames, and its wake-ups can drop to 0.
+- Stop `requestAnimationFrame` when nothing moves, and redraw only when the picture changes (as the companion template does). When there is no frame to draw, the app stops driving the mini program's frames, and its wake-ups can drop to 0.
 - Don't keep time with `requestAnimationFrame`: schedule what has to happen at a time (a Pomodoro's chime, say) with `setTimeout`, and draw the picture for the current time in `requestAnimationFrame`.
 - Don't make timer intervals shorter than you need.
 

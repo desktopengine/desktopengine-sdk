@@ -24,7 +24,7 @@ options.screenSaver;  // 作为屏幕保护程序运行时为 { preview }，否�
 
 ## 选项改变时
 
-用户修改选项后，应用会用新的取值重新启动内容。监听 `DesktopEngine.system` 的 `parameterschange`，内容就会继续运行：自己应用新的取值，其余的保持原样，比如计时器剩下的时间、宠物走到的位置。
+用户修改选项后，应用会用新的取值重新启动内容。监听 `DesktopEngine.system` 的 `parameterschange`，内容就会继续运行：自己应用新的取值，其余的保持原样，比如计时器剩下的时间、桌面伙伴走到的位置。
 
 ```js
 const system = DesktopEngine.system;

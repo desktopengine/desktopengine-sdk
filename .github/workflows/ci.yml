@@ -43,7 +43,7 @@ jobs:
       - name: Create, validate and pack a project of each type
         run: |
           cd "$RUNNER_TEMP"
-          for type in wallpaper widget pet; do
+          for type in wallpaper widget companion; do
             desktopengine create "$type" "$type"
             desktopengine validate "$type"
             desktopengine pack "$type"

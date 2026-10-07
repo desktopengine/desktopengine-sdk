@@ -24,7 +24,7 @@ Coordinates are the ones of `DesktopEngine.Window` styles: the origin at the top
 
 ## When options change
 
-When the user changes an option, the app restarts the content with the new values. Listen to `parameterschange` of `DesktopEngine.system` and it keeps running instead: apply the new values yourself, keeping everything else as it is, such as the time left on a timer or where a pet is walking.
+When the user changes an option, the app restarts the content with the new values. Listen to `parameterschange` of `DesktopEngine.system` and it keeps running instead: apply the new values yourself, keeping everything else as it is, such as the time left on a timer or where a companion is walking.
 
 ```js
 const system = DesktopEngine.system;

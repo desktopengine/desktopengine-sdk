@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TYPES, isOneOf } from './manifest.ts';
+import { TYPES, contentType } from './manifest.ts';
 import type { ContentType } from './manifest.ts';
 import { createZip } from './zip.ts';
 import { listPackageFiles } from './files.ts';
@@ -46,9 +46,11 @@ export interface CreateOptions {
  * Copies a template into `targetDir` and fills in the id and name.
  * @returns created files, relative to `targetDir`
  */
-export function createProject({ type, renderer, targetDir, id, name }: CreateOptions): string[] {
-  if (!isOneOf(TYPES, type)) {
-    throw new Error(`Unsupported type "${type}", the types are ${TYPES.join(', ')}`);
+export function createProject({ type: typeName, renderer, targetDir, id, name }: CreateOptions): string[] {
+  // an old name, e.g. pet, makes the type's current template
+  const type = contentType(typeName);
+  if (type === undefined) {
+    throw new Error(`Unsupported type "${typeName}", the types are ${TYPES.join(', ')}`);
   }
   const renderers = RENDERERS[type] ?? [];
   if (renderer !== undefined && !renderers.includes(renderer)) {

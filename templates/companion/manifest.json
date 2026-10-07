@@ -1,9 +1,9 @@
 {
   "id": "__ID__",
   "name": "__NAME__",
-  "type": "pet",
+  "type": "companion",
   "version": "1.0.0",
-  "apiVersion": 1,
+  "apiVersion": 2,
   "author": "",
   "description": { "en": "A round little creature that strolls along the bottom of the screen and rests now and then. Click it and it hops, drag it and it stays where you put it.", "zh-Hans": "一只圆滚滚的小家伙，在屏幕底部来回散步，时不时停下来歇一会儿。点它会跳一下，拖到哪里就待在哪里。" },
   "parameters": [

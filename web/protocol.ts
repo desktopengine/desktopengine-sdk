@@ -9,6 +9,9 @@
 //
 // Coordinates are global points, as DesktopEngine.Window uses them: origin at the top left of the main screen, y down.
 
+/** `DesktopEngine.apiVersion` on the web, the same as the SDK's `API_VERSION` (a test checks) */
+export const API_VERSION = 2;
+
 export interface Rect {
   x: number;
   y: number;
@@ -42,7 +45,7 @@ export interface LaunchMessage {
   options: Record<string, unknown>;
   screens: WebScreen[];
   /** The content type limits the window types it may make; undefined: any (no manifest) */
-  contentType?: 'wallpaper' | 'widget' | 'pet';
+  contentType?: 'wallpaper' | 'widget' | 'companion';
   /** What it was granted: network, audio, system-info… */
   permissions: string[];
   /** network.domains */

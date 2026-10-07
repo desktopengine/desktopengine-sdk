@@ -1,13 +1,14 @@
 {
   "name": "@desktopengine/sdk",
   "version": "2.2.3",
-  "description": "Make dynamic wallpapers, widgets and desktop pets for DesktopEngine: type declarations, project templates and a command line tool",
+  "description": "Make dynamic wallpapers, widgets and desktop companions for DesktopEngine: type declarations, project templates and a command line tool",
   "keywords": [
     "desktopengine",
     "macos",
     "wallpaper",
     "live-wallpaper",
     "widget",
+    "desktop-companion",
     "desktop-pet",
     "sdk",
     "cli"

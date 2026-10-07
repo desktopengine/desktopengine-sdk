@@ -1,4 +1,4 @@
-// Desktop pet: a round little creature in a transparent window above other windows. It strolls back and forth,
+// Desktop companion: a round little creature in a transparent window above other windows. It strolls back and forth,
 // rests now and then, hops when clicked and stays wherever it's dragged; the app starts it there next time.
 // It only redraws when something changes, so it costs nothing while it rests.
 // Debug: desktopengine dev . --param color=#7ED957 --param speed=4
@@ -33,7 +33,7 @@ const context2d = canvas.getContext('2d');
 if (!context2d) throw new Error('Canvas 2D is not available');
 const context = context2d;
 
-/** Sizes the canvas to the display's scale, and again after the pet goes to a display with another one */
+/** Sizes the canvas to the display's scale, and again after the creature goes to a display with another one */
 function fitCanvas(): void {
   const ratio = win.devicePixelRatio;
   canvas.width = SIZE * ratio;
@@ -111,7 +111,7 @@ win.onmove = (position) => {
   reportTimer = setTimeout(() => postMessage('host', { type: 'move', x: Math.round(x), y: Math.round(y) }), 400);
 };
 
-// Driven by requestAnimationFrame: the app pauses it on battery and behind full-screen apps, and the pet stops too
+// Driven by requestAnimationFrame: the app pauses it on battery and behind full-screen apps, and the creature stops too
 function frame(time: number): void {
   const elapsed = lastTime ? Math.min(time - lastTime, 100) : 0;
   lastTime = time;

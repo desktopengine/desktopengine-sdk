@@ -17,7 +17,7 @@ Creates a project from a template.
 
 | Argument | Description |
 | --- | --- |
-| `<type>` | `wallpaper`, `widget` or `pet` |
+| `<type>` | `wallpaper`, `widget` or `companion` (`pet`, its old name, makes a companion too) |
 | `<folder>` | The folder of the new project |
 | `--renderer` | A template drawn another way, only for wallpapers for now: `webgl`, `three`, `pixi`. Run `npm install` after creating a `three` or `pixi` project, see [Drawing with WebGL or a rendering library](/guide/wallpaper#drawing-with-webgl-or-a-rendering-library) |
 | `--id` | The manifest's `id`, `com.example.<folder name>` by default |
@@ -34,7 +34,7 @@ Runs the project in DesktopEngine, rebuilds and reloads it when files change, an
 | Option | Description |
 | --- | --- |
 | `--size small\|medium\|large` | The widget size; the first of `widget.sizes` when it isn't one of them |
-| `--level desktop\|floating` | On the desktop, or above all windows; by default pets float above windows and the rest are on the desktop |
+| `--level desktop\|floating` | On the desktop, or above all windows; by default companions float above windows and the rest are on the desktop |
 | `--display <number>` | The display to run on, starting at 1; the main display by default |
 | `--span` | A wallpaper across all displays, when `manifest.json` declares [`wallpaper.span`](/guide/wallpaper#spanning-all-displays) |
 | `--param <key=value>` | The value of an option, can be repeated; the others take the manifest's `default` |

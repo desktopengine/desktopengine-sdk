@@ -155,7 +155,7 @@ function allowedTypes(): string[] | null {
     case 'wallpaper':
       return ['desktop'];
     case 'widget':
-    case 'pet':
+    case 'companion':
       return ['widget', 'overlay'];
     default:
       return null;

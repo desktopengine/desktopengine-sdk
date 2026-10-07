@@ -201,7 +201,7 @@ export default defineConfig({
     root: {
       label: 'English',
       lang: 'en-US',
-      description: 'Make dynamic wallpapers, widgets and desktop pets for DesktopEngine in JavaScript or TypeScript',
+      description: 'Make dynamic wallpapers, widgets and desktop companions for DesktopEngine in JavaScript or TypeScript',
       themeConfig: english,
     },
     zh: {

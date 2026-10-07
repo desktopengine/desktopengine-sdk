@@ -13,7 +13,8 @@ import { once } from 'node:events';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { validateManifest, API_VERSION } from '../src/manifest.ts';
+import { validateManifest, contentType, API_VERSION } from '../src/manifest.ts';
+import { API_VERSION as WEB_API_VERSION } from '../web/protocol.ts';
 import type { Manifest } from '../src/manifest.ts';
 import { readZip } from '../src/zip.ts';
 import { packProject } from '../src/project.ts';
@@ -81,6 +82,24 @@ test('apiVersion must be a positive integer, newer ones are a warning', () => {
   const newer = validateManifest({ ...base, apiVersion: API_VERSION + 1 });
   assert.deepEqual(newer.errors, []);
   assert.ok(newer.warnings.some((message) => message.includes('apiVersion')));
+});
+
+test('companion needs apiVersion 2, its old name pet still works with a warning', () => {
+  const base = { id: 'a.b', name: 'n', version: '1.0.0', icon: 'i.png' };
+  assert.deepEqual(validateManifest({ ...base, type: 'companion', apiVersion: 2 }), { errors: [], warnings: [] });
+  for (const apiVersion of [undefined, 1]) {
+    const { errors } = validateManifest({ ...base, type: 'companion', apiVersion });
+    assert.ok(errors.some((message) => message.includes('"apiVersion": 2') && message.includes('pet')), errors.join('\n'));
+  }
+  const old = validateManifest({ ...base, type: 'pet', apiVersion: 1 });
+  assert.deepEqual(old.errors, []);
+  assert.ok(old.warnings.some((message) => message.includes('old name of companion')));
+  assert.equal(contentType('pet'), 'companion');
+  assert.equal(contentType('gadget'), undefined);
+});
+
+test('the web runtime has the API version of the SDK', () => {
+  assert.equal(WEB_API_VERSION, API_VERSION);
 });
 
 test('build asks for npm install when a dependency isn\'t installed', async () => {

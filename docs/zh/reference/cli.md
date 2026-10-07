@@ -17,7 +17,7 @@ desktopengine create <type> <folder> [--renderer <renderer>] [--id <identifier>]
 
 | 参数 | 说明 |
 | --- | --- |
-| `<type>` | `wallpaper`、`widget` 或 `pet` |
+| `<type>` | `wallpaper`、`widget` 或 `companion`（旧名称 `pet` 也会创建桌面伙伴） |
 | `<folder>` | 新项目的文件夹 |
 | `--renderer` | 用另一种方式绘制的模板，目前只有壁纸有：`webgl`、`three`、`pixi`。`three` 和 `pixi` 创建后要先 `npm install`，见[用 WebGL 或渲染引擎绘制](/zh/guide/wallpaper#用-webgl-或渲染引擎绘制) |
 | `--id` | 清单的 `id`，缺省是 `com.example.<文件夹名>` |

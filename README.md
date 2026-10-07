@@ -3,14 +3,14 @@
 [![npm](https://img.shields.io/npm/v/@desktopengine/sdk)](https://www.npmjs.com/package/@desktopengine/sdk)
 [![CI](https://github.com/desktopengine/desktopengine-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/desktopengine/desktopengine-sdk/actions/workflows/ci.yml)
 
-Make dynamic wallpapers, widgets and desktop pets for [DesktopEngine](https://desktopengine.app) in JavaScript or TypeScript.
+Make dynamic wallpapers, widgets and desktop companions for [DesktopEngine](https://desktopengine.app) in JavaScript or TypeScript.
 
 **Documentation: <https://desktopengine.app/desktopengine-sdk/>** · [简体中文](https://desktopengine.app/desktopengine-sdk/zh/)
 
 The SDK includes:
 
 - The `desktopengine` command line tool: create, run and debug, build, validate and pack projects, and publish them to the store
-- `templates/`: project templates for wallpapers, widgets and desktop pets, plus WebGL, three.js and PixiJS versions for wallpapers
+- `templates/`: project templates for wallpapers, widgets and desktop companions, plus WebGL, three.js and PixiJS versions for wallpapers
 - `types/desktop-engine.d.ts`: type declarations of the runtime API, for completion and type checking in editors
 - `schema/manifest.schema.json`: the JSON Schema of `manifest.json`
 

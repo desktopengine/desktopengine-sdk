@@ -14,8 +14,8 @@
     },
     "name": { "description": "The name shown in the library", "$ref": "#/definitions/localizedString" },
     "type": {
-      "description": "The kind of content: wallpaper, widget or pet (desktop pet)",
-      "enum": ["wallpaper", "widget", "pet"]
+      "description": "The kind of content: wallpaper, widget or companion (desktop companion, needs apiVersion 2; pet is its old name)",
+      "enum": ["wallpaper", "widget", "companion", "pet"]
     },
     "version": { "description": "The version, semantic versioning is recommended, e.g. 1.0.0", "type": "string", "minLength": 1 },
     "apiVersion": {

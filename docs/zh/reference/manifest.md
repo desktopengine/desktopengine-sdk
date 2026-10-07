@@ -22,7 +22,7 @@
 | --- | --- | --- |
 | `id` | 是 | 反向域名形式的唯一标识符，只能包含字母、数字、点和连字符，例如 `com.example.clock` |
 | `name` | 是 | 显示在资源库里的名称，可以翻译，见[多语言](#多语言) |
-| `type` | 是 | `wallpaper`（壁纸）、`widget`（小组件）、`pet`（桌面伙伴） |
+| `type` | 是 | `wallpaper`（壁纸）、`widget`（小组件）、`companion`（桌面伙伴），见[类型](#类型) |
 | `version` | 是 | 版本号，建议使用语义化版本，例如 `1.0.0` |
 | `apiVersion` | | 需要的最低运行时 API 版本，见 [API 版本](#api-版本) |
 | `author` | | 作者，显示在详情栏 |
@@ -35,6 +35,16 @@
 | `parameters` | | 用户可调的选项，见[选项](#选项-parameters) |
 
 `desktopengine validate` 按应用的规则检查清单，应用会拒绝导入不合规则的包。
+
+## 类型
+
+| `type` | 是什么 |
+| --- | --- |
+| `wallpaper` | 动态壁纸：铺满一块显示器（或者全部显示器，见 `wallpaper.span`），在所有窗口之下 |
+| `widget` | 小组件：放在用户选的位置，贴在桌面上或浮于所有窗口之上，尺寸是 `widget.sizes` 里的 |
+| `companion` | 桌面伙伴：角色、吉祥物、小车、小游戏……待在所有窗口之上，自己在屏幕上活动 |
+
+`companion` 需要 `"apiVersion": 2`。API 版本为 1 的应用只认识它的旧名称 `pet`：清单里还写着 `pet` 的包在哪里都能用，应用把它当作 `companion`，`validate` 只给出警告。`launchOptions.type` 是清单里写的类型。
 
 ## JSON Schema
 
@@ -112,8 +122,9 @@ if (permissions.includes('network')) {
 
 ## API 版本
 
-运行时有一个整数的 API 版本，新增 API 时递增，JavaScript 里是 `DesktopEngine.apiVersion`，当前的 SDK 对应的版本是 1（`desktopengine --help` 的第一行也会显示）。用到之后新增的 API 时，在清单的 `"apiVersion"` 写上它的版本，API 版本更低的应用会拒绝导入并提示用户更新；也可以不写，在运行时判断 `DesktopEngine.apiVersion` 后降级。
+运行时有一个整数的 API 版本，新增 API 时递增，JavaScript 里是 `DesktopEngine.apiVersion`，当前的 SDK 对应的版本是 2（`desktopengine --help` 的第一行也会显示）。用到之后新增的 API 时，在清单的 `"apiVersion"` 写上它的版本，API 版本更低的应用会拒绝导入并提示用户更新；也可以不写，在运行时判断 `DesktopEngine.apiVersion` 后降级。
 
 | 版本 | 新增 |
 | --- | --- |
 | 1 | 首个版本 |
+| 2 | `companion` 类型，原名 `pet` |
