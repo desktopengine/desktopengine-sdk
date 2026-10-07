@@ -4,6 +4,7 @@ Content runs in JavaScriptCore, not in a browser. The type declarations (the [AP
 
 - There is no DOM and no Node.js: no `document`, no `window`; see [Network](./network) for the network, [Storage and Files](./storage) for `localStorage` and files, and [Audio](./audio) for sound. Modules in the runtime are CommonJS `require()`; to use `import`, put your code in `src/` and let the SDK bundle it (see [Projects and Builds](./project)).
 - `DesktopEngine.system.cpuUsage()` / `memoryUsage()` give CPU and memory usage; they need the `system-info` permission and throw without it.
+- `DesktopEngine.input` follows the mouse anywhere on screen with the `mouse` permission, see [Mouse and Typing](./input).
 
 ## Canvas
 

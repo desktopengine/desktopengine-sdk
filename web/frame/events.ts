@@ -25,7 +25,9 @@ export class Evented {
   }
 
   removeEventListener(type: string, listener: Listener): void {
-    this.listeners.get(eventName(type))?.delete(listener);
+    const name = eventName(type);
+    this.listeners.get(name)?.delete(listener);
+    this.listenersChanged(name);
   }
 
   /** Whether anything listens for the event */
@@ -44,7 +46,7 @@ export class Evented {
     this.handlers.clear();
   }
 
-  /** Subclasses start watching for an event once something listens (framechange) */
+  /** Subclasses start watching for an event once something listens (framechange), and may stop when nothing does */
   protected listenersChanged(_name: string): void {}
 }
 
@@ -59,6 +61,7 @@ export function defineEvents(prototype: object, names: string[]): void {
     Object.defineProperty(prototype, `off${name}`, {
       value(this: Evented) {
         (this as unknown as { handlers: Map<string, Listener> }).handlers.delete(name);
+        (this as unknown as { listenersChanged(name: string): void }).listenersChanged(name);
       },
       configurable: true,
       writable: true,

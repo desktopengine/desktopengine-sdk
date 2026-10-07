@@ -57,7 +57,7 @@
       "type": "array",
       "items": {
         "anyOf": [
-          { "enum": ["network", "files", "audio", "system-info", "now-playing", "window-positions"] },
+          { "enum": ["network", "files", "audio", "system-info", "now-playing", "window-positions", "mouse", "key-activity"] },
           { "type": "string" }
         ]
       },

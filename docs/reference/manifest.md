@@ -97,6 +97,8 @@ When the user changes an option, the new values are in `DesktopEngine.launchOpti
 | `system-info` | CPU, memory and network usage |
 | `now-playing` | The music that is playing |
 | `window-positions` | Where the windows of other apps are |
+| `mouse` | Where the pointer is and the clicks, in any app (needs `"apiVersion": 3`), see [Mouse and Typing](/guide/input) |
+| `key-activity` | How many keys are pressed in any app, never which ones; only content that comes with DesktopEngine gets it, see [Typing](/guide/input#typing) |
 
 The app lists these permissions in the details pane. `audio` isn't asked for: content that declares it can make sound, and users control it with the volume and Mute All Content. The other permissions are asked for one by one the first time the user adds the content to the desktop; the user can allow only some of them and change them any time in the details pane (the content restarts). Built-in content isn't asked for, and content that declares no permissions never prompts.
 
@@ -118,13 +120,14 @@ With `network`, list the domains the content connects to; it can reach those and
 "network": { "domains": ["api.example.com", "*.tile.example.org"] }
 ```
 
-The runtime enforces `network` (no network without it, and only the listed domains with it, see [Network](/guide/network#domains)), `audio` (no sound without it, see [Audio](/guide/audio)) and `system-info` (`cpuUsage()` / `memoryUsage()` throw without it). `files`, `now-playing` and `window-positions` have no API yet; declaring them tells users. Content run by `desktopengine dev` or the Develop menu is yours, so it isn't asked and gets every permission it declares; the ones it doesn't declare are off there too.
+The runtime enforces `network` (no network without it, and only the listed domains with it, see [Network](/guide/network#domains)), `audio` (no sound without it, see [Audio](/guide/audio)) `system-info` (`cpuUsage()` / `memoryUsage()` throw without it) `mouse` (`DesktopEngine.input`'s mouse events never come without it) and `key-activity` (built-in content only, see [Typing](/guide/input#typing)). `files`, `now-playing` and `window-positions` have no API yet; declaring them tells users. Content run by `desktopengine dev` or the Develop menu is yours, so it isn't asked and gets every permission it declares; the ones it doesn't declare are off there too.
 
 ## API versions
 
-The runtime has an integer API version that goes up when APIs are added: `DesktopEngine.apiVersion` in JavaScript. This SDK describes version 2 (the first line of `desktopengine --help` shows it too). When you use an API added later, put its version in `"apiVersion"` and apps with an older API refuse to import the package and ask users to update; or leave it out and check `DesktopEngine.apiVersion` at run time to fall back.
+The runtime has an integer API version that goes up when APIs are added: `DesktopEngine.apiVersion` in JavaScript. This SDK describes version 3 (the first line of `desktopengine --help` shows it too). When you use an API added later, put its version in `"apiVersion"` and apps with an older API refuse to import the package and ask users to update; or leave it out and check `DesktopEngine.apiVersion` at run time to fall back.
 
 | Version | Added |
 | --- | --- |
 | 1 | The first version |
 | 2 | The `companion` type, formerly `pet` |
+| 3 | `DesktopEngine.input`, the `mouse` and `key-activity` permissions, see [Mouse and Typing](/guide/input) |

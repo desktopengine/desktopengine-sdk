@@ -10,7 +10,7 @@
 // Coordinates are global points, as DesktopEngine.Window uses them: origin at the top left of the main screen, y down.
 
 /** `DesktopEngine.apiVersion` on the web, the same as the SDK's `API_VERSION` (a test checks) */
-export const API_VERSION = 2;
+export const API_VERSION = 3;
 
 export interface Rect {
   x: number;
@@ -58,6 +58,8 @@ export interface LaunchMessage {
   maxFramesPerSecond: number;
   /** Sound starts muted on the web until the visitor turns it on */
   muted: boolean;
+  /** Whether it gets keyactivity (DesktopOptions.keyActivity) */
+  keyActivity: boolean;
 }
 
 export type PointerKind = 'move' | 'down' | 'up' | 'leave' | 'click' | 'wheel';
@@ -79,6 +81,10 @@ export type HostMessage =
       deltaX?: number;
       deltaY?: number;
     }
+  /** DesktopEngine.input's mouse events, wherever the pointer is on the desktop: only to content with the mouse permission that listens */
+  | { type: 'global-mouse'; kind: 'move' | 'down' | 'up' | 'wheel'; x: number; y: number; button: number; deltaX: number; deltaY: number }
+  /** DesktopEngine.input's keyactivity: keys pressed on the page, on a 100 ms grid */
+  | { type: 'key-activity'; count: number }
   | { type: 'move-window'; window: string; x: number; y: number }
   | { type: 'appearance'; appearance: 'light' | 'dark' }
   | { type: 'parameters'; parameters: Record<string, ParameterValue>; changed: string[] }
@@ -121,6 +127,8 @@ export type FrameMessage =
   | { type: 'stats'; framesPerSecond: number }
   /** Whether it has animation frame callbacks waiting: the host sends `frame` messages while it does */
   | { type: 'frames'; wanted: boolean }
+  /** What of DesktopEngine.input it listens to: the host sends `global-mouse` and `key-activity` only then */
+  | { type: 'input-wanted'; mouse: boolean; keys: boolean }
   /** Whether the content applied new parameters itself (it listens to parameterschange); the host restarts it otherwise */
   | { type: 'parameters-result'; handled: boolean }
   /**
@@ -131,7 +139,7 @@ export type FrameMessage =
    */
   | {
       type: 'input';
-      kind: 'move' | 'down' | 'up' | 'cancel' | 'leave';
+      kind: 'move' | 'down' | 'up' | 'cancel' | 'leave' | 'wheel';
       x: number;
       y: number;
       pointerId: number;
@@ -140,6 +148,10 @@ export type FrameMessage =
       altKey: boolean;
       metaKey: boolean;
       shiftKey: boolean;
+      /** wheel: the DOM's deltas and their mode */
+      deltaX?: number;
+      deltaY?: number;
+      deltaMode?: number;
     };
 
 /** The frame's page, made by the host: the content's permissions decide what it may connect to */

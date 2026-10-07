@@ -110,6 +110,19 @@ test('unknown permissions and fields are warnings, not errors', () => {
   assert.ok(warnings.some((message) => message.includes('extra')));
 });
 
+test('the mouse permission asks for the API that has DesktopEngine.input', () => {
+  const { errors, warnings } = validateManifest({ ...minimal, permissions: ['mouse'] });
+  assert.deepEqual(errors, []);
+  assert.ok(warnings.some((message) => message.includes('"apiVersion": 3')));
+  assert.deepEqual(validateManifest({ ...minimal, permissions: ['mouse'], apiVersion: 3 }), { errors: [], warnings: [] });
+});
+
+test('key-activity is listed but only built-in content gets it', () => {
+  const { errors, warnings } = validateManifest({ ...minimal, permissions: ['key-activity'], apiVersion: 3 });
+  assert.deepEqual(errors, []);
+  assert.ok(warnings.some((message) => message.includes('Only content that comes with DesktopEngine')));
+});
+
 test('the network permission reaches only the domains it lists', () => {
   const online = { ...minimal, permissions: ['network'], network: { domains: ['api.example.com', '*.tile.example.org'] } };
   assert.deepEqual(validateManifest(online), { errors: [], warnings: [] });

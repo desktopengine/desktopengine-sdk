@@ -4,6 +4,7 @@
 
 - 没有 DOM 和 Node.js：没有 `document`、`window`，网络见[网络](./network)，`localStorage` 和文件见[存储和文件](./storage)，声音见[音频](./audio)。运行时的模块是 CommonJS 的 `require()`；要用 `import` 请放进 `src/` 由 SDK 打包（见[项目和构建](./project)）。
 - `DesktopEngine.system.cpuUsage()` / `memoryUsage()` 提供 CPU 和内存用量，需要 `system-info` 权限，没有时抛出错误。
+- `DesktopEngine.input` 在整个屏幕上跟随鼠标，需要 `mouse` 权限，见[鼠标和打字](./input)。
 
 ## 画布
 

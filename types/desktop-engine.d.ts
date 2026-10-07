@@ -46,7 +46,7 @@ declare namespace DesktopEngine {
   type ContentType = 'wallpaper' | 'widget' | 'companion' | 'pet';
 
   /** A permission declared in manifest.json */
-  type Permission = 'network' | 'files' | 'audio' | 'system-info' | 'now-playing' | 'window-positions';
+  type Permission = 'network' | 'files' | 'audio' | 'system-info' | 'now-playing' | 'window-positions' | 'mouse' | 'key-activity';
 
   /** The value of a parameter: a `toggle` is a boolean, a `number` a number, a `choice`, `color` or `text` a string */
   type ParameterValue = boolean | number | string | null;
@@ -562,6 +562,54 @@ declare namespace DesktopEngine {
     parameters: Readonly<Record<string, ParameterValue>>;
     /** The keys whose value changed */
     changed: string[];
+  }
+
+  /** A point in global coordinates: points, origin at the top-left of the main display, y pointing down (like Window and Screen) */
+  interface GlobalPoint {
+    x: number;
+    y: number;
+  }
+
+  /** mousedown / mouseup of `DesktopEngine.input` */
+  interface GlobalMouseButtonPayload extends GlobalPoint {
+    /** 0 the primary button, 1 the middle one (and any other), 2 the secondary one, as in the DOM */
+    button: number;
+  }
+
+  /** wheel of `DesktopEngine.input` */
+  interface GlobalWheelPayload extends GlobalPoint {
+    /** Horizontal scroll delta, like a window's wheel event */
+    deltaX: number;
+    /** Vertical scroll delta, like a window's wheel event */
+    deltaY: number;
+  }
+
+  /** keyactivity of `DesktopEngine.input` */
+  interface KeyActivityPayload {
+    /** How many keys went down since the previous keyactivity (a held key repeating counts once) */
+    count: number;
+  }
+
+  /**
+   * `DesktopEngine.input` event map. The mouse events need the "mouse" permission: they come wherever the pointer is,
+   * over other apps too, and never come without it. Unlike a window's events they don't take the mouse away from anything.
+   */
+  interface InputEventMap {
+    /** The pointer moved, or was dragged. Moves that come faster than the content takes them are merged into the latest */
+    mousemove: GlobalPoint;
+    /** A mouse button went down */
+    mousedown: GlobalMouseButtonPayload;
+    /** A mouse button went up */
+    mouseup: GlobalMouseButtonPayload;
+    /** The wheel or the trackpad scrolled; deltas that come faster than the content takes them are added up */
+    wheel: GlobalWheelPayload;
+    /**
+     * Keys were pressed in any app: how many, never which ones, and only on a 100 ms grid. Needs the "key-activity"
+     * permission, which only content that comes with DesktopEngine gets, and the user allowing DesktopEngine Input
+     * Monitoring in System Settings › Privacy & Security (asked the first time content listens to it); otherwise it never
+     * fires. See `keyActivityAvailable`
+     */
+    keyactivity: KeyActivityPayload;
   }
 
   /** ScreenManager event map */
@@ -3422,6 +3470,46 @@ declare namespace DesktopEngine {
   }
 
   // ---------------------------------------------------------------------------
+  // Input
+  // ---------------------------------------------------------------------------
+
+  /**
+   * The mouse anywhere on screen and typing in any app (DesktopEngine.input), e.g. for a companion that follows the
+   * pointer. The mouse needs the "mouse" permission in manifest.json (and `"apiVersion": 3`). The app watches them only
+   * while the content listens to their events.
+   */
+  interface Input extends EventedObject<InputEventMap> {
+    /** Where the pointer is now, in global coordinates; null without the "mouse" permission */
+    readonly pointer: GlobalPoint | null;
+    /**
+     * Whether keyactivity can come: the content comes with DesktopEngine, declares "key-activity" and the user allowed
+     * Input Monitoring. Can change
+     * while it runs (the user turns it on in System Settings): read it again from time to time
+     */
+    readonly keyActivityAvailable: boolean;
+    /** mousemove callback */
+    onmousemove: EventHandler<this, InputEventMap['mousemove']> | null | undefined;
+    /** Removes the onmousemove callback */
+    offmousemove(): void;
+    /** mousedown callback */
+    onmousedown: EventHandler<this, InputEventMap['mousedown']> | null | undefined;
+    /** Removes the onmousedown callback */
+    offmousedown(): void;
+    /** mouseup callback */
+    onmouseup: EventHandler<this, InputEventMap['mouseup']> | null | undefined;
+    /** Removes the onmouseup callback */
+    offmouseup(): void;
+    /** wheel callback */
+    onwheel: EventHandler<this, InputEventMap['wheel']> | null | undefined;
+    /** Removes the onwheel callback */
+    offwheel(): void;
+    /** keyactivity callback */
+    onkeyactivity: EventHandler<this, InputEventMap['keyactivity']> | null | undefined;
+    /** Removes the onkeyactivity callback */
+    offkeyactivity(): void;
+  }
+
+  // ---------------------------------------------------------------------------
   // File system (DesktopEngine.fs)
   // ---------------------------------------------------------------------------
 
@@ -3645,6 +3733,8 @@ declare namespace DesktopEngine {
     ScreenManager: ScreenManager;
     /** System services instance */
     system: System;
+    /** The mouse anywhere on screen and typing in any app; the mouse needs the "mouse" permission */
+    input: Input;
     /** The file system: package files, and the content's own files that are kept between launches */
     readonly fs: FileSystem;
     /**
@@ -3696,6 +3786,8 @@ declare namespace DesktopEngine {
     readonly ScreenManager: PlainConstructor<ScreenManager>;
     /** System services constructor */
     readonly System: PlainConstructor<System>;
+    /** Input constructor (use DesktopEngine.input) */
+    readonly Input: PlainConstructor<Input>;
     /** Native side of `DesktopEngine.fs` and `require` (internal: use `DesktopEngine.fs`) */
     readonly FileSystem: PlainConstructor<unknown>;
     /** Native side of `localStorage` (a singleton, internal: use the global) */

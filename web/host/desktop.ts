@@ -61,6 +61,12 @@ export interface DesktopOptions {
   muted?: boolean;
   /** The language contents are told, navigator.language by default */
   locale?: string;
+  /**
+   * The contents that get DesktopEngine.input's keyactivity, of those that declare the key-activity permission: how many
+   * keys the visitor presses on the page (never which ones), on a 100 ms grid. None by default: the app gives it only to
+   * its own content.
+   */
+  keyActivity?: (content: ContentSpec) => boolean;
 }
 
 /** What the desktop needs to know of manifest.json */
@@ -119,6 +125,9 @@ const WIDGET_SIZES: Record<string, { width: number; height: number }> = {
 
 const inside = (rect: Rect, x: number, y: number): boolean => x >= rect.x && y >= rect.y && x < rect.x + rect.width && y < rect.y + rect.height;
 
+/** keyactivity is sent on this grid, in milliseconds, as the app does */
+const KEY_GRID = 100;
+
 let instances = 0;
 
 /** One mini program on the desktop */
@@ -130,6 +139,10 @@ export class WebContent {
   order = 0;
   /** It has animation frame callbacks waiting: the desktop sends it its display frames */
   wantsFrames = false;
+  /** It listens to DesktopEngine.input's mouse events, and has the mouse permission */
+  wantsMouse = false;
+  /** It listens to keyactivity, and the desktop gives it */
+  wantsKeys = false;
   private listeners = new Map<string, Set<(value: never) => void>>();
   private ready = false;
   private stopped = false;
@@ -179,6 +192,17 @@ export class WebContent {
   /** It may play sound: its frame takes the pointer over its windows while the desktop's sound is on */
   get mayPlaySound(): boolean {
     return (this.spec.permissions ?? this.spec.manifest?.permissions ?? []).includes('audio');
+  }
+
+  /** It may follow the pointer anywhere on the desktop: DesktopEngine.input's mouse events */
+  get mayFollowMouse(): boolean {
+    return (this.spec.permissions ?? this.spec.manifest?.permissions ?? []).includes('mouse');
+  }
+
+  /** It's told how many keys are pressed on the page: it declares key-activity and DesktopOptions.keyActivity gives it */
+  get getsKeyActivity(): boolean {
+    const permissions = this.spec.permissions ?? this.spec.manifest?.permissions ?? [];
+    return permissions.includes('key-activity') && this.desktop.options.keyActivity?.(this.spec) === true;
   }
 
   /** Where its requests go */
@@ -242,6 +266,11 @@ export class WebContent {
         this.wantsFrames = message.wanted === true;
         if (this.wantsFrames) this.desktop.startFrames();
         break;
+      case 'input-wanted':
+        this.wantsMouse = message.mouse === true && this.mayFollowMouse;
+        this.wantsKeys = message.keys === true && this.getsKeyActivity;
+        this.desktop.updateKeyWatching();
+        break;
       case 'parameters-result':
         // like the app: content that doesn't apply new parameters itself starts again with them (only an answer to
         // parameters that were sent counts)
@@ -281,6 +310,9 @@ export class WebContent {
     this.ready = false;
     this.awaitingParameters = false;
     this.wantsFrames = false;
+    this.wantsMouse = false;
+    this.wantsKeys = false;
+    this.desktop.updateKeyWatching();
     this.windows = [];
     this.emit('windows', this.windows);
     this.desktop.releasePointer(this);
@@ -426,6 +458,24 @@ export class WebDesktop {
     }
   };
   private readonly onVisibility = () => this.updateAllPlayback();
+  /** Keys pressed on the page since keyactivity was last sent, and whether it's on its way */
+  private keyPresses = 0;
+  private keyTimer = 0;
+  private watchingKeys = false;
+  private readonly onKeyDown = (event: KeyboardEvent) => {
+    // a held key repeating is one press
+    if (event.repeat) return;
+    this.keyPresses += 1;
+    if (this.keyTimer) return;
+    // told at the next step of the grid, not when the key went down
+    this.keyTimer = window.setTimeout(this.sendKeyActivity, KEY_GRID - (performance.now() % KEY_GRID));
+  };
+  private readonly sendKeyActivity = () => {
+    this.keyTimer = 0;
+    const count = this.keyPresses;
+    this.keyPresses = 0;
+    for (const content of this.contents) if (content.wantsKeys) content.post({ type: 'key-activity', count });
+  };
   /** The page's display frames, passed on to the contents waiting for one (see `frame` in the protocol) */
   private readonly onFrame = () => {
     this.frameRequest = 0;
@@ -458,18 +508,24 @@ export class WebDesktop {
       this.updateAllPlayback();
     }, { rootMargin: '120px' });
     this.intersectionObserver.observe(container);
-    this.element.addEventListener('pointermove', (event) => this.pointerMove(this.point(event), event));
+    this.element.addEventListener('pointermove', (event) => {
+      this.globalMouse('move', this.point(event), event);
+      this.pointerMove(this.point(event), event);
+    });
     this.element.addEventListener('pointerdown', (event) => {
+      this.globalMouse('down', this.point(event), event);
       const hit = this.pointerDown(this.point(event), event);
       if (!hit) return;
       if (hit.type !== 'desktop') event.preventDefault();
       this.element.setPointerCapture(event.pointerId);
     });
     this.element.addEventListener('pointerup', (event) => {
+      this.globalMouse('up', this.point(event), event);
       if (this.element.hasPointerCapture(event.pointerId)) this.element.releasePointerCapture(event.pointerId);
       this.pointerUp(this.point(event), event);
     });
     this.element.addEventListener('pointercancel', (event) => this.pointerCancel(event));
+    this.element.addEventListener('wheel', (event) => this.globalWheel(this.point(event), event.deltaX, event.deltaY, event.deltaMode), { passive: true });
     // the pointer going into the frame that takes it still hovers that frame's window
     this.element.addEventListener('pointerleave', () => {
       if (!this.press && !this.pointerTaker) this.setHovered(null, { x: 0, y: 0 }, null);
@@ -558,6 +614,7 @@ export class WebDesktop {
     if (this.hovered?.content === content) this.hovered = null;
     if (this.press?.content === content) this.press = null;
     content.detach();
+    this.updateKeyWatching();
   }
 
   /** The appearance contents are told, light or dark */
@@ -591,6 +648,9 @@ export class WebDesktop {
   destroy(): void {
     cancelAnimationFrame(this.frameRequest);
     this.frameRequest = 0;
+    clearTimeout(this.keyTimer);
+    this.keyTimer = 0;
+    document.removeEventListener('keydown', this.onKeyDown, true);
     for (const content of [...this.contents]) this.terminate(content);
     window.removeEventListener('message', this.onMessage);
     document.removeEventListener('visibilitychange', this.onVisibility);
@@ -619,6 +679,7 @@ export class WebDesktop {
       apiVersion: API_VERSION,
       maxFramesPerSecond: this.options.maxFramesPerSecond ?? 0,
       muted: this.options.muted ?? true,
+      keyActivity: content.getsKeyActivity,
     };
   }
 
@@ -686,6 +747,37 @@ export class WebDesktop {
   private updateAllPlayback(): void {
     for (const content of this.contents) this.updatePlayback(content);
     this.startFrames();
+  }
+
+  // MARK: DesktopEngine.input
+
+  /** The pointer anywhere on the desktop, to the contents that follow it */
+  private globalMouse(kind: 'move' | 'down' | 'up' | 'wheel', point: { x: number; y: number }, event: { button: number } | null, deltaX = 0, deltaY = 0): void {
+    for (const content of this.contents) {
+      if (!content.wantsMouse) continue;
+      content.post({ type: 'global-mouse', kind, x: point.x, y: point.y, button: event?.button ?? 0, deltaX, deltaY });
+    }
+  }
+
+  /** A DOM wheel event as DesktopEngine.input's wheel: like NSEvent's deltas, about lines, positive toward the top and the left */
+  private globalWheel(point: { x: number; y: number }, deltaX: number, deltaY: number, deltaMode: number): void {
+    const lines = deltaMode === WheelEvent.DOM_DELTA_PIXEL ? 10 : deltaMode === WheelEvent.DOM_DELTA_PAGE ? 1 / 30 : 1;
+    this.globalMouse('wheel', point, null, -deltaX / lines, -deltaY / lines);
+  }
+
+  /** @internal: counts the page's key presses while a content listens to keyactivity */
+  updateKeyWatching(): void {
+    const wanted = [...this.contents].some((content) => content.wantsKeys);
+    if (wanted === this.watchingKeys) return;
+    this.watchingKeys = wanted;
+    if (wanted) {
+      document.addEventListener('keydown', this.onKeyDown, true);
+    } else {
+      document.removeEventListener('keydown', this.onKeyDown, true);
+      clearTimeout(this.keyTimer);
+      this.keyTimer = 0;
+      this.keyPresses = 0;
+    }
   }
 
   // MARK: The pointer
@@ -856,6 +948,13 @@ export class WebDesktop {
     const y = Number(message.y);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     const point = { x, y };
+    if (message.kind === 'wheel') {
+      // only over its own windows: the frame takes the pointer there
+      if (this.windowAt(x, y)?.content !== content) return;
+      const delta = (value: unknown) => (Number.isFinite(Number(value)) ? Number(value) : 0);
+      this.globalWheel(point, delta(message.deltaX), delta(message.deltaY), delta(message.deltaMode));
+      return;
+    }
     const event: PointerInput = {
       pointerId: Number(message.pointerId) || 0,
       button: Number(message.button) || 0,
@@ -866,16 +965,20 @@ export class WebDesktop {
     };
     switch (message.kind) {
       case 'move':
+        this.globalMouse('move', point, event);
         this.pointerMove(point, event);
         break;
       case 'down': {
         if (navigator.userActivation && !navigator.userActivation.isActive) return;
         if (this.windowAt(x, y)?.content !== content) return;
+        this.globalMouse('down', point, event);
         this.pointerDown(point, event);
         break;
       }
       case 'up':
-        if (press?.content === content) this.pointerUp(point, event);
+        if (press?.content !== content) break;
+        this.globalMouse('up', point, event);
+        this.pointerUp(point, event);
         break;
       case 'cancel':
         if (press?.content === content) this.pointerCancel(event);

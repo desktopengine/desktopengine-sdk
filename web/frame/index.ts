@@ -71,8 +71,67 @@ class ScreenManagerImpl extends Evented {
 }
 defineEvents(ScreenManagerImpl.prototype, ['change']);
 
+// MARK: Input
+
+const MOUSE_EVENTS = ['mousemove', 'mousedown', 'mouseup', 'wheel'];
+/** Where the host last saw the pointer on the desktop */
+let lastPointer: { x: number; y: number } | null = null;
+let inputWanted = { mouse: false, keys: false };
+
+/** DesktopEngine.input: the host sends the pointer anywhere on the desktop and the page's key presses while it listens */
+class InputImpl extends Evented {
+  get pointer(): { x: number; y: number } | null {
+    if (!hasPermission('mouse')) return null;
+    if (lastPointer) return { ...lastPointer };
+    // not seen yet: the middle of the main screen
+    const bounds = state.screens[0]?.bounds ?? { x: 0, y: 0, width: 0, height: 0 };
+    return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+  }
+
+  get keyActivityAvailable(): boolean {
+    return state.launch?.keyActivity === true;
+  }
+
+  override destroy(): void {
+    super.destroy();
+    this.listenersChanged('');
+  }
+
+  protected override listenersChanged(_name: string): void {
+    const wanted = {
+      mouse: hasPermission('mouse') && MOUSE_EVENTS.some((name) => this.listens(name)),
+      keys: this.keyActivityAvailable && this.listens('keyactivity'),
+    };
+    if (wanted.mouse === inputWanted.mouse && wanted.keys === inputWanted.keys) return;
+    inputWanted = wanted;
+    send({ type: 'input-wanted', ...wanted });
+  }
+}
+defineEvents(InputImpl.prototype, [...MOUSE_EVENTS, 'keyactivity']);
+
+function globalMouse(message: Extract<HostMessage, { type: 'global-mouse' }>): void {
+  if (!hasPermission('mouse')) return;
+  const x = Number(message.x);
+  const y = Number(message.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  lastPointer = { x, y };
+  switch (message.kind) {
+    case 'move':
+      input.emit('mousemove', { x, y });
+      break;
+    case 'down':
+    case 'up':
+      input.emit(message.kind === 'down' ? 'mousedown' : 'mouseup', { x, y, button: Number(message.button) || 0 });
+      break;
+    case 'wheel':
+      input.emit('wheel', { x, y, deltaX: Number(message.deltaX) || 0, deltaY: Number(message.deltaY) || 0 });
+      break;
+  }
+}
+
 const system = new SystemImpl();
 const screenManager = new ScreenManagerImpl();
+const input = new InputImpl();
 
 // MARK: Audio
 
@@ -232,6 +291,24 @@ function installPointerInput(): void {
   scope.addEventListener('pointerup', forward('up'));
   scope.addEventListener('pointercancel', forward('cancel'));
   document.documentElement.addEventListener('pointerleave', forward('leave'));
+  // over this frame the page doesn't see the wheel either: passed back for other contents' DesktopEngine.input
+  scope.addEventListener('wheel', (event: WheelEvent) => {
+    send({
+      type: 'input',
+      kind: 'wheel',
+      x: event.clientX,
+      y: event.clientY,
+      pointerId: 0,
+      button: 0,
+      ctrlKey: event.ctrlKey,
+      altKey: event.altKey,
+      metaKey: event.metaKey,
+      shiftKey: event.shiftKey,
+      deltaX: event.deltaX,
+      deltaY: event.deltaY,
+      deltaMode: event.deltaMode,
+    });
+  }, { passive: true });
 }
 
 // MARK: Console
@@ -329,6 +406,7 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
     WebGL2RenderingContext: scope.WebGL2RenderingContext,
     ScreenManager: screenManager,
     system,
+    input,
     fs,
     launchOptions: options,
     apiVersion: launch.apiVersion,
@@ -367,7 +445,7 @@ function launch(message: LaunchMessage): void {
   const runtimeScope: Record<string, unknown> = {};
   for (const [name, value] of Object.entries({
     Window: WindowImpl, Component: ComponentImpl, Video: VideoImpl, Image: ImageImpl, Canvas: CanvasImpl, CanvasImage: CanvasImageImpl,
-    ScreenManager: ScreenManagerImpl, System: SystemImpl,
+    ScreenManager: ScreenManagerImpl, System: SystemImpl, Input: InputImpl,
   })) {
     Object.defineProperty(runtimeScope, name, { get: () => value, enumerable: true });
   }
@@ -502,6 +580,12 @@ scope.addEventListener('message', (event: MessageEvent) => {
       break;
     case 'frame':
       hostFrame();
+      break;
+    case 'global-mouse':
+      if (state.launch) globalMouse(message);
+      break;
+    case 'key-activity':
+      if (state.launch?.keyActivity) input.emit('keyactivity', { count: Math.max(1, Math.floor(Number(message.count) || 0)) });
       break;
     case 'cursor':
       document.documentElement.style.cursor = String(message.cursor);

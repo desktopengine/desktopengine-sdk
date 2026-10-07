@@ -13,12 +13,18 @@ export const TYPE_ALIASES: Readonly<Record<string, ContentType>> = { pet: 'compa
 /** The API version that introduced each type's current name, for types newer than API 1 */
 export const TYPE_API_VERSIONS: Readonly<Partial<Record<ContentType, number>>> = { companion: 2 };
 export const WIDGET_SIZES = ['small', 'medium', 'large'] as const;
-export const PERMISSIONS = ['network', 'files', 'audio', 'system-info', 'now-playing', 'window-positions'] as const;
+export const PERMISSIONS = ['network', 'files', 'audio', 'system-info', 'now-playing', 'window-positions', 'mouse', 'key-activity'] as const;
+/** The API version that introduced each permission's API, for permissions newer than API 1 */
+export const PERMISSION_API_VERSIONS: Readonly<Partial<Record<Permission, number>>> = { mouse: 3, 'key-activity': 3 };
+/** Permissions only content that comes with the app gets: others that declare them never get them */
+export const BUILTIN_ONLY_PERMISSIONS: readonly Permission[] = ['key-activity'];
+/** The ids of the content that comes with the app; the store doesn't take others' packages in it */
+const OFFICIAL_ID_PREFIX = 'app.desktopengine.official.';
 export const PARAMETER_TYPES = ['toggle', 'number', 'text', 'color', 'choice'] as const;
 export const MANIFEST_FILE = 'manifest.json';
 export const ENTRY_FILE = 'index.js';
 /** `DesktopEngine.apiVersion` these types and rules describe. */
-export const API_VERSION = 2;
+export const API_VERSION = 3;
 /** The most domains `network.domains` may list */
 export const MAX_NETWORK_DOMAINS = 32;
 
@@ -28,6 +34,7 @@ const LANGUAGE_PATTERN = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
 const COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
 
 export type ContentType = (typeof TYPES)[number];
+export type Permission = (typeof PERMISSIONS)[number];
 export type WidgetSize = (typeof WIDGET_SIZES)[number];
 export type ParameterType = (typeof PARAMETER_TYPES)[number];
 /** A value the app can decode as `JSONValue`. */
@@ -291,6 +298,14 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
           errors.push(`"permissions[${index}]" must be a string`);
         } else if (!isOneOf(PERMISSIONS, permission)) {
           warnings.push(`Unknown permission "${permission}", the known ones are ${PERMISSIONS.join(', ')}`);
+        } else {
+          if (BUILTIN_ONLY_PERMISSIONS.includes(permission) && !String(manifest.id ?? '').startsWith(OFFICIAL_ID_PREFIX)) {
+            warnings.push(`Only content that comes with DesktopEngine gets the "${permission}" permission: the app lists it but never gives it to other content`);
+          }
+          const needed = PERMISSION_API_VERSIONS[permission];
+          if (needed !== undefined && !(typeof apiVersion === 'number' && apiVersion >= needed)) {
+            warnings.push(`The "${permission}" permission's API is in API ${needed}: add "apiVersion": ${needed}, or check DesktopEngine.apiVersion before using it, apps with an older API don't have it`);
+          }
         }
       });
     }
