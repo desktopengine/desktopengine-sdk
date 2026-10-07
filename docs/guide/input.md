@@ -37,4 +37,4 @@ input.onkeyactivity = ({ count }) => tapPaws(count);
 
 ## On the web
 
-In `desktopengine dev --web` and the store's previews, the mouse events come while the pointer is over the desktop on the page. `keyactivity` is off unless the content declares `key-activity` and the page that shows the desktop turns it on for it.
+In `desktopengine dev --web` and the store's previews, the mouse events come while the pointer is over the desktop on the page, over the page's own windows on top of it too. `keyactivity` is off unless the content declares `key-activity` and the page that shows the desktop turns it on for it.

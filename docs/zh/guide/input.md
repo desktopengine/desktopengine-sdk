@@ -37,4 +37,4 @@ input.onkeyactivity = ({ count }) => tapPaws(count);
 
 ## 在网页上
 
-在 `desktopengine dev --web` 和商店的预览里，指针在页面的桌面上时会收到鼠标事件。`keyactivity` 默认关闭，除非内容声明了 `key-activity`，并且显示桌面的页面为它打开。
+在 `desktopengine dev --web` 和商店的预览里，指针在页面的桌面范围内时会收到鼠标事件，盖在桌面上的页面窗口上方也算。`keyactivity` 默认关闭，除非内容声明了 `key-activity`，并且显示桌面的页面为它打开。

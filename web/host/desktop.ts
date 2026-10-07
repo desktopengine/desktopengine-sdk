@@ -269,7 +269,7 @@ export class WebContent {
       case 'input-wanted':
         this.wantsMouse = message.mouse === true && this.mayFollowMouse;
         this.wantsKeys = message.keys === true && this.getsKeyActivity;
-        this.desktop.updateKeyWatching();
+        this.desktop.updateInputWatching();
         break;
       case 'parameters-result':
         // like the app: content that doesn't apply new parameters itself starts again with them (only an answer to
@@ -312,7 +312,7 @@ export class WebContent {
     this.wantsFrames = false;
     this.wantsMouse = false;
     this.wantsKeys = false;
-    this.desktop.updateKeyWatching();
+    this.desktop.updateInputWatching();
     this.windows = [];
     this.emit('windows', this.windows);
     this.desktop.releasePointer(this);
@@ -462,6 +462,19 @@ export class WebDesktop {
   private keyPresses = 0;
   private keyTimer = 0;
   private watchingKeys = false;
+  /** The pointer anywhere on the page, over the page's own things on top of the desktop too, as in the app */
+  private watchingMouse = false;
+  private readonly onPagePointer = (event: PointerEvent) => {
+    const point = this.point(event);
+    const kind = event.type === 'pointermove' ? 'move' : event.type === 'pointerdown' ? 'down' : 'up';
+    // off the desktop there's no screen; a button let go there still goes up
+    if (kind !== 'up' && !inside(this.bounds, point.x, point.y)) return;
+    this.globalMouse(kind, point, event);
+  };
+  private readonly onPageWheel = (event: WheelEvent) => {
+    const point = this.point(event);
+    if (inside(this.bounds, point.x, point.y)) this.globalWheel(point, event.deltaX, event.deltaY, event.deltaMode);
+  };
   private readonly onKeyDown = (event: KeyboardEvent) => {
     // a held key repeating is one press
     if (event.repeat) return;
@@ -508,24 +521,18 @@ export class WebDesktop {
       this.updateAllPlayback();
     }, { rootMargin: '120px' });
     this.intersectionObserver.observe(container);
-    this.element.addEventListener('pointermove', (event) => {
-      this.globalMouse('move', this.point(event), event);
-      this.pointerMove(this.point(event), event);
-    });
+    this.element.addEventListener('pointermove', (event) => this.pointerMove(this.point(event), event));
     this.element.addEventListener('pointerdown', (event) => {
-      this.globalMouse('down', this.point(event), event);
       const hit = this.pointerDown(this.point(event), event);
       if (!hit) return;
       if (hit.type !== 'desktop') event.preventDefault();
       this.element.setPointerCapture(event.pointerId);
     });
     this.element.addEventListener('pointerup', (event) => {
-      this.globalMouse('up', this.point(event), event);
       if (this.element.hasPointerCapture(event.pointerId)) this.element.releasePointerCapture(event.pointerId);
       this.pointerUp(this.point(event), event);
     });
     this.element.addEventListener('pointercancel', (event) => this.pointerCancel(event));
-    this.element.addEventListener('wheel', (event) => this.globalWheel(this.point(event), event.deltaX, event.deltaY, event.deltaMode), { passive: true });
     // the pointer going into the frame that takes it still hovers that frame's window
     this.element.addEventListener('pointerleave', () => {
       if (!this.press && !this.pointerTaker) this.setHovered(null, { x: 0, y: 0 }, null);
@@ -614,7 +621,7 @@ export class WebDesktop {
     if (this.hovered?.content === content) this.hovered = null;
     if (this.press?.content === content) this.press = null;
     content.detach();
-    this.updateKeyWatching();
+    this.updateInputWatching();
   }
 
   /** The appearance contents are told, light or dark */
@@ -650,7 +657,9 @@ export class WebDesktop {
     this.frameRequest = 0;
     clearTimeout(this.keyTimer);
     this.keyTimer = 0;
-    document.removeEventListener('keydown', this.onKeyDown, true);
+    this.watchingKeys = false;
+    this.watchingMouse = false;
+    this.watchPage(false, false);
     for (const content of [...this.contents]) this.terminate(content);
     window.removeEventListener('message', this.onMessage);
     document.removeEventListener('visibilitychange', this.onVisibility);
@@ -751,7 +760,7 @@ export class WebDesktop {
 
   // MARK: DesktopEngine.input
 
-  /** The pointer anywhere on the desktop, to the contents that follow it */
+  /** The pointer anywhere on the page, to the contents that follow it */
   private globalMouse(kind: 'move' | 'down' | 'up' | 'wheel', point: { x: number; y: number }, event: { button: number } | null, deltaX = 0, deltaY = 0): void {
     for (const content of this.contents) {
       if (!content.wantsMouse) continue;
@@ -765,18 +774,35 @@ export class WebDesktop {
     this.globalMouse('wheel', point, null, -deltaX / lines, -deltaY / lines);
   }
 
-  /** @internal: counts the page's key presses while a content listens to keyactivity */
-  updateKeyWatching(): void {
-    const wanted = [...this.contents].some((content) => content.wantsKeys);
-    if (wanted === this.watchingKeys) return;
-    this.watchingKeys = wanted;
-    if (wanted) {
-      document.addEventListener('keydown', this.onKeyDown, true);
-    } else {
-      document.removeEventListener('keydown', this.onKeyDown, true);
-      clearTimeout(this.keyTimer);
-      this.keyTimer = 0;
-      this.keyPresses = 0;
+  /** @internal: watches the page's pointer while a content follows the mouse, and counts its key presses while one listens to keyactivity */
+  updateInputWatching(): void {
+    const mouse = [...this.contents].some((content) => content.wantsMouse);
+    const keys = [...this.contents].some((content) => content.wantsKeys);
+    if (mouse !== this.watchingMouse || keys !== this.watchingKeys) this.watchPage(mouse !== this.watchingMouse ? mouse : null, keys !== this.watchingKeys ? keys : null);
+    this.watchingMouse = mouse;
+    this.watchingKeys = keys;
+  }
+
+  /** Adds (true) or removes (false) the page's listeners for the mouse and for keys; null leaves them as they are */
+  private watchPage(mouse: boolean | null, keys: boolean | null): void {
+    const options = { capture: true, passive: true };
+    if (mouse !== null) {
+      for (const type of ['pointermove', 'pointerdown', 'pointerup'] as const) {
+        if (mouse) document.addEventListener(type, this.onPagePointer, options);
+        else document.removeEventListener(type, this.onPagePointer, options);
+      }
+      if (mouse) document.addEventListener('wheel', this.onPageWheel, options);
+      else document.removeEventListener('wheel', this.onPageWheel, options);
+    }
+    if (keys !== null) {
+      if (keys) {
+        document.addEventListener('keydown', this.onKeyDown, true);
+      } else {
+        document.removeEventListener('keydown', this.onKeyDown, true);
+        clearTimeout(this.keyTimer);
+        this.keyTimer = 0;
+        this.keyPresses = 0;
+      }
     }
   }
 
