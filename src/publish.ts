@@ -130,7 +130,8 @@ export async function logout(api: string): Promise<boolean> {
 export interface PublishOptions {
   projectDir: string;
   api: string;
-  notes?: string;
+  /** What's new in this version: in English, or by locale (e.g. { en: '…', 'zh-Hans': '…' }), English being shown where there's no translation */
+  notes?: string | Record<string, string>;
   networkPurpose?: string;
   submit?: boolean;
   testLink?: boolean;

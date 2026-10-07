@@ -16,7 +16,7 @@ import { createZip, readZip, crc32 } from '../src/zip.ts';
 import { createProject, packProject, listPackageFiles, defaultId, RENDERERS } from '../src/project.ts';
 import { buildProject } from '../src/build.ts';
 import { affectsPackage } from '../src/files.ts';
-import { parseArgs, formatMetrics, shellQuote } from '../src/cli.ts';
+import { parseArgs, formatMetrics, notesFlags, shellQuote } from '../src/cli.ts';
 
 const CLI = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
 /** The app's repository, when the SDK is its SDK/ folder rather than the standalone desktopengine-sdk repository */
@@ -367,6 +367,13 @@ test('parseArgs reads positional arguments and flags', () => {
   assert.deepEqual(parseArgs(['-v']), { positional: [], flags: { v: true } });
   assert.deepEqual(parseArgs(['pack', '-h']), { positional: ['pack'], flags: { h: true } });
   assert.deepEqual(parseArgs(['dev', '--position', '-10,20']), { positional: ['dev'], flags: { position: '-10,20' } });
+});
+
+test('notesFlags gives English notes as a string and other languages by locale', () => {
+  assert.equal(notesFlags(parseArgs(['publish', '--notes', 'Faster']).flags), 'Faster');
+  assert.equal(notesFlags(parseArgs(['publish']).flags), undefined);
+  assert.deepEqual(notesFlags(parseArgs(['publish', '--notes', 'Faster', '--notes-zh-Hans', '更快']).flags), { en: 'Faster', 'zh-Hans': '更快' });
+  assert.deepEqual(notesFlags(parseArgs(['publish', '--notes-zh-Hans=更快']).flags), { 'zh-Hans': '更快' });
 });
 
 test('formatMetrics sums up a second of the mini program', () => {

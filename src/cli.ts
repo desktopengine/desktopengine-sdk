@@ -50,7 +50,8 @@ Usage:
   desktopengine logout [--api <url>]
   desktopengine publish [folder] [options]
       Packs the project and uploads it as a new version of its item in the store
-        --notes <text>              what's new in this version
+        --notes <text>              what's new in this version, in English
+        --notes-<locale> <text>     what's new in another language, e.g. --notes-zh-Hans
         --network-purpose <text>    what the network permission is for (needed to submit with it)
         --category <category>       the store's category for it, e.g. clock (needed to submit the first time)
         --copyright <origin>        original, licensed or open (needed to submit the first time)
@@ -73,7 +74,7 @@ const USAGE: Record<string, string> = {
   pack: 'desktopengine pack [folder] [--out <folder>] [--minify]',
   login: 'desktopengine login [--api <url>]',
   logout: 'desktopengine logout [--api <url>]',
-  publish: 'desktopengine publish [folder] [--notes <text>] [--network-purpose <text>] [--category <category>] [--copyright <origin>] [--copyright-note <text>] [--submit] [--test-link] [--debug] [--api <url>]',
+  publish: 'desktopengine publish [folder] [--notes <text>] [--notes-<locale> <text>] [--network-purpose <text>] [--category <category>] [--copyright <origin>] [--copyright-note <text>] [--submit] [--test-link] [--debug] [--api <url>]',
 };
 
 export type FlagValue = string | boolean | (string | boolean)[];
@@ -126,6 +127,17 @@ function stringFlag(value: FlagValue | undefined): string | undefined {
 /** Every value of a flag that can be repeated. */
 function stringFlags(value: FlagValue | undefined): string[] {
   return (value === undefined ? [] : ([] as (string | boolean)[]).concat(value)).filter((item): item is string => typeof item === 'string');
+}
+
+/** `--notes` (English) and `--notes-<locale>`: a string when there's only English, by locale otherwise. */
+export function notesFlags(flags: Record<string, FlagValue>): string | Record<string, string> | undefined {
+  const english = stringFlag(flags.notes);
+  const translations = Object.keys(flags)
+    .filter((key) => key.startsWith('notes-'))
+    .map((key) => [key.slice('notes-'.length), stringFlag(flags[key])] as const)
+    .filter((entry): entry is readonly [string, string] => entry[1] !== undefined);
+  if (!translations.length) return english;
+  return { ...(english !== undefined ? { en: english } : {}), ...Object.fromEntries(translations) };
 }
 
 /** A word for the shell, quoted when it has spaces or other special characters, e.g. a folder to copy from the output */
@@ -510,7 +522,7 @@ export async function main(argv: string[]): Promise<number> {
       const result = await publish({
         projectDir: path.resolve(rest[0] || '.'),
         api: apiBase(stringFlag(flags.api)),
-        notes: stringFlag(flags.notes),
+        notes: notesFlags(flags),
         networkPurpose: stringFlag(flags['network-purpose']),
         submit: flags.submit === true,
         testLink: flags['test-link'] === true,

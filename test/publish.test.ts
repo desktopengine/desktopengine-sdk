@@ -162,8 +162,11 @@ test('publish stops when the checks find problems, and reuses a rejected version
     return { status: 404, json: { error: `unexpected ${route}` } };
   });
 
-  const result = await publish({ projectDir: project, api, notes: 'fixed', submit: true, log: () => {} });
+  const result = await publish({ projectDir: project, api, notes: { en: 'fixed', 'zh-Hans': '修好了' }, submit: true, log: () => {} });
   assert.deepEqual(result.errors, ['index.js is missing']);
+  // the notes in each language go to the version that is uploaded again
+  const patch = requests.find((request) => request.method === 'PATCH' && request.url.endsWith('/versions/1.0.0'))!;
+  assert.deepEqual(JSON.parse(patch.body.toString()).notes, { en: 'fixed', 'zh-Hans': '修好了' });
   assert.equal(result.status, 'draft');
   assert.ok(!requests.some((request) => request.url.endsWith('/submit')), 'nothing with errors is submitted');
   assert.ok(!requests.some((request) => request.method === 'POST' && request.url.endsWith('/versions')), 'the rejected version is uploaded again');

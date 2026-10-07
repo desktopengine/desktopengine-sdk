@@ -103,7 +103,8 @@ desktopengine publish [folder] [options]
 
 | 选项 | 说明 |
 | --- | --- |
-| `--notes <text>` | 这个版本的新内容，审核员和用户都能看到 |
+| `--notes <text>` | 这个版本的新内容（英文），审核员和用户都能看到 |
+| `--notes-<locale> <text>` | 其它语言的新内容，例如 `--notes-zh-Hans`；商店按访客的语言显示，没有对应语言时显示英文 |
 | `--network-purpose <text>` | `network` 权限的用途；带这个权限的版本提交审核时必须填写 |
 | `--category <category>` | 商店里的分类，例如 `clock`；第一次提交时必须填写。分类列表见商店 API 的 `GET /v1/categories` |
 | `--copyright <origin>` | 内容的来源：`original`（原创）、`licensed`（已获授权）或 `open`（公共领域或开放许可）；第一次提交时必须填写 |
