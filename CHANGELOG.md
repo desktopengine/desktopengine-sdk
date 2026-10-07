@@ -2,6 +2,14 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 2.4.0 (2026-10-07)
+
+API version 3 (was 2): packages with `"apiVersion": 3` need an app that has it.
+
+### Features
+
+- DesktopEngine.input follows the mouse anywhere on screen with the "mouse" permission and tells content that comes with the app how many keys are pressed ("key-activity"), API 3
+
 ## 2.3.0 (2026-10-07)
 
 API version 2 (was 1): packages with `"apiVersion": 2` need an app that has it.
