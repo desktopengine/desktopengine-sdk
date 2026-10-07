@@ -7,7 +7,7 @@ const options = DesktopEngine.launchOptions || {};
 options.windowType;   // 'widget'（贴在桌面上）或 'overlay'（浮于窗口之上），传给 new DesktopEngine.Window({ type })
 options.width;        // 小组件宽度（点），与所选尺寸对应
 options.height;
-options.position;     // { x, y }：用户上次拖到的位置，或应用算好的默认位置
+options.position;     // { x, y }：用户上次拖到的位置；没有时小组件由应用算好默认位置，伙伴自己决定
 options.display;      // { id, name, frame, visibleFrame, scale }
 options.displays;     // 壁纸跨显示器时代替 display，列出所有显示器，见壁纸
 options.parameters;   // 选项的取值
@@ -46,7 +46,7 @@ win.onmove = (payload) => postMessage('host', { type: 'move', x: payload.x, y: p
 postMessage('host', { type: 'close' }); // 把自己从桌面移除
 ```
 
-应用会记住 `move` 上报的位置，下次启动时通过 `options.position` 传回。
+应用会记住 `move` 上报的位置，下次启动时通过 `options.position` 传回；用户把内容移除后在同一个显示器上重新添加，也会放回那里。
 
 ## 外观
 

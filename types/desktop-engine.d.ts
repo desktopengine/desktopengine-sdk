@@ -78,7 +78,7 @@ declare namespace DesktopEngine {
      * drawing out in their shared coordinates, so it continues from one display to the next
      */
     displays?: LaunchDisplay[];
-    /** Top-left position of the window: where the user last dragged it, or a default computed by the app */
+    /** Top-left position of the window: where the user last dragged it; for a widget without one, a default computed by the app; a companion without one picks where it starts */
     position?: { x: number; y: number };
     /**
      * Values of the parameters in manifest.json (the user's value if set, otherwise the default). Current ones: when the

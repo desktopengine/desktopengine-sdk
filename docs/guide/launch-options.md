@@ -7,7 +7,7 @@ const options = DesktopEngine.launchOptions || {};
 options.windowType;   // 'widget' (on the desktop) or 'overlay' (above windows), for new DesktopEngine.Window({ type })
 options.width;        // the widget's width in points, for the size picked
 options.height;
-options.position;     // { x, y }: where the user last dragged it, or the default position the app worked out
+options.position;     // { x, y }: where the user last dragged it; a widget without one gets a default, a companion picks its own
 options.display;      // { id, name, frame, visibleFrame, scale }
 options.displays;     // every display instead, when a wallpaper spans them, see Wallpapers
 options.parameters;   // the values of the options
@@ -46,7 +46,7 @@ win.onmove = (payload) => postMessage('host', { type: 'move', x: payload.x, y: p
 postMessage('host', { type: 'close' }); // removes itself from the desktop
 ```
 
-The app remembers the position `move` reports and passes it back in `options.position` next time.
+The app remembers the position `move` reports and passes it back in `options.position` next time, also when the user removes the content and adds it again on the same display.
 
 ## Appearance
 
