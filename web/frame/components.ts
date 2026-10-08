@@ -78,20 +78,26 @@ export class ComponentImpl extends Evented {
     const count = this.childList.length - (child.parent === this ? 1 : 0);
     const position = index === undefined || index === -1 ? count : Number(index);
     if (!Number.isInteger(position) || position < 0 || position > count) throw new RangeError(`index ${String(index)} is out of range 0…${count}`);
+    // moved within the window: it stays in it
+    const wasInWindow = child.inWindow;
     child.parent?.detach(child);
     this.childList.splice(position, 0, child);
     child.parent = this;
     this.element.insertBefore(child.element, this.childList[position + 1]?.element ?? null);
-    child.attached();
+    if (child.inWindow !== wasInWindow) child.notifyInWindow(!wasInWindow);
   }
 
   removeChild(child: unknown): void {
     if (!(child instanceof ComponentImpl) || child.parent !== this) throw new Error('not a child of this component');
+    const wasInWindow = child.inWindow;
     this.detach(child);
+    if (wasInWindow) child.notifyInWindow(false);
   }
 
   remove(): void {
+    const wasInWindow = this.inWindow;
     this.parent?.detach(this);
+    if (wasInWindow && !this.inWindow) this.notifyInWindow(false);
   }
 
   private detach(child: ComponentImpl): void {
@@ -113,7 +119,19 @@ export class ComponentImpl extends Evented {
     return node as WindowImpl | null;
   }
 
-  protected attached(): void {}
+  /** In a window that isn't destroyed, directly or inside other components */
+  get inWindow(): boolean {
+    const window = this.rootWindow;
+    return window !== null && windows.has(window);
+  }
+
+  private notifyInWindow(inWindow: boolean): void {
+    this.inWindowChanged(inWindow);
+    for (const child of this.childList) child.notifyInWindow(inWindow);
+  }
+
+  /** Added to a window or removed from one, itself or with a parent */
+  protected inWindowChanged(_inWindow: boolean): void {}
 
   override destroy(): void {
     super.destroy();
@@ -634,8 +652,19 @@ export class VideoImpl extends ComponentImpl {
   private wantsMuted = false;
   private wantedVolume = 1;
   private start = 0;
+  /** Played once loaded; not the element's autoplay, which would start a video that was paused out of a window */
+  private plays = false;
+  /** Where to go once the file's metadata is in: initialTime, or where it left the window */
+  private loadTime = 0;
   /** Playing when the content was suspended: plays again after */
   private resume = false;
+  /**
+   * Out of a window (or not in one yet), as in the app: the element lets go of the file, playing, pausing and seeking
+   * only note what to do, and it continues from there when it's in a window
+   */
+  private offscreen: { time: number; playing: boolean } | null = { time: 0, playing: false };
+  /** Paused, its pause event not sent yet: unloading the element drops that event */
+  private pausePending = false;
 
   constructor(options?: Record<string, unknown>) {
     const video = document.createElement('video');
@@ -644,7 +673,11 @@ export class VideoImpl extends ComponentImpl {
     video.playsInline = true;
     video.style.objectFit = 'contain';
     videos.add(this);
-    const emit = (name: string, payload?: () => unknown) => video.addEventListener(name === 'error' ? 'error' : name, () => this.emit(name, payload?.()));
+    // not out of a window: the element emptying isn't the video's
+    const emit = (name: string, payload?: () => unknown) => video.addEventListener(name, () => {
+      if (name === 'pause') this.pausePending = false;
+      if (!this.offscreen) this.emit(name, payload?.());
+    });
     emit('waiting');
     emit('play');
     emit('pause');
@@ -655,9 +688,11 @@ export class VideoImpl extends ComponentImpl {
       const end = video.buffered.length ? video.buffered.end(video.buffered.length - 1) : 0;
       return { buffered: duration ? Math.min(100, (end / duration) * 100) : 0, duration };
     });
-    video.addEventListener('error', () => this.emit('error', { errMsg: video.error?.message || 'the video can\'t be played' }));
+    video.addEventListener('error', () => {
+      if (!this.offscreen) this.emit('error', { errMsg: video.error?.message || 'the video can\'t be played' });
+    });
     video.addEventListener('loadedmetadata', () => {
-      if (this.start) video.currentTime = this.start;
+      if (this.loadTime) video.currentTime = this.loadTime;
     });
     for (const key of ['objectFit', 'initialTime', 'playbackRate', 'autoplay', 'loop', 'muted', 'volume', 'src']) {
       if (options && key in options) (this as unknown as Record<string, unknown>)[key] = options[key];
@@ -671,14 +706,25 @@ export class VideoImpl extends ComponentImpl {
 
   set src(value: string | null) {
     this.source = value === null || value === undefined ? null : String(value);
-    const url = this.source ? mediaURL(this.source) : null;
-    if (this.source && !url) {
+    if (this.source && !mediaURL(this.source)) {
       setTimeout(() => this.emit('error', { errMsg: 'the video can\'t be read' }));
+    }
+    if (this.offscreen) {
+      this.offscreen = { time: this.start, playing: this.plays };
+      return;
+    }
+    this.load(this.start, this.plays);
+  }
+
+  private load(time: number, play: boolean): void {
+    const url = this.source ? mediaURL(this.source) : null;
+    this.loadTime = time;
+    if (!url) {
       this.video.removeAttribute('src');
       return;
     }
-    if (url) this.video.src = url;
-    else this.video.removeAttribute('src');
+    this.video.src = url;
+    if (play) this.play();
   }
 
   get initialTime(): number {
@@ -706,11 +752,11 @@ export class VideoImpl extends ComponentImpl {
   }
 
   get autoplay(): boolean {
-    return this.video.autoplay;
+    return this.plays;
   }
 
   set autoplay(value: boolean) {
-    if (typeof value === 'boolean') this.video.autoplay = value;
+    if (typeof value === 'boolean') this.plays = value;
   }
 
   get loop(): boolean {
@@ -748,6 +794,10 @@ export class VideoImpl extends ComponentImpl {
   }
 
   play(): void {
+    if (this.offscreen) {
+      this.offscreen.playing = true;
+      return;
+    }
     this.video.play().catch((error: Error) => {
       // browsers only play sound after the visitor did something: play silently instead
       if (error.name === 'NotAllowedError' && !this.video.muted) {
@@ -758,18 +808,54 @@ export class VideoImpl extends ComponentImpl {
   }
 
   pause(): void {
+    if (this.offscreen) {
+      this.offscreen.playing = false;
+      return;
+    }
+    this.pauseElement();
+  }
+
+  private pauseElement(): void {
+    if (!this.video.paused) this.pausePending = true;
     this.video.pause();
   }
 
   seek(time: number): void {
     if (typeof time !== 'number' || !Number.isFinite(time)) throw new TypeError('seek needs a finite number of seconds');
+    if (this.offscreen) {
+      this.offscreen.time = Math.max(time, 0);
+      return;
+    }
     this.video.currentTime = time;
+  }
+
+  protected override inWindowChanged(inWindow: boolean): void {
+    if (!inWindow) {
+      if (this.offscreen) return;
+      this.offscreen = { time: this.video.currentTime, playing: !this.video.paused };
+      this.pauseElement();
+      const paused = this.pausePending;
+      this.video.removeAttribute('src');
+      this.video.load();
+      // stopped like when it's paused, as in the app
+      if (paused) {
+        this.pausePending = false;
+        setTimeout(() => this.emit('pause'));
+      }
+      return;
+    }
+    const offscreen = this.offscreen;
+    if (!offscreen) return;
+    this.offscreen = null;
+    // while the content is suspended it plays once it resumes
+    if (offscreen.playing && state.suspended) this.resume = true;
+    this.load(offscreen.time, offscreen.playing && !state.suspended);
   }
 
   suspend(suspended: boolean): void {
     if (suspended) {
       this.resume = !this.video.paused;
-      this.video.pause();
+      this.pauseElement();
     } else if (this.resume) {
       this.resume = false;
       this.play();

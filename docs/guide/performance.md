@@ -21,6 +21,8 @@ The app decides when to stop drawing, mute or pause content by its type, after W
 
 The app does all this: the content doesn't check for any of it. Users set the frame rate limit in Settings › General › Performance.
 
+A `Video` plays only while it's in a window: removed from it (itself or with a parent) or with its window destroyed, it pauses (firing `pause`) and lets go of its file, so nothing is read or decoded. Added to a window again, it continues where it was, playing if it was; `play()` and `seek()` in between take effect then, and a video played before it's added starts when it is. Moving it within a window doesn't interrupt it.
+
 ## Frame rate
 
 - Content that doesn't need every frame (slow scenery, widgets with a low frame rate) should set `DesktopEngine.preferredFramesPerSecond = 30` rather than skip every other frame in its `requestAnimationFrame` callback: the engine doesn't run the skipped frames at all and doesn't wake the thread, so wake-ups are halved. It applies when the display's refresh rate is a multiple of it (60, 30, 20, 15, 12… at 60 Hz), otherwise every frame runs. It can change at any time; `0` (the default) follows the display. The app's limit (30 fps on battery, say) still applies, and the lower of the two wins.

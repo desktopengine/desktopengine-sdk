@@ -847,7 +847,12 @@ declare namespace DesktopEngine {
     volume?: number;
   }
 
-  /** Video playback component (AVPlayer); pauses automatically when the runtime is suspended and resumes afterwards */
+  /**
+   * Video playback component (AVPlayer); pauses automatically when the runtime is suspended and resumes afterwards.
+   * It plays only while it's in a window: removed from it (itself or with a parent) or with its window destroyed, it
+   * pauses (firing `pause`) and lets go of its file; added to a window again, it continues where it was, playing if it
+   * was. `play()` and `seek()` while it's out of a window take effect when it's in one.
+   */
   interface Video extends ComponentBase<VideoEventMap> {
     /** Video source (returns the value as it was set) */
     src: string | null;
