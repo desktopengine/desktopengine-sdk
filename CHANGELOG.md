@@ -2,6 +2,12 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 2.6.0 (2026-10-08)
+
+### Features
+
+- login and publish tell the store the SDK's version and API version in X-Client-* headers
+
 ## 2.5.1 (2026-10-08)
 
 ### Bug Fixes
