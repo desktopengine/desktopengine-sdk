@@ -13,6 +13,7 @@ import type { AddressInfo } from 'node:net';
 
 import { createProject } from '../src/project.ts';
 import { readZip } from '../src/zip.ts';
+import { API_VERSION } from '../src/manifest.ts';
 import { credentialsFile, login, logout, publish, storedToken } from '../src/publish.ts';
 
 interface Request {
@@ -126,6 +127,13 @@ test('publish claims the item, uploads the package and submits it', async (t) =>
 
   const claim = requests.find((request) => request.method === 'POST' && request.url === '/v1/items')!;
   assert.deepEqual(JSON.parse(claim.body.toString()), { kind: 'package', id: 'app.desktopengine.acme.clock' });
+  // every request says it's this SDK
+  const sdkVersion = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+  for (const request of requests) {
+    assert.equal(request.headers['x-client-name'], 'cli');
+    assert.equal(request.headers['x-client-version'], sdkVersion);
+    assert.equal(request.headers['x-client-api'], String(API_VERSION));
+  }
   // the listing comes from the manifest's name and description, every language it has
   const listings = requests.filter((request) => request.url.includes('/listing/')).map((request) => request.url.split('/').pop());
   assert.ok(listings.includes('en'));

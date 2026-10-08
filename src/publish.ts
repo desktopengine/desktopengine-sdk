@@ -8,13 +8,22 @@
 // review or makes a test link. The token is kept in ~/.config/desktopengine/credentials.json (readable only by you).
 
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import { englishText, type Manifest } from './manifest.ts';
+import { API_VERSION, englishText, type Manifest } from './manifest.ts';
 import { packProject } from './project.ts';
 import { readZip } from './zip.ts';
 
 export const DEFAULT_API = 'https://api.desktopengine.app';
+
+/** Who's asking, sent with every request so the store can answer an older SDK differently */
+export const CLIENT_HEADERS: Readonly<Record<string, string>> = {
+  'X-Client-Name': 'cli',
+  'X-Client-Version': (createRequire(import.meta.url)('../package.json') as { version: string }).version,
+  // the newest API whose manifests this SDK checks and builds
+  'X-Client-API': String(API_VERSION),
+};
 
 /** The API to use: `--api`, then DESKTOPENGINE_API, then the store's */
 export function apiBase(flag?: string): string {
@@ -67,6 +76,7 @@ async function call<T>(api: string, method: string, route: string, { token, json
   const response = await fetch(`${api}${route}`, {
     method,
     headers: {
+      ...CLIENT_HEADERS,
       ...(json === undefined ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
