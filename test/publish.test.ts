@@ -122,7 +122,7 @@ test('publish claims the item, uploads the package and submits it', async (t) =>
     return { status: 404, json: { error: `unexpected ${route}` } };
   });
 
-  const result = await publish({ projectDir: project, api, notes: 'first', submit: true, testLink: true, category: 'clock', copyright: 'original', log: () => {} });
+  const result = await publish({ projectDir: project, api, notes: 'first', submit: true, testLink: true, copyright: 'original', log: () => {} });
   assert.deepEqual(result, { id: 'app.desktopengine.acme.clock', version: '1.0.0', status: 'queued', warnings: ['a warning'], errors: [], testLink: 'desktopengine://install?test=1' });
 
   const claim = requests.find((request) => request.method === 'POST' && request.url === '/v1/items')!;
@@ -147,7 +147,7 @@ test('publish claims the item, uploads the package and submits it', async (t) =>
   assert.ok(!names.some((name) => name.startsWith('src/')));
   // the store details go before submitting
   const details = requests.findIndex((request) => request.url.endsWith('/details'));
-  assert.deepEqual(JSON.parse(requests[details].body.toString()), { category: 'clock', copyright: 'original' });
+  assert.deepEqual(JSON.parse(requests[details].body.toString()), { copyright: 'original' });
   assert.ok(details < requests.findIndex((request) => request.url.endsWith('/submit')));
   const link = requests.find((request) => request.url.endsWith('/test-link'))!;
   assert.deepEqual(JSON.parse(link.body.toString()), { debuggable: false });

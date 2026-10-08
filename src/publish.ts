@@ -146,8 +146,6 @@ export interface PublishOptions {
   submit?: boolean;
   testLink?: boolean;
   debug?: boolean;
-  /** The store's category for it, e.g. clock; see the categories of the API */
-  category?: string;
   /** Where the content comes from: original, licensed (with copyrightNote: from whom) or open (copyrightNote: the license) */
   copyright?: string;
   copyrightNote?: string;
@@ -173,7 +171,7 @@ interface VersionSummary {
 const UPLOAD_LIMIT = 95 * 1024 * 1024;
 
 /** Packs the project and uploads it as a new version of its item, which is made the first time */
-export async function publish({ projectDir, api, notes, networkPurpose, submit, testLink, debug, category, copyright, copyrightNote, minify = true, log = console.log }: PublishOptions): Promise<PublishResult> {
+export async function publish({ projectDir, api, notes, networkPurpose, submit, testLink, debug, copyright, copyrightNote, minify = true, log = console.log }: PublishOptions): Promise<PublishResult> {
   const token = storedToken(api);
   if (!token) throw new Error('Sign in first: desktopengine login');
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'desktopengine-publish-'));
@@ -242,9 +240,9 @@ export async function publish({ projectDir, api, notes, networkPurpose, submit, 
     const result: PublishResult = { id, version, status: summary.status, warnings, errors };
     if (errors.length) return result;
 
-    // the store's details; the first version can't be submitted without a category and where the content comes from
-    if (category !== undefined || copyright !== undefined || copyrightNote !== undefined) {
-      const details = { category, copyright, copyrightNote };
+    // the store's details; the first version can't be submitted without saying where the content comes from
+    if (copyright !== undefined || copyrightNote !== undefined) {
+      const details = { copyright, copyrightNote };
       const changed = await call<{ pending?: boolean }>(api, 'PATCH', `/v1/items/${encodeURIComponent(id)}/details`, { token, json: details });
       if (changed.pending) log('The store details change once they are reviewed');
     }

@@ -53,7 +53,6 @@ Usage:
         --notes <text>              what's new in this version, in English
         --notes-<locale> <text>     what's new in another language, e.g. --notes-zh-Hans
         --network-purpose <text>    what the network permission is for (needed to submit with it)
-        --category <category>       the store's category for it, e.g. clock (needed to submit the first time)
         --copyright <origin>        original, licensed or open (needed to submit the first time)
         --copyright-note <text>     licensed: from whom; open: the license, e.g. CC BY 4.0
         --submit                    submit the version for review
@@ -74,7 +73,7 @@ const USAGE: Record<string, string> = {
   pack: 'desktopengine pack [folder] [--out <folder>] [--minify]',
   login: 'desktopengine login [--api <url>]',
   logout: 'desktopengine logout [--api <url>]',
-  publish: 'desktopengine publish [folder] [--notes <text>] [--notes-<locale> <text>] [--network-purpose <text>] [--category <category>] [--copyright <origin>] [--copyright-note <text>] [--submit] [--test-link] [--debug] [--api <url>]',
+  publish: 'desktopengine publish [folder] [--notes <text>] [--notes-<locale> <text>] [--network-purpose <text>] [--copyright <origin>] [--copyright-note <text>] [--submit] [--test-link] [--debug] [--api <url>]',
 };
 
 export type FlagValue = string | boolean | (string | boolean)[];
@@ -527,7 +526,6 @@ export async function main(argv: string[]): Promise<number> {
         submit: flags.submit === true,
         testLink: flags['test-link'] === true,
         debug: flags.debug === true,
-        category: stringFlag(flags.category),
         copyright: stringFlag(flags.copyright),
         copyrightNote: stringFlag(flags['copyright-note']),
       });

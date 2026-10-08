@@ -106,7 +106,6 @@ The upload is checked right away (the same rules as `validate`, plus the store's
 | `--notes <text>` | What's new in this version, in English, shown to reviewers and users |
 | `--notes-<locale> <text>` | What's new in another language, e.g. `--notes-zh-Hans`; the store shows the notes in the visitor's language, and the English ones where there are none in it |
 | `--network-purpose <text>` | What the `network` permission is for; needed to submit a version that has it |
-| `--category <category>` | The store's category for it, e.g. `clock`: needed to submit the first time. The categories are listed by `GET /v1/categories` of the store API |
 | `--copyright <origin>` | Where the content comes from: `original`, `licensed` or `open`; needed to submit the first time |
 | `--copyright-note <text>` | With `licensed`, who licensed it to you; with `open`, the license, e.g. `CC BY 4.0` |
 | `--submit` | Submit the version for review after uploading it |
