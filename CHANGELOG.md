@@ -2,6 +2,12 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 2.6.1 (2026-10-09)
+
+### Bug Fixes
+
+- publish no longer has --category, as the store has no categories (tags say what an item is); an older script passing it still works
+
 ## 2.6.0 (2026-10-08)
 
 ### Features
