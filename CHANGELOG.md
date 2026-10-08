@@ -2,6 +2,12 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 2.5.1 (2026-10-08)
+
+### Bug Fixes
+
+- A Video plays only while it's in a window: out of one it pauses and lets go of its file, and continues where it was when it's back; the web preview does the same
+
 ## 2.5.0 (2026-10-07)
 
 ### Features
