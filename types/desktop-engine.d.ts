@@ -70,12 +70,13 @@ declare namespace DesktopEngine {
     width?: number;
     /** Widget window height (points) */
     height?: number;
-    /** The display that shows the content; absent when a wallpaper spans all displays (`displays`) */
+    /** The display that shows the content; absent when a wallpaper spans displays (`displays`) */
     display?: LaunchDisplay;
     /**
-     * Every display, the main one first, when the user runs a wallpaper across all of them; only for wallpapers
-     * whose manifest.json declares `"wallpaper": { "span": true }`. Make a desktop window on each and lay the
-     * drawing out in their shared coordinates, so it continues from one display to the next
+     * The displays the user runs a wallpaper across, all of them or the ones they chose, the main one first when it's
+     * among them; only for wallpapers whose manifest.json declares `"wallpaper": { "span": true }`. Make a desktop
+     * window on each and lay the drawing out in their shared coordinates, so it continues from one display to the
+     * next. Draw on these, not on every display in `DesktopEngine.ScreenManager.screens`
      */
     displays?: LaunchDisplay[];
     /** Top-left position of the window: where the user last dragged it; for a widget without one, a default computed by the app; a companion without one picks where it starts */

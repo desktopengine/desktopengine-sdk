@@ -9,7 +9,7 @@ options.width;        // 小组件宽度（点），与所选尺寸对应
 options.height;
 options.position;     // { x, y }：用户上次拖到的位置；没有时小组件由应用算好默认位置，伙伴自己决定
 options.display;      // { id, name, frame, visibleFrame, scale }
-options.displays;     // 壁纸跨显示器时代替 display，列出所有显示器，见壁纸
+options.displays;     // 壁纸跨显示器时代替 display，列出跨的那几块显示器，见壁纸
 options.parameters;   // 选项的取值
 options.locale;       // 用户的首选语言，例如 'zh-Hans-CN'
 options.permissions;  // 用户允许的权限，例如 ['audio', 'network']；被拒绝的不在其中

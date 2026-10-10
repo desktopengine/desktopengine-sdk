@@ -29,7 +29,7 @@
 | `description` | | A sentence or two about it, can be translated |
 | `icon`, `preview` | | The icon and the preview image, paths in the package |
 | `widget.sizes` | | The sizes of a widget: `small` 164×164, `medium` 344×164, `large` 344×344; `small` by default |
-| `wallpaper.span` | | `true` when a wallpaper can span all displays, see [Spanning all displays](/guide/wallpaper#spanning-all-displays) |
+| `wallpaper.span` | | `true` when a wallpaper can span displays, see [Spanning displays](/guide/wallpaper#spanning-displays) |
 | `permissions` | | The permissions it needs, see [Permissions](#permissions) |
 | `network.domains` | With `network` | The domains it connects to, see [Network](/guide/network#domains) |
 | `parameters` | | Options users can change, see [Options](#options-parameters) |
