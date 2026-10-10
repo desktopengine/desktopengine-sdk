@@ -2,6 +2,13 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 2.7.0 (2026-10-11)
+
+### Features
+
+- **content:** A widget or companion is on the desktop once; adding it again shows the one that's there
+- **content:** A preview for dark mode: previewDark in the manifest is shown instead of preview when the system is dark
+
 ## 2.6.1 (2026-10-09)
 
 ### Bug Fixes
