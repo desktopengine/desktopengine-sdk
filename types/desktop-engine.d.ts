@@ -56,7 +56,7 @@ declare namespace DesktopEngine {
 
   /** Options passed by the app at launch; all fields are absent when loaded directly from the Develop menu */
   interface LaunchOptions {
-    /** ID of this instance on the desktop; one package can have several instances */
+    /** ID of this instance: a widget or companion is on the desktop once, a wallpaper runs once on each display it shows on (once in all when it spans) */
     instanceId?: string;
     /** Content type */
     type?: ContentType;
@@ -4752,7 +4752,7 @@ interface Storage {
 declare var Storage: DesktopEngine.IllegalConstructor<Storage>;
 
 /**
- * Kept between launches. It belongs to the content: all its instances (e.g. the same widget twice on the desktop) share
+ * Kept between launches. It belongs to the content: all its instances (e.g. the same wallpaper on two displays) share
  * it and see each other's changes right away, there's no `storage` event. Namespace keys with
  * `DesktopEngine.launchOptions.instanceId` for what belongs to one instance.
  */

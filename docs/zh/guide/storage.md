@@ -5,7 +5,7 @@
 - `localStorage` 适合设置、状态这类小数据：按键存字符串，和浏览器一样。
 - `DesktopEngine.fs` 用来读写文件：Node 的文件函数，作用在内容自己的文件夹上。
 
-两者都属于内容本身：它的每个实例（例如桌面上放了两个同样的小组件）共用同一份。内容更新时保留，卸载时删除。`desktopengine dev` 和「开发」菜单运行的内容有单独的一份，和已安装的那份分开，多次运行之间同样保留。在屏幕保护程序里，内容每次都从空的开始。
+两者都属于内容本身：它的每个实例（例如同一个壁纸在两块显示器上）共用同一份。内容更新、从桌面移除再放回去时保留，卸载时删除。`desktopengine dev` 和「开发」菜单运行的内容有单独的一份，和已安装的那份分开，多次运行之间同样保留。在屏幕保护程序里，内容每次都从空的开始。
 
 ## localStorage 和 sessionStorage
 
@@ -19,7 +19,7 @@ localStorage.setItem('settings', JSON.stringify(settings));
 
 - 值都是字符串，对象用 `JSON.stringify` 存。
 - 各自最多 5 MB（键和值加起来，按 UTF-16 码元计，和浏览器一样），超出时 `setItem` 抛出 `QuotaExceededError` DOMException。
-- 内容的各个实例立即能看到彼此的修改。没有 `storage` 事件，实例要知道别的实例改了什么，需要重新读取，例如定时读一次。只属于一个实例的数据，把 [`DesktopEngine.launchOptions.instanceId`](./launch-options) 放进键名里；实例从桌面移除后这些项仍然保留，直到内容被卸载。
+- 内容的各个实例立即能看到彼此的修改。没有 `storage` 事件，实例要知道别的实例改了什么，需要重新读取，例如定时读一次。只属于一个实例的数据（例如壁纸在每块显示器上各自的状态），把 [`DesktopEngine.launchOptions.instanceId`](./launch-options) 放进键名里；这些项一直保留到内容被卸载。从桌面移除再放回去的小组件、桌面伙伴是新的实例：要让它再找到的数据，用不带实例的键保存。
 - `sessionStorage` 保存在内存里，内容运行期间有效。
 
 ## 文件：`DesktopEngine.fs`

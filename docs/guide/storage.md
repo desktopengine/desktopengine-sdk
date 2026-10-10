@@ -5,7 +5,7 @@ Content can keep data between launches, without asking for a permission:
 - `localStorage` for small things such as settings and state: strings by key, as in browsers.
 - `DesktopEngine.fs` for files: Node's file functions, on the content's own folder.
 
-Both belong to the content: every instance of it (e.g. the same widget twice on the desktop) shares them. They're kept when the content is updated and deleted when it's uninstalled. Content run by `desktopengine dev` or the Develop menu has its own, apart from the installed copy's, also kept between runs. In the screen saver, content starts with empty ones every time.
+Both belong to the content: every instance of it (e.g. the same wallpaper on two displays) shares them. They're kept when the content is updated, when it's removed from the desktop and put back, and deleted when it's uninstalled. Content run by `desktopengine dev` or the Develop menu has its own, apart from the installed copy's, also kept between runs. In the screen saver, content starts with empty ones every time.
 
 ## localStorage and sessionStorage
 
@@ -19,7 +19,7 @@ localStorage.setItem('settings', JSON.stringify(settings));
 
 - Values are strings: store objects with `JSON.stringify`.
 - Up to 5 MB each (keys and values together, counted in UTF-16 code units, as in browsers); over that, `setItem` throws a `QuotaExceededError` DOMException.
-- All the instances of the content see each other's changes right away. There's no `storage` event, so an instance that needs to notice them reads again, e.g. on a timer. For what belongs to one instance, put [`DesktopEngine.launchOptions.instanceId`](./launch-options) in the key; those items stay after the instance is removed from the desktop, until the content is uninstalled.
+- All the instances of the content see each other's changes right away. There's no `storage` event, so an instance that needs to notice them reads again, e.g. on a timer. For what belongs to one instance, such as a wallpaper's on each display, put [`DesktopEngine.launchOptions.instanceId`](./launch-options) in the key; those items stay until the content is uninstalled. A widget or companion removed from the desktop and put back is a new instance: keep what it should find again under keys of the content's own.
 - `sessionStorage` is kept in memory while the content runs.
 
 ## Files: `DesktopEngine.fs`
