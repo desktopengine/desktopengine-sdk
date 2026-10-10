@@ -73,6 +73,8 @@ export interface Manifest {
   description?: LocalizedString;
   icon?: string;
   preview?: string;
+  /** The preview in dark mode, for content that follows the appearance; `preview` is then the one in light mode */
+  previewDark?: string;
   widget?: { sizes: WidgetSize[] };
   wallpaper?: { span?: boolean };
   permissions?: string[];
@@ -240,7 +242,7 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
     validateLocalizedString(manifest.description, 'description', errors, warnings);
   }
 
-  for (const key of ['icon', 'preview']) {
+  for (const key of ['icon', 'preview', 'previewDark']) {
     const value = manifest[key];
     if (value === undefined) continue;
     if (!isInsidePackage(value)) {
@@ -251,6 +253,9 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
   }
   if (manifest.preview === undefined && manifest.icon === undefined) {
     warnings.push('No "preview" or "icon": the library shows a default icon');
+  }
+  if (manifest.previewDark !== undefined && manifest.preview === undefined) {
+    warnings.push('"previewDark" without "preview": light mode shows the icon or a default one');
   }
 
   const { widget } = manifest;
@@ -353,7 +358,7 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
     }
   }
 
-  const known = new Set(['id', 'name', 'type', 'version', 'author', 'description', 'icon', 'preview', 'widget', 'wallpaper', 'permissions', 'network', 'parameters', 'apiVersion', '$schema']);
+  const known = new Set(['id', 'name', 'type', 'version', 'author', 'description', 'icon', 'preview', 'previewDark', 'widget', 'wallpaper', 'permissions', 'network', 'parameters', 'apiVersion', '$schema']);
   Object.keys(manifest)
     .filter((key) => !known.has(key))
     .forEach((key) => warnings.push(`The app ignores the unknown field "${key}"`));

@@ -85,6 +85,16 @@ test('a wallpaper can declare that it spans all displays', () => {
   assert.ok(widget.warnings.some((message) => message.includes('Only wallpapers')));
 });
 
+test('a dark preview is a path in the package', () => {
+  const widget = { ...minimal, type: 'widget', preview: 'preview.webp', previewDark: 'preview-dark.webp' };
+  const valid = validateManifest(widget);
+  assert.deepEqual(valid.errors, []);
+  assert.deepEqual(valid.warnings, []);
+  assert.ok(validateManifest({ ...widget, previewDark: '../dark.webp' }).errors.some((message) => message.includes('"previewDark"')));
+  const { preview, ...darkOnly } = widget;
+  assert.ok(validateManifest(darkOnly).warnings.some((message) => message.includes('without "preview"')));
+});
+
 test('parameters follow the rules of the app', () => {
   const manifest = {
     ...minimal,

@@ -28,6 +28,7 @@
 | `author` | | The author, shown in the details pane |
 | `description` | | A sentence or two about it, can be translated |
 | `icon`, `preview` | | The icon and the preview image, paths in the package |
+| `previewDark` | | The preview image in dark mode, a path in the package: for content that follows the system appearance, `preview` is then the one in light mode. Without it, `preview` shows in both |
 | `widget.sizes` | | The sizes of a widget: `small` 164×164, `medium` 344×164, `large` 344×344; `small` by default |
 | `wallpaper.span` | | `true` when a wallpaper can span displays, see [Spanning displays](/guide/wallpaper#spanning-displays) |
 | `permissions` | | The permissions it needs, see [Permissions](#permissions) |

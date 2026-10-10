@@ -26,7 +26,8 @@
     "author": { "description": "The name of the author or developer", "type": "string" },
     "description": { "description": "A sentence or two about it, shown in the details pane", "$ref": "#/definitions/localizedString" },
     "icon": { "description": "A square icon, a path in the package", "type": "string" },
-    "preview": { "description": "The preview image in the library grid, a path in the package", "type": "string" },
+    "preview": { "description": "The preview image in the library grid, a path in the package; in light mode when there's a previewDark", "type": "string" },
+    "previewDark": { "description": "The preview image in dark mode, for content that follows the system appearance; a path in the package", "type": "string" },
     "widget": {
       "description": "For widgets only",
       "type": "object",

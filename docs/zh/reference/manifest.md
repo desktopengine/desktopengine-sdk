@@ -28,6 +28,7 @@
 | `author` | | 作者，显示在详情栏 |
 | `description` | | 一两句话的介绍，可以翻译 |
 | `icon`、`preview` | | 包内相对路径的图标和预览图 |
+| `previewDark` | | 深色模式下的预览图，包内相对路径：给跟随系统外观的内容用，这时 `preview` 是浅色模式下的。没有它时两种外观都显示 `preview` |
 | `widget.sizes` | | 小组件支持的尺寸：`small` 164×164、`medium` 344×164、`large` 344×344，缺省为 `small` |
 | `wallpaper.span` | | 为 `true` 时壁纸可以跨显示器，见[跨显示器](/zh/guide/wallpaper#跨显示器) |
 | `permissions` | | 需要的权限，见[权限](#权限-permissions) |
