@@ -2,6 +2,12 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 3.0.0 (2026-10-11)
+
+### Breaking Changes
+
+- Content makes only the window type of launchOptions.windowType; panel and normal are gone from the types
+
 ## 2.7.0 (2026-10-11)
 
 ### Features
