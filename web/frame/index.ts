@@ -10,7 +10,7 @@
 
 import { contentFunction } from './realm.ts';
 import type { FrameMessage, HostMessage, LaunchMessage, ParameterValue, WebScreen } from '../protocol.ts';
-import { CanvasImageImpl, CanvasImpl, ComponentImpl, componentOf, ImageImpl, VideoImpl, WindowImpl, allVideos, allWindows, reportWindows, windowById } from './components.ts';
+import { CanvasImageImpl, CanvasImpl, ComponentImpl, componentOf, ImageImpl, VideoImpl, WindowImpl, allVideos, allWindows, reportWindows, unwrap, windowById } from './components.ts';
 import { Evented, defineEvents } from './events.ts';
 import { createFileSystem, loadPackage, requireFrom } from './files.ts';
 import { installNetwork } from './network.ts';
@@ -485,6 +485,14 @@ function launch(message: LaunchMessage): void {
   if (hasPermission('audio')) installPointerInput();
   installCrypto();
   installNavigator(message.options.locale);
+  // createImageBitmap of the engine's canvases and images: the browser's of their elements
+  const browserCreateImageBitmap = scope.createImageBitmap.bind(scope) as (...args: unknown[]) => Promise<ImageBitmap>;
+  Object.defineProperty(scope, 'createImageBitmap', {
+    value: function createImageBitmap(...args: unknown[]) {
+      return browserCreateImageBitmap(...(args.length ? [unwrap(args[0]), ...args.slice(1)] : []));
+    },
+    writable: true, configurable: true, enumerable: true,
+  });
   // the engine's Path2D, around the browser's (which the 2D contexts draw)
   Object.defineProperty(scope, 'Path2D', { value: createPath2D(scope.Path2D), writable: true, configurable: true, enumerable: true });
   installConsole();

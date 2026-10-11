@@ -995,8 +995,34 @@ declare namespace DesktopEngine {
     alpha?: boolean;
   }
 
-  /** Objects that can be a source for drawImage / createPattern / texImage2D */
-  type CanvasDrawable = Canvas | CanvasImage | ImageData;
+  /** Objects that can be a source for drawImage / createPattern / texImage2D (an ImageBitmap since API 5) */
+  type CanvasDrawable = Canvas | CanvasImage | ImageData | ImageBitmap;
+
+  /**
+   * A bitmap ready to draw, made by createImageBitmap (API 5). WebGL uploads it as it is: UNPACK_FLIP_Y_WEBGL and
+   * UNPACK_PREMULTIPLY_ALPHA_WEBGL don't apply to it, its imageOrientation and premultiplyAlpha did, as on the web
+   */
+  interface ImageBitmap {
+    /** 0 once closed */
+    readonly width: number;
+    readonly height: number;
+    /** Releases its pixels; it can't be drawn anymore */
+    close(): void;
+  }
+
+  interface ImageBitmapOptions {
+    /** "flipY" turns it upside down (three.js's ImageBitmapLoader asks for that); an image file is turned as its orientation says */
+    imageOrientation?: 'from-image' | 'flipY' | 'none';
+    /** "none": WebGL gets its colors not premultiplied */
+    premultiplyAlpha?: 'default' | 'premultiply' | 'none';
+    /** Accepted, ignored */
+    colorSpaceConversion?: 'default' | 'none';
+    /** Its size; with only one of them the other keeps the aspect ratio. 0 is an error */
+    resizeWidth?: number;
+    resizeHeight?: number;
+    /** "pixelated" doesn't smooth when resizing */
+    resizeQuality?: 'pixelated' | 'low' | 'medium' | 'high';
+  }
 
   /** webglcontextlost / contextlost payload */
   interface ContextLostPayload {
@@ -1090,7 +1116,7 @@ declare namespace DesktopEngine {
     new (): CanvasImage;
   }
 
-  /** Pixel data (obtainable only through createImageData / getImageData) */
+  /** Pixel data: from createImageData / getImageData, or `new ImageData(width, height)` (API 5) */
   interface ImageData {
     /** RGBA pixels (not premultiplied), generated on first read */
     readonly data: Uint8ClampedArray;
@@ -4150,6 +4176,30 @@ declare const DesktopEngineRuntime: DesktopEngine.RuntimeScope;
 
 /** Console */
 declare var console: DesktopEngine.Console;
+
+/**
+ * Pixel data (API 5): `new ImageData(width, height)` is transparent black; `new ImageData(data, width, height?)` is
+ * around a Uint8ClampedArray of width * height * 4 bytes, which is its `data`. A size of 0 throws an IndexSizeError
+ */
+declare var ImageData: {
+  prototype: DesktopEngine.ImageData;
+  new (width: number, height: number): DesktopEngine.ImageData;
+  new (data: Uint8ClampedArray, width: number, height?: number): DesktopEngine.ImageData;
+};
+
+/** Made by createImageBitmap only: `new ImageBitmap()` throws (API 5) */
+declare var ImageBitmap: {
+  prototype: DesktopEngine.ImageBitmap;
+};
+
+/**
+ * A bitmap of an image (loaded), a canvas, ImageData, another ImageBitmap or a Blob of an image file (decoded away
+ * from the JavaScript thread), as on the web (API 5): all of it, or the rectangle (sx, sy, sw, sh), transparent where
+ * it's outside. The promise rejects with an InvalidStateError for an image that hasn't loaded or data that isn't an
+ * image, a RangeError for a rectangle of size 0
+ */
+declare function createImageBitmap(image: DesktopEngine.CanvasDrawable | Blob, options?: DesktopEngine.ImageBitmapOptions): Promise<DesktopEngine.ImageBitmap>;
+declare function createImageBitmap(image: DesktopEngine.CanvasDrawable | Blob, sx: number, sy: number, sw: number, sh: number, options?: DesktopEngine.ImageBitmapOptions): Promise<DesktopEngine.ImageBitmap>;
 
 /** A path to draw any number of times, see DesktopEngine.Path2D (API 5) */
 declare var Path2D: {

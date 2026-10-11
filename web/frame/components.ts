@@ -387,7 +387,8 @@ export function allWindows(): WindowImpl[] {
 // MARK: Canvas
 
 /** The browser's object for an engine object passed to texImage2D and its kin */
-function unwrap(value: unknown): unknown {
+/** The browser's element of an engine Canvas or CanvasImage, for the browser's own APIs; anything else as it is */
+export function unwrap(value: unknown): unknown {
   if (value instanceof CanvasImpl) return value.canvas;
   if (value instanceof CanvasImageImpl) return value.image;
   return value;
@@ -397,10 +398,11 @@ let imageDataCanvas: HTMLCanvasElement | null = null;
 
 /**
  * What the 2D context's drawImage and createPattern draw for an engine drawable: a Canvas, a CanvasImage once it
- * loaded (null before), or ImageData, which the engine draws too and a browser doesn't
+ * loaded (null before), an ImageBitmap, or ImageData, which the engine draws too and a browser doesn't
  */
 function drawableSource(value: unknown): CanvasImageSource | null | undefined {
   if (value instanceof CanvasImpl) return value.canvas;
+  if (value instanceof ImageBitmap) return value;
   if (value instanceof CanvasImageImpl) return value.complete ? value.image : null;
   if (value instanceof ImageData) {
     imageDataCanvas ??= document.createElement('canvas');

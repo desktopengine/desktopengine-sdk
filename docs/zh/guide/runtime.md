@@ -24,6 +24,7 @@
 
 - Canvas 支持 2D、WebGL 1 和 WebGL 2（`getContext('webgl2')`，基于 ANGLE 的 OpenGL ES 3.0）。`texImage3D` / `texSubImage3D` 也接受图片、`ImageData` 和画布，各层在源图中自上而下排列（层间距由 `UNPACK_IMAGE_HEIGHT` 决定，默认等于 height）。Apple 芯片的 Mac 提供 `WEBGL_compressed_texture_astc`。
 - 2D 上下文有网页的合成模式和混合模式（`multiply`、`screen`、`overlay` 等，API 5 起）、线性、径向和锥形渐变，`letterSpacing` / `wordSpacing`，`Path2D`（也能用 SVG 路径数据）和用于点击判断的 `isPointInPath` / `isPointInStroke`（API 5 起）；没有 `filter`、`fontKerning` 等其他文字设置。用 `lighten`、`darken`、混合模式，或会清掉画出部分以外画布的模式（`copy`、`source-in` 等）绘制时，要经过一个画布大小的图层：每次绘制约 0.25 ms CPU，用这些模式时尽量少调用几次。
+- `createImageBitmap`（API 5）用加载好的 `CanvasImage`、画布、`ImageData` 或图片文件的 `Blob`（在 JavaScript 线程以外解码）生成 `ImageBitmap`，按选项裁剪、缩放或翻转；`drawImage`、`createPattern` 和 WebGL 的 `texImage2D` 都接受它。和浏览器一样，WebGL 按它本来的样子上传，`UNPACK_FLIP_Y_WEBGL` 和 `UNPACK_PREMULTIPLY_ALPHA_WEBGL` 对它不起作用。three.js 的 `ImageBitmapLoader`（`GLTFLoader` 用它加载贴图）可以直接用。`new ImageData(width, height)` 也能生成像素数据。
 - 和浏览器一样，WebGL 2 上下文不是 `instanceof WebGLRenderingContext`，要判断版本请用 `instanceof WebGL2RenderingContext`。
 - Canvas 用 Metal 渲染，显卡不支持 Metal 的老 Mac 上所有 `getContext` 都返回 null、`CanvasImage` 加载失败，要检查返回值。
 - 画布默认带透明通道（与 Web 一致），小组件和桌面伙伴的窗口是透明的，没画到的地方能看到桌面。
@@ -34,7 +35,7 @@
 
 ## 还没有的
 
-- `crypto.subtle`、`BroadcastChannel`、Worker、`OffscreenCanvas`（不放进窗口的 `DesktopEngine.Canvas` 就能离屏使用）和 `createImageBitmap`；`location`。
+- `crypto.subtle`、`BroadcastChannel`、Worker 和 `OffscreenCanvas`（不放进窗口的 `DesktopEngine.Canvas` 就能离屏使用）；`location`。
 - 读取系统的音频输出（音乐可视化）、IndexedDB。
 - 运行时原生支持 ES 模块（目前通过 `src/` 打包解决）。
 
