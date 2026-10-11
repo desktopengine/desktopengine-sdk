@@ -2,6 +2,12 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 4.1.1 (2026-10-12)
+
+### Bug Fixes
+
+- a WebSocket to ws:// in the web runtime says why in its error event's message and closes without a reason, as in the app
+
 ## 4.1.0 (2026-10-12)
 
 API version 5 (was 4): packages with `"apiVersion": 5` need an app that has it.
