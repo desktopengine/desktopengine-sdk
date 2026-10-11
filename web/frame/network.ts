@@ -3,9 +3,10 @@
 //
 // This source code is licensed under the Apache Licence 2.0.
 
-// The network on the web, with the engine's rules: http(s) and ws(s) need the network permission and a host in
-// network.domains (no IP addresses or local names), and go through the host's preview proxy, which browsers need
-// anyway (CORS) and which only forwards GET requests and WebSockets. Paths and defile:// URLs read the package's and
+// The network on the web, with the app's rules: http(s) and ws(s) need the network permission and a host in
+// network.domains (no IP addresses or local names), and only https and wss reach it, as the app's App Transport
+// Security lets content reach no other. Requests go through the host's preview proxy, which browsers need anyway
+// (CORS) and which only forwards GET and HEAD requests and WebSockets. Paths and defile:// URLs read the package's and
 // the content's own files, as in the app. Images, videos and audio load remote files through the same rules.
 
 import { fileBytes, fileURL, mimeType } from './files.ts';
@@ -33,16 +34,27 @@ function matches(host: string, pattern: string): boolean {
   return host === normalized;
 }
 
-/** Why a remote URL can't be reached, as the engine says it; null when it can */
-export function networkDenial(url: URL): string | null {
+/** Why the engine's rules don't let content reach a remote URL, as the engine says it; null when they do */
+function ruleDenial(url: URL): string | null {
   if (!hasPermission('network')) return 'network access needs the "network" permission in manifest.json';
   const host = normalizedHost(url.hostname);
   if (isAddressOrLocalName(host)) return `"${host}" is an IP address or a local name, which content can't reach`;
   if (!(state.launch?.networkDomains ?? []).some((pattern) => matches(host, pattern))) {
     return `"${host}" isn't one of the domains in network.domains of manifest.json`;
   }
+  return null;
+}
+
+/** Why a connection the rules allow fails anyway */
+function connectionDenial(url: URL): string | null {
+  if (url.protocol === 'http:' || url.protocol === 'ws:') return 'the app only reaches the internet over https and wss (App Transport Security), not http or ws';
   if (!state.launch?.proxy) return 'the web preview has no network';
   return null;
+}
+
+/** Why a remote URL can't be reached; null when it can */
+export function networkDenial(url: URL): string | null {
+  return ruleDenial(url) ?? connectionDenial(url);
 }
 
 const isRemote = (url: string): boolean => /^(https?|wss?):/i.test(url);
@@ -165,9 +177,35 @@ export function installNetwork(scope: typeof globalThis): void {
 
     close(): void {}
   }
+  /** As the engine's constructor checks it: what it throws for, the rules' refusals included, and the URL */
+  const target = (url: unknown, protocols: unknown): URL => {
+    const list = typeof protocols === 'string' ? [protocols] : Array.from((protocols ?? []) as Iterable<unknown>, String);
+    const seen = new Set<string>();
+    for (const protocol of list) {
+      if (!/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(protocol) || seen.has(protocol.toLowerCase())) {
+        throw new DOMException(`WebSocket: invalid or repeated subprotocol "${protocol}"`, 'SyntaxError');
+      }
+      seen.add(protocol.toLowerCase());
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(String(url));
+    } catch {
+      throw new DOMException(`WebSocket: invalid URL "${String(url)}"`, 'SyntaxError');
+    }
+    const scheme = { 'http:': 'ws:', 'https:': 'wss:', 'ws:': 'ws:', 'wss:': 'wss:' }[parsed.protocol];
+    if (!scheme) throw new DOMException(`The URL's scheme must be "ws" or "wss", not "${parsed.protocol.slice(0, -1)}"`, 'SyntaxError');
+    if (parsed.hash || String(url).includes('#')) throw new DOMException('The URL can\'t have a fragment', 'SyntaxError');
+    parsed.protocol = scheme;
+    const denial = ruleDenial(parsed);
+    if (denial) throw new DOMException(`Can't reach ${parsed.href.slice(0, 128)}: ${denial}`, 'SecurityError');
+    return parsed;
+  };
   const WebSocketShim = function WebSocket(url: string | URL, protocols?: string | string[]) {
-    const href = new URL(String(url)).href;
-    const denial = networkDenial(new URL(href.replace(/^ws/i, 'http')));
+    if (arguments.length === 0) throw new TypeError('WebSocket: 1 argument required');
+    const parsed = target(url, protocols);
+    const href = parsed.href;
+    const denial = connectionDenial(parsed);
     if (denial) return new ClosedSocket(href, denial);
     const proxy = new URL(state.launch!.proxy!);
     proxy.protocol = proxy.protocol === 'https:' ? 'wss:' : 'ws:';
