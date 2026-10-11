@@ -4,16 +4,16 @@
 // This source code is licensed under the Apache Licence 2.0.
 
 // What the engine's canvas contexts have: the web runtime gives content these and nothing more, so what runs in a
-// preview runs in the app (a browser's contexts have more: filter, conic gradients, letterSpacing, more compositing
-// modes and colors, more WebGL extensions). The app's engine is what counts: these lists follow it, and
+// preview runs in the app (a browser's contexts have more: filter, fontKerning and the other text settings, more colors,
+// more WebGL extensions). The app's engine is what counts: these lists follow it, and
 // types/desktop-engine.d.ts declares the same (test/web-canvas.test.ts checks that they agree). Plain data, no DOM: the
 // tests read it in Node.js.
 
 /** The 2D context's properties that content sets and reads */
 export const CONTEXT_2D_PROPERTIES = [
   'globalCompositeOperation', 'lineCap', 'lineJoin', 'textAlign', 'textBaseline', 'fillStyle', 'strokeStyle',
-  'globalAlpha', 'lineWidth', 'miterLimit', 'font', 'imageSmoothingEnabled', 'lineDashOffset', 'shadowColor',
-  'shadowBlur', 'shadowOffsetX', 'shadowOffsetY',
+  'globalAlpha', 'lineWidth', 'miterLimit', 'font', 'letterSpacing', 'wordSpacing', 'imageSmoothingEnabled',
+  'lineDashOffset', 'shadowColor', 'shadowBlur', 'shadowOffsetX', 'shadowOffsetY',
 ] as const;
 
 /** The 2D context's read-only properties */
@@ -23,7 +23,8 @@ export const CONTEXT_2D_READONLY = ['canvas'] as const;
 export const CONTEXT_2D_METHODS = [
   'isContextLost', 'save', 'restore', 'resetCurrentState', 'rotate', 'translate', 'scale', 'transform', 'setTransform',
   'getTransform', 'resetTransform', 'drawImage', 'fillRect', 'strokeRect', 'clearRect', 'getImageData', 'createImageData',
-  'putImageData', 'createLinearGradient', 'createRadialGradient', 'createPattern', 'beginPath', 'closePath', 'fill',
+  'putImageData', 'createLinearGradient', 'createRadialGradient', 'createConicGradient', 'createPattern', 'beginPath',
+  'closePath', 'fill',
   'stroke', 'moveTo', 'lineTo', 'rect', 'roundRect', 'bezierCurveTo', 'quadraticCurveTo', 'arcTo', 'arc', 'ellipse',
   'measureText', 'fillText',
   'strokeText', 'clip', 'resetClip', 'getLineDash', 'setLineDash', 'isPointInPath',
@@ -32,11 +33,31 @@ export const CONTEXT_2D_METHODS = [
 /** globalCompositeOperation's values; others are ignored */
 export const COMPOSITE_OPERATIONS = [
   'source-over', 'lighter', 'lighten', 'darker', 'darken', 'destination-out', 'destination-over', 'source-atop', 'xor',
-  'copy', 'source-in', 'destination-in', 'source-out', 'destination-atop',
+  'copy', 'source-in', 'destination-in', 'source-out', 'destination-atop', 'multiply', 'screen', 'overlay',
+  'color-dodge', 'color-burn', 'hard-light', 'soft-light', 'difference', 'exclusion', 'hue', 'saturation', 'color',
+  'luminosity',
 ] as const;
 
 /** What measureText's result has */
-export const TEXT_METRICS = ['width', 'actualBoundingBoxAscent', 'actualBoundingBoxDescent'] as const;
+export const TEXT_METRICS = [
+  'width', 'actualBoundingBoxAscent', 'actualBoundingBoxDescent', 'actualBoundingBoxLeft', 'actualBoundingBoxRight',
+  'fontBoundingBoxAscent', 'fontBoundingBoxDescent', 'hangingBaseline', 'alphabeticBaseline', 'ideographicBaseline',
+] as const;
+
+/** The CSS units letterSpacing and wordSpacing take */
+const LENGTH_UNITS = new Set(['px', 'em', 'rem', 'pt', 'pc', 'in', 'cm', 'mm', 'q']);
+
+/**
+ * letterSpacing or wordSpacing as the engine takes it: a string of a number and a unit, in any case, which reads back
+ * as the number as JavaScript writes it and the unit in lowercase (`"1PX"` is `"1px"`); null for anything else
+ */
+export function parseLength(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const match = /^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)([a-z]+)$/.exec(value.trim().toLowerCase());
+  if (!match || !LENGTH_UNITS.has(match[2])) return null;
+  const number = Number(match[1]);
+  return Number.isFinite(number) ? `${number}${match[2]}` : null;
+}
 
 /**
  * The 2D context's state stack: a save beyond it is ignored (with a warning), as are the restores that would match

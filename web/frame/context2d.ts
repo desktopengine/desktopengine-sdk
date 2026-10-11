@@ -4,15 +4,16 @@
 // This source code is licensed under the Apache Licence 2.0.
 
 // The engine's 2D context on the web: an object with the engine's members (canvas-api.ts) that draws with the
-// browser's context. What a browser has and the engine doesn't (ellipse, roundRect, getTransform, filter,
-// letterSpacing…) reads as undefined, as in the app, and what the engine has and a browser doesn't (resetClip,
+// browser's context. What a browser has and the engine doesn't (filter, fontKerning…) reads as undefined, as in the app, and what the engine has and a browser doesn't (resetClip,
 // resetCurrentState, isContextLost in WebKit) is made of the browser's. Values are taken the way the engine takes them:
-// numbers only as numbers (anything else is 0, true is 1), colors and fonts in its subset of CSS, its 14 compositing
+// numbers only as numbers (anything else is 0, true is 1), colors and fonts in its subset of CSS, its compositing
 // modes; a call that's missing arguments does nothing, where a browser throws.
 
+// A browser without letterSpacing and wordSpacing (Safari before 18.4) keeps them for the getters and draws without.
+
 import {
-  COMPOSITE_OPERATIONS, CONTEXT_2D_METHODS, CONTEXT_2D_PROPERTIES, STATE_STACK_SIZE, formatColor, parseColor, parseFont,
-  type RGBA,
+  COMPOSITE_OPERATIONS, CONTEXT_2D_METHODS, CONTEXT_2D_PROPERTIES, STATE_STACK_SIZE, TEXT_METRICS, formatColor, parseColor,
+  parseFont, parseLength, type RGBA,
 } from './canvas-api.ts';
 
 type Method = (typeof CONTEXT_2D_METHODS)[number];
@@ -121,8 +122,13 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
    * can't tell them (WebKit makes new ones once nothing else refers to them)
    */
   const objects: { fillStyle: object | null; strokeStyle: object | null } = { fillStyle: null, strokeStyle: null };
+  /** letterSpacing and wordSpacing as the engine gives them back (and for a browser without them) */
+  const spacing = { letterSpacing: '0px', wordSpacing: '0px' };
   /** What restore brings back that the browser's state doesn't have */
-  const stack: { composite: string; clipped: boolean; fillStyle: object | null; strokeStyle: object | null }[] = [];
+  const stack: {
+    composite: string; clipped: boolean; fillStyle: object | null; strokeStyle: object | null; letterSpacing: string;
+    wordSpacing: string;
+  }[] = [];
   let warnedClip = false;
 
   const restoreNative = (): void => {
@@ -204,7 +210,7 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
         return;
       }
       native.save();
-      stack.push({ composite, clipped, ...objects });
+      stack.push({ composite, clipped, ...objects, ...spacing });
       clipped = false;
     },
     restore() {
@@ -215,12 +221,17 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
       ({ composite, clipped } = saved);
       objects.fillStyle = saved.fillStyle;
       objects.strokeStyle = saved.strokeStyle;
+      spacing.letterSpacing = saved.letterSpacing;
+      spacing.wordSpacing = saved.wordSpacing;
     },
     resetCurrentState() {
       unclip(false);
       composite = 'source-over';
       objects.fillStyle = null;
       objects.strokeStyle = null;
+      spacing.letterSpacing = '0px';
+      spacing.wordSpacing = '0px';
+      if ('letterSpacing' in native) Object.assign(native, { letterSpacing: '0px', wordSpacing: '0px' });
       Object.assign(native, {
         globalAlpha: 1, globalCompositeOperation: 'source-over', lineWidth: 1, lineCap: 'butt', lineJoin: 'miter',
         miterLimit: 10, textBaseline: 'alphabetic', textAlign: 'start', font: DEFAULT_FONT, fillStyle: '#000',
@@ -326,6 +337,10 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
       if (arguments.length < 6) return undefined;
       return gradient(() => native.createRadialGradient(num(x0), num(y0), num(r0), num(x1), num(y1), num(r1)));
     },
+    createConicGradient(startAngle, x, y) {
+      if (arguments.length < 3) return undefined;
+      return gradient(() => native.createConicGradient(num(startAngle), num(x), num(y)));
+    },
     createPattern(image, repetition) {
       if (arguments.length < 1) return undefined;
       const source = sourceOf(image, 'createPattern');
@@ -384,11 +399,7 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
     measureText(text) {
       if (arguments.length < 1) return undefined;
       const metrics = native.measureText(String(text));
-      return Object.freeze({
-        width: metrics.width,
-        actualBoundingBoxAscent: metrics.actualBoundingBoxAscent,
-        actualBoundingBoxDescent: metrics.actualBoundingBoxDescent,
-      });
+      return Object.freeze(Object.fromEntries(TEXT_METRICS.map((key) => [key, metrics[key]])));
     },
     fillText(text, x, y, maxWidth) {
       if (arguments.length < 3) return;
@@ -482,6 +493,24 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
         native.font = `${font.italic ? 'italic ' : ''}${font.weight} ${font.size}px ${families}`;
       },
     },
+    letterSpacing: {
+      get: () => spacing.letterSpacing,
+      set: (value) => {
+        const length = parseLength(value);
+        if (length === null) return;
+        spacing.letterSpacing = length;
+        if ('letterSpacing' in native) native.letterSpacing = length;
+      },
+    },
+    wordSpacing: {
+      get: () => spacing.wordSpacing,
+      set: (value) => {
+        const length = parseLength(value);
+        if (length === null) return;
+        spacing.wordSpacing = length;
+        if ('wordSpacing' in native) native.wordSpacing = length;
+      },
+    },
     imageSmoothingEnabled: {
       get: () => smoothing,
       set: (value) => {
@@ -520,13 +549,18 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
     }
     resize();
     native.imageSmoothingEnabled = smoothing;
+    const applySpacing = (values: typeof spacing): void => {
+      if ('letterSpacing' in native) Object.assign(native, { letterSpacing: values.letterSpacing, wordSpacing: values.wordSpacing });
+    };
     // the saves again, without their clips, which the browser forgot
     stack.forEach((entry, index) => {
       apply(saved[index]);
+      applySpacing(entry);
       native.save();
       entry.clipped = false;
     });
     apply(current);
+    applySpacing(spacing);
     clipped = false;
   };
   return { context, keepingState };

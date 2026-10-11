@@ -1164,19 +1164,45 @@ declare namespace DesktopEngine {
   }
 
   /** Text metrics */
+  /**
+   * The size of a text as fillText draws it, from the point it's drawn at (its textAlign and textBaseline). The font's
+   * ascent and descent come from the system as they are: browsers round them, and make Helvetica, Times and Courier a
+   * little taller
+   */
   interface TextMetrics {
     /** Text width */
     readonly width: number;
-    /** Height above the baseline */
+    /** How far the glyphs reach above the textBaseline */
     readonly actualBoundingBoxAscent: number;
-    /** Height below the baseline */
+    /** How far the glyphs reach below the textBaseline */
     readonly actualBoundingBoxDescent: number;
+    /** How far the glyphs reach to the left of the textAlign's point (negative when they start to its right) (API 5) */
+    readonly actualBoundingBoxLeft: number;
+    /** How far the glyphs reach to the right of the textAlign's point (API 5) */
+    readonly actualBoundingBoxRight: number;
+    /** The font's ascent above the textBaseline, the same for any text (API 5) */
+    readonly fontBoundingBoxAscent: number;
+    /** The font's descent below the textBaseline (API 5) */
+    readonly fontBoundingBoxDescent: number;
+    /** Where textBaseline "hanging" draws: above the textBaseline, below it if negative (API 5) */
+    readonly hangingBaseline: number;
+    /** Where textBaseline "alphabetic" draws, as hangingBaseline (API 5) */
+    readonly alphabeticBaseline: number;
+    /** Where textBaseline "ideographic" draws (the bottom of the font's descent), as hangingBaseline (API 5) */
+    readonly ideographicBaseline: number;
   }
 
-  /** Compositing mode, as on the web; `darker` is another name for `darken` */
+  /**
+   * Compositing mode, as on the web; `darker` is another name for `darken`. The blend modes from `multiply` on came
+   * with API 5. lighten, darken, the blend modes and the ones that clear the canvas outside what's drawn (copy,
+   * source-in, source-out, destination-in, destination-atop) draw through a layer the size of the canvas: about
+   * 0.25 ms of CPU each draw, so batch drawing in them into few calls
+   */
   type GlobalCompositeOperation =
     | 'source-over' | 'lighter' | 'lighten' | 'darker' | 'darken' | 'destination-out' | 'destination-over'
-    | 'source-atop' | 'xor' | 'copy' | 'source-in' | 'destination-in' | 'source-out' | 'destination-atop';
+    | 'source-atop' | 'xor' | 'copy' | 'source-in' | 'destination-in' | 'source-out' | 'destination-atop'
+    | 'multiply' | 'screen' | 'overlay' | 'color-dodge' | 'color-burn' | 'hard-light' | 'soft-light' | 'difference'
+    | 'exclusion' | 'hue' | 'saturation' | 'color' | 'luminosity';
   /** Line cap */
   type CanvasLineCap = 'butt' | 'round' | 'square';
   /** Line join */
@@ -1231,6 +1257,13 @@ declare namespace DesktopEngine {
      * An invalid value is ignored. Reads back as `[italic ][weight ]<size>px <family>`, e.g. `600 14px system-ui`
      */
     font: string;
+    /**
+     * Space added after each character of fillText, strokeText and measureText, a CSS length: `"2px"`, `"0.1em"` (of the
+     * font's size; `rem` too), `pt`, `pc`, `in`, `cm`, `mm`, `q`; `"0px"` by default. Anything else is ignored (API 5)
+     */
+    letterSpacing: string;
+    /** Space added after each space (and no-break space) besides letterSpacing, as for letterSpacing (API 5) */
+    wordSpacing: string;
     /** Whether images are smoothed when scaled */
     imageSmoothingEnabled: boolean;
     /** Line dash offset */
@@ -1293,6 +1326,11 @@ declare namespace DesktopEngine {
     createLinearGradient(x0: number, y0: number, x1: number, y1: number): CanvasGradient;
     /** Creates a radial gradient */
     createRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): CanvasGradient;
+    /**
+     * Creates a gradient around a point, starting at `startAngle` (radians, clockwise from the x axis): the offset of a
+     * color stop is the turn (0 to 1) (API 5)
+     */
+    createConicGradient(startAngle: number, x: number, y: number): CanvasGradient;
     /** Creates a pattern; defaults to repeat */
     createPattern(image: CanvasDrawable, repetition?: CanvasPatternRepetition): CanvasPattern | undefined;
     /** Begins a path */

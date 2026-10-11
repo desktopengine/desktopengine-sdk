@@ -23,6 +23,7 @@
 ## 画布
 
 - Canvas 支持 2D、WebGL 1 和 WebGL 2（`getContext('webgl2')`，基于 ANGLE 的 OpenGL ES 3.0）。`texImage3D` / `texSubImage3D` 也接受图片、`ImageData` 和画布，各层在源图中自上而下排列（层间距由 `UNPACK_IMAGE_HEIGHT` 决定，默认等于 height）。Apple 芯片的 Mac 提供 `WEBGL_compressed_texture_astc`。
+- 2D 上下文有网页的合成模式和混合模式（`multiply`、`screen`、`overlay` 等，API 5 起）、线性、径向和锥形渐变，以及 `letterSpacing` / `wordSpacing`；没有 `filter`、`fontKerning` 等其他文字设置。用 `lighten`、`darken`、混合模式，或会清掉画出部分以外画布的模式（`copy`、`source-in` 等）绘制时，要经过一个画布大小的图层：每次绘制约 0.25 ms CPU，用这些模式时尽量少调用几次。
 - 和浏览器一样，WebGL 2 上下文不是 `instanceof WebGLRenderingContext`，要判断版本请用 `instanceof WebGL2RenderingContext`。
 - Canvas 用 Metal 渲染，显卡不支持 Metal 的老 Mac 上所有 `getContext` 都返回 null、`CanvasImage` 加载失败，要检查返回值。
 - 画布默认带透明通道（与 Web 一致），小组件和桌面伙伴的窗口是透明的，没画到的地方能看到桌面。
