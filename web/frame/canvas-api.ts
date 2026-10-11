@@ -19,7 +19,7 @@ export const CONTEXT_2D_PROPERTIES = [
 /** The 2D context's read-only properties */
 export const CONTEXT_2D_READONLY = ['canvas'] as const;
 
-/** The 2D context's methods. isPointInPath is there but not implemented: it only warns */
+/** The 2D context's methods */
 export const CONTEXT_2D_METHODS = [
   'isContextLost', 'save', 'restore', 'resetCurrentState', 'rotate', 'translate', 'scale', 'transform', 'setTransform',
   'getTransform', 'resetTransform', 'drawImage', 'fillRect', 'strokeRect', 'clearRect', 'getImageData', 'createImageData',
@@ -27,7 +27,7 @@ export const CONTEXT_2D_METHODS = [
   'closePath', 'fill',
   'stroke', 'moveTo', 'lineTo', 'rect', 'roundRect', 'bezierCurveTo', 'quadraticCurveTo', 'arcTo', 'arc', 'ellipse',
   'measureText', 'fillText',
-  'strokeText', 'clip', 'resetClip', 'getLineDash', 'setLineDash', 'isPointInPath',
+  'strokeText', 'clip', 'resetClip', 'getLineDash', 'setLineDash', 'isPointInPath', 'isPointInStroke',
 ] as const;
 
 /** globalCompositeOperation's values; others are ignored */

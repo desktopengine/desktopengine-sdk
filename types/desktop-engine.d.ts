@@ -1216,7 +1216,32 @@ declare namespace DesktopEngine {
   /** Pattern repetition */
   type CanvasPatternRepetition = 'repeat' | 'repeat-x' | 'repeat-y' | 'no-repeat';
 
-  /** 2D rendering context (Canvas2DRenderingContext); largely the same interface as on the web; Path2D isn't supported */
+  /**
+   * A path to fill, stroke, clip or hit test any number of times (API 5): the path methods of the 2D context, kept, and
+   * transformed by the context's transform when it's drawn, as on the web. Make one with `new Path2D()`, a copy of
+   * another with `new Path2D(path)`, or SVG path data with `new Path2D('M10 10 h20 v20 h-20 Z')` (up to its first
+   * error, as SVG draws it)
+   */
+  interface Path2D {
+    /** Adds the other path's subpaths, transformed by the matrix first (`{ a, b, c, d, e, f }`, a DOMMatrix2DInit) */
+    addPath(path: Path2D, transform?: DOMMatrix2DInit): void;
+    closePath(): void;
+    moveTo(x: number, y: number): void;
+    lineTo(x: number, y: number): void;
+    rect(x: number, y: number, w: number, h: number): void;
+    /** As the context's roundRect */
+    roundRect(x: number, y: number, w: number, h: number, radii?: number | DOMPointLike | Array<number | DOMPointLike>): void;
+    bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void;
+    quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void;
+    /** As the context's arcTo */
+    arcTo(x1: number, y1: number, x2: number, y2: number, radius: number): void;
+    /** As the context's arc */
+    arc(x: number, y: number, radius: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void;
+    /** As the context's ellipse */
+    ellipse(x: number, y: number, radiusX: number, radiusY: number, rotation: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void;
+  }
+
+  /** 2D rendering context (Canvas2DRenderingContext); largely the same interface as on the web */
   interface CanvasRenderingContext2D {
     /** The owning canvas */
     readonly canvas: Canvas | null;
@@ -1337,10 +1362,12 @@ declare namespace DesktopEngine {
     beginPath(): void;
     /** Closes the path */
     closePath(): void;
-    /** Fills the path */
+    /** Fills the current path */
     fill(fillRule?: CanvasFillRule): void;
-    /** Strokes the path */
-    stroke(): void;
+    /** Fills a Path2D; the current path stays as it is (API 5) */
+    fill(path: Path2D, fillRule?: CanvasFillRule): void;
+    /** Strokes the current path, or a Path2D (API 5) */
+    stroke(path?: Path2D): void;
     /** Moves the pen */
     moveTo(x: number, y: number): void;
     /** Draws a straight line */
@@ -1379,14 +1406,28 @@ declare namespace DesktopEngine {
     strokeText(text: string, x: number, y: number, maxWidth?: number): void;
     /** Clips to the current path */
     clip(fillRule?: CanvasFillRule): void;
+    /** Clips to a Path2D (API 5) */
+    clip(path: Path2D, fillRule?: CanvasFillRule): void;
     /** Clears the clip (non-standard) */
     resetClip(): void;
     /** Gets the line dash pattern */
     getLineDash(): number[];
     /** Sets the line dash pattern */
     setLineDash(segments: Array<number | string>): void;
-    /** Not implemented; calling it only logs a warning */
-    isPointInPath(...args: unknown[]): undefined;
+    /**
+     * Whether the point (in the canvas' pixels, whatever the transform) is inside the current path filled with the
+     * rule, or on its edge (API 5). Curves are flattened to within a fraction of a pixel, as they're drawn
+     */
+    isPointInPath(x: number, y: number, fillRule?: CanvasFillRule): boolean;
+    /** The same for a Path2D, transformed by the context's transform (API 5) */
+    isPointInPath(path: Path2D, x: number, y: number, fillRule?: CanvasFillRule): boolean;
+    /**
+     * Whether the point (in the canvas' pixels) is on what stroke() would draw of the current path, with the line's
+     * width, caps, joins and dash (API 5)
+     */
+    isPointInStroke(x: number, y: number): boolean;
+    /** The same for a Path2D (API 5) */
+    isPointInStroke(path: Path2D, x: number, y: number): boolean;
   }
 
   // ---------------------------------------------------------------------------
@@ -4109,6 +4150,12 @@ declare const DesktopEngineRuntime: DesktopEngine.RuntimeScope;
 
 /** Console */
 declare var console: DesktopEngine.Console;
+
+/** A path to draw any number of times, see DesktopEngine.Path2D (API 5) */
+declare var Path2D: {
+  prototype: DesktopEngine.Path2D;
+  new (path?: DesktopEngine.Path2D | string): DesktopEngine.Path2D;
+};
 
 /** Stand-in class of WebGL 1 contexts, for `gl instanceof WebGLRenderingContext`; can't be constructed */
 declare var WebGLRenderingContext: DesktopEngine.WebGLContextConstructor<DesktopEngine.WebGLRenderingContext>;

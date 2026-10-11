@@ -14,6 +14,7 @@ import { CanvasImageImpl, CanvasImpl, ComponentImpl, componentOf, ImageImpl, Vid
 import { Evented, defineEvents } from './events.ts';
 import { createFileSystem, loadPackage, requireFrom } from './files.ts';
 import { installNetwork } from './network.ts';
+import { createPath2D } from './path2d.ts';
 import { cancelAnimationFrame, clearTimer, hostFrame, requestAnimationFrame, setInterval, setTimeout, startStats } from './scheduler.ts';
 import { guard, hasPermission, report, send, state } from './state.ts';
 import { installStorage } from './storage.ts';
@@ -484,6 +485,8 @@ function launch(message: LaunchMessage): void {
   if (hasPermission('audio')) installPointerInput();
   installCrypto();
   installNavigator(message.options.locale);
+  // the engine's Path2D, around the browser's (which the 2D contexts draw)
+  Object.defineProperty(scope, 'Path2D', { value: createPath2D(scope.Path2D), writable: true, configurable: true, enumerable: true });
   installConsole();
 
   const desktopEngine = createGlobal(message);

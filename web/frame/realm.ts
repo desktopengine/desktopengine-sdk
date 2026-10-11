@@ -30,7 +30,7 @@ const ENGINE = [
   'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'queueMicrotask', 'atob', 'btoa',
   'crypto', 'navigator', 'require', 'module', 'exports', 'postMessage', 'WebGLRenderingContext', 'WebGL2RenderingContext',
   'structuredClone', 'DOMException', 'Event', 'CustomEvent', 'EventTarget', 'MessageEvent', 'MessageChannel', 'MessagePort',
-  'FileReader', 'CloseEvent', 'ProgressEvent', 'AbortController', 'AbortSignal',
+  'FileReader', 'Path2D', 'CloseEvent', 'ProgressEvent', 'AbortController', 'AbortSignal',
   'fetch', 'Headers', 'Request', 'Response', 'WebSocket', 'XMLHttpRequest', 'XMLHttpRequestEventTarget',
   'XMLHttpRequestUpload', 'Blob', 'File', 'FormData', 'URL', 'URLSearchParams', 'TextEncoder', 'TextDecoder',
   'TextEncoderStream', 'TextDecoderStream', 'ByteLengthQueuingStrategy', 'CountQueuingStrategy', 'ReadableStream',

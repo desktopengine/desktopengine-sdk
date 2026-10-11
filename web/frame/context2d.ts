@@ -15,6 +15,7 @@ import {
   COMPOSITE_OPERATIONS, CONTEXT_2D_METHODS, CONTEXT_2D_PROPERTIES, STATE_STACK_SIZE, TEXT_METRICS, formatColor, parseColor,
   parseFont, parseLength, type RGBA,
 } from './canvas-api.ts';
+import { PATH_METHODS, callPath, matrixArgument, nativePath, num, type PathMethod } from './path2d.ts';
 
 type Method = (typeof CONTEXT_2D_METHODS)[number];
 type Property = (typeof CONTEXT_2D_PROPERTIES)[number];
@@ -24,9 +25,6 @@ type Property = (typeof CONTEXT_2D_PROPERTIES)[number];
  * (an image that didn't load), undefined when the value isn't a drawable
  */
 export type DrawableSource = (value: unknown) => CanvasImageSource | null | undefined;
-
-/** A number argument as the engine reads it */
-const num = (value: unknown): number => (typeof value === 'number' ? value : value === true ? 1 : 0);
 
 /** The browser's compositing for the engine's modes whose names browsers don't have: darker is darken's other name */
 const COMPOSITING: Readonly<Record<string, GlobalCompositeOperation>> = { darker: 'darken' };
@@ -39,8 +37,9 @@ const STATE = [
 ] as const;
 
 const DEFAULT_FONT = '10px Helvetica';
-/** What setTransform reads of a matrix (DOMMatrix2DInit) */
-const MATRIX_2D = ['a', 'b', 'c', 'd', 'e', 'f', 'm11', 'm12', 'm21', 'm22', 'm41', 'm42'] as const;
+
+/** The fill rule at `index` of the arguments: "evenodd", or nonzero */
+const fillRule = (args: unknown[], index: number): CanvasFillRule => (typeof args[index] === 'string' && args[index] === 'evenodd' ? 'evenodd' : 'nonzero');
 /** The families CSS doesn't take in quotes */
 const GENERIC_FAMILIES = new Set([
   'serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui', 'ui-serif', 'ui-sans-serif', 'ui-monospace',
@@ -200,7 +199,7 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
     return style(made, GRADIENT);
   };
 
-  const methods: Record<Method, (...args: unknown[]) => unknown> = {
+  const methods: Record<Exclude<Method, PathMethod>, (...args: unknown[]) => unknown> = {
     isContextLost() {
       return native.isContextLost?.() ?? false;
     },
@@ -259,18 +258,7 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
         native.setTransform(num(a), num(b), num(c), num(d), num(e), num(f));
       } else if (arguments.length <= 1) {
         // a matrix, e.g. getTransform's, its values read as numbers; none is the identity
-        if (a === undefined || a === null) {
-          native.setTransform();
-        } else if (typeof a !== 'object' && typeof a !== 'function') {
-          throw new TypeError('setTransform takes six numbers or a matrix { a, b, c, d, e, f }');
-        } else {
-          const matrix: Record<string, number> = {};
-          for (const key of MATRIX_2D) {
-            const value = (a as Record<string, unknown>)[key];
-            if (value !== undefined) matrix[key] = num(value);
-          }
-          native.setTransform(matrix);
-        }
+        native.setTransform(matrixArgument(a, 'setTransform'));
       }
     },
     getTransform() {
@@ -352,49 +340,34 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
     beginPath() {
       native.beginPath();
     },
-    closePath() {
-      native.closePath();
+    fill(...args) {
+      // a Path2D first, when there's one
+      const path = nativePath(args[0]);
+      const rule = fillRule(args, path ? 1 : 0);
+      if (path) native.fill(path, rule);
+      else native.fill(rule);
     },
-    fill(rule) {
-      native.fill(arguments.length > 0 && String(rule) === 'evenodd' ? 'evenodd' : 'nonzero');
+    stroke(path) {
+      const native2D = nativePath(path);
+      if (native2D) native.stroke(native2D);
+      else native.stroke();
     },
-    stroke() {
-      native.stroke();
+    isPointInPath(...args) {
+      const path = nativePath(args[0]);
+      const first = path ? 1 : 0;
+      if (args.length < first + 2) throw new TypeError('isPointInPath takes a point (x, y)');
+      const x = num(args[first]);
+      const y = num(args[first + 1]);
+      const rule = fillRule(args, first + 2);
+      return path ? native.isPointInPath(path, x, y, rule) : native.isPointInPath(x, y, rule);
     },
-    moveTo(x, y) {
-      if (arguments.length >= 2) native.moveTo(num(x), num(y));
-    },
-    lineTo(x, y) {
-      if (arguments.length >= 2) native.lineTo(num(x), num(y));
-    },
-    rect(x, y, width, height) {
-      if (arguments.length >= 4) native.rect(num(x), num(y), num(width), num(height));
-    },
-    bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y) {
-      if (arguments.length >= 6) native.bezierCurveTo(num(cp1x), num(cp1y), num(cp2x), num(cp2y), num(x), num(y));
-    },
-    quadraticCurveTo(cpx, cpy, x, y) {
-      if (arguments.length >= 4) native.quadraticCurveTo(num(cpx), num(cpy), num(x), num(y));
-    },
-    arcTo(x1, y1, x2, y2, radius) {
-      if (arguments.length >= 5) native.arcTo(num(x1), num(y1), num(x2), num(y2), num(radius));
-    },
-    arc(x, y, radius, startAngle, endAngle, counterclockwise) {
-      if (arguments.length >= 5) native.arc(num(x), num(y), num(radius), num(startAngle), num(endAngle), Boolean(counterclockwise));
-    },
-    ellipse(x, y, radiusX, radiusY, rotation, startAngle, endAngle, counterclockwise) {
-      if (arguments.length < 7) return;
-      native.ellipse(num(x), num(y), num(radiusX), num(radiusY), num(rotation), num(startAngle), num(endAngle), Boolean(counterclockwise));
-    },
-    roundRect(x, y, width, height, radii) {
-      if (arguments.length < 4) return;
-      // a radius is a number or an { x, y }, their parts read as numbers
-      const corner = (radius: unknown): number | DOMPointInit => {
-        if ((typeof radius !== 'object' || radius === null) && typeof radius !== 'function') return num(radius);
-        const point = radius as { x?: unknown; y?: unknown };
-        return { x: num(point.x), y: num(point.y) };
-      };
-      native.roundRect(num(x), num(y), num(width), num(height), Array.isArray(radii) ? radii.map(corner) : corner(radii));
+    isPointInStroke(...args) {
+      const path = nativePath(args[0]);
+      const first = path ? 1 : 0;
+      if (args.length < first + 2) throw new TypeError('isPointInStroke takes a point (x, y)');
+      const x = num(args[first]);
+      const y = num(args[first + 1]);
+      return path ? native.isPointInStroke(path, x, y) : native.isPointInStroke(x, y);
     },
     measureText(text) {
       if (arguments.length < 1) return undefined;
@@ -411,12 +384,15 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
       if (arguments.length > 3) native.strokeText(String(text), num(x), num(y), num(maxWidth));
       else native.strokeText(String(text), num(x), num(y));
     },
-    clip(rule) {
+    clip(...args) {
       if (!clipped) {
         native.save();
         clipped = true;
       }
-      native.clip(arguments.length > 0 && String(rule) === 'evenodd' ? 'evenodd' : 'nonzero');
+      const path = nativePath(args[0]);
+      const rule = fillRule(args, path ? 1 : 0);
+      if (path) native.clip(path, rule);
+      else native.clip(rule);
     },
     resetClip() {
       unclip(true);
@@ -435,10 +411,6 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
         values.push(value);
       }
       native.setLineDash(values);
-    },
-    isPointInPath() {
-      console.warn('function `isPointInPath` is not implemented !');
-      return undefined;
     },
   };
 
@@ -535,6 +507,9 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
   Object.defineProperty(context, 'canvas', { get: () => canvas, enumerable: true });
   for (const [name, { get, set }] of Object.entries(properties)) Object.defineProperty(context, name, { get, set, enumerable: true });
   for (const [name, value] of Object.entries(methods)) Object.defineProperty(context, name, { value, writable: true, enumerable: true });
+  for (const name of PATH_METHODS) {
+    Object.defineProperty(context, name, { value: (...args: unknown[]) => callPath(native, name, args), writable: true, enumerable: true });
+  }
 
   const keepingState = (resize: () => void): void => {
     // the saved states, read off the browser's stack before it forgets them: each save's, under the clip's own save
