@@ -16,7 +16,7 @@
 - `fetch`、`Headers`、`Request`、`Response`、`AbortController`、`WebSocket` 和 `XMLHttpRequest`，见[网络](./network)。
 - `URL`、`URLSearchParams`、`TextEncoder`、`TextDecoder`、`Blob`、`File`、`FileReader`、`FormData` 和流，`structuredClone`、`MessageChannel`，见[数据](./data)。
 - `DOMException`、`Event`、`CustomEvent` 和 `EventTarget`。
-- `navigator`：`userAgent`（一台 Mac，不带 Safari 和 WebKit）、`platform`、`language` 和 `languages`（用户的首选语言）、`hardwareConcurrency` 和 `maxTouchPoints`（0），没有浏览器 navigator 的其他内容。
+- `navigator`：`userAgent`（一台 Mac，不带 Safari 和 WebKit）、`platform`、`language` 和 `languages`（用户的首选语言，按浏览器的写法：`zh-CN`，不是系统的 `zh-Hans-CN`）、`hardwareConcurrency` 和 `maxTouchPoints`（0），没有浏览器 navigator 的其他内容。
 - `localStorage` 和 `sessionStorage`，见[存储和文件](./storage)。
 - `Audio`、`AudioContext` 和其他 Web Audio 类，见[音频](./audio)。
 

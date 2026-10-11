@@ -351,12 +351,28 @@ function installCrypto(): void {
   Object.defineProperty(scope, 'crypto', { value: crypto, writable: true, configurable: true, enumerable: true });
 }
 
+/** A language as browsers give it, language-REGION, as the engine gives the system's: zh-Hans-CN is zh-CN */
+function webLanguage(tag: string): string {
+  const parts = tag.split('_').join('-').split('-');
+  const language = parts[0].toLowerCase();
+  let script = '';
+  let region = '';
+  for (let i = 1; i < parts.length; i++) {
+    const part = parts[i];
+    if (part.length === 1) break;
+    if (i === 1 && part.length === 4) script = part.toLowerCase();
+    else if (!region && (part.length === 2 || (part.length === 3 && !Number.isNaN(Number(part))))) region = part.toUpperCase();
+  }
+  if (language === 'zh' && !region) region = script === 'hant' ? 'TW' : 'CN';
+  return region ? `${language}-${region}` : language;
+}
+
 /** The engine's navigator: what libraries read about the device, nothing of a browser's */
 function installNavigator(locale: unknown): void {
   const browser = scope.navigator;
   const userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) DesktopEngine';
   const first = typeof locale === 'string' && locale ? locale : browser.language;
-  const languages = Object.freeze([first, ...browser.languages.filter((language) => language !== first)]);
+  const languages = Object.freeze([...new Set([first, ...browser.languages].map(webLanguage))]);
   const hardwareConcurrency = browser.hardwareConcurrency || 1;
   class Navigator {
     get userAgent() { return userAgent; }

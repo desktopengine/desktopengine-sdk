@@ -1192,8 +1192,9 @@ declare namespace DesktopEngine {
   /** Text metrics */
   /**
    * The size of a text as fillText draws it, from the point it's drawn at (its textAlign and textBaseline). The font's
-   * ascent and descent come from the system as they are: browsers round them, and make Helvetica, Times and Courier a
-   * little taller
+   * ascent and descent are Safari's: whole pixels, Helvetica, Times and Courier a little taller; textBaseline "top" and
+   * "hanging" are at the ascent, "bottom" and "ideographic" at the descent, as in Safari (Chrome puts them on the
+   * font's em box, a pixel or two inside)
    */
   interface TextMetrics {
     /** Text width */
@@ -4276,9 +4277,12 @@ interface Navigator {
   readonly appVersion: string;
   /** "MacIntel", as Safari says on every Mac */
   readonly platform: string;
-  /** The user's preferred language, such as "zh-Hans-CN": DesktopEngine.launchOptions.locale */
+  /**
+   * The user's preferred language as browsers give it, such as "zh-CN" or "en-US": the system's script left out
+   * (DesktopEngine.launchOptions.locale is the system's own, such as "zh-Hans-CN")
+   */
   readonly language: string;
-  /** The user's preferred languages, the first one first */
+  /** The user's preferred languages, the first one first, as language */
   readonly languages: readonly string[];
   /** The number of the Mac's processor cores */
   readonly hardwareConcurrency: number;
