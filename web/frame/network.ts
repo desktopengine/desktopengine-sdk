@@ -168,10 +168,11 @@ export function installNetwork(scope: typeof globalThis): void {
       super();
       console.error(`WebSocket ${url}: ${denial}`);
       setTimeout(() => {
-        const error = new Event('error');
+        // as the app's: why is the error's `message` (not in browsers, which hide it), the close has no reason
+        const error = Object.assign(new Event('error'), { message: denial });
         this.onerror?.(error);
         this.dispatchEvent(error);
-        const close = new CloseEvent('close', { code: 1006, reason: denial, wasClean: false });
+        const close = new CloseEvent('close', { code: 1006, reason: '', wasClean: false });
         this.onclose?.(close);
         this.dispatchEvent(close);
       });
