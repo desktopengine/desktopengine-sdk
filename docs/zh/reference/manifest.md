@@ -93,15 +93,12 @@
 | 权限 | 含义 |
 | --- | --- |
 | `network` | 连接 `network.domains` 里的域名 |
-| `files` | 读取用户选择的文件 |
 | `audio` | 播放声音 |
-| `system-info` | CPU、内存、网络用量 |
-| `now-playing` | 正在播放的音乐 |
-| `window-positions` | 其他应用窗口的位置 |
+| `system-info` | CPU 和内存用量 |
 | `mouse` | 指针的位置和点击，在任何应用里（需要 `"apiVersion": 3`），见[鼠标和打字](/zh/guide/input) |
 | `key-activity` | 在任何应用里按了几下键，从不知道是哪些键；只有 DesktopEngine 自带的内容能得到，见[打字](/zh/guide/input#打字) |
 
-应用在详情栏列出这些权限。`audio` 不询问：声明了就能发出声音，用户用音量和「所有内容静音」控制。其余权限在用户第一次把内容添加到桌面时逐项询问，用户可以只允许一部分，之后也能在详情栏里随时更改（内容会重新启动）；内置内容不询问。没有声明权限的内容不会弹出询问。
+写其他权限会报错：应用不认识的权限不列出、不询问，内容也得不到。应用在详情栏列出这些权限。`audio` 不询问：声明了就能发出声音，用户用音量和「所有内容静音」控制。其余权限在用户第一次把内容添加到桌面时逐项询问，用户可以只允许一部分，之后也能在详情栏里随时更改（内容会重新启动）；内置内容不询问。没有声明权限的内容不会弹出询问。
 
 被拒绝的权限不会阻止内容运行：内容照常启动，只是对应的能力关闭，所以要为没有权限的情况做好降级。实际得到的权限在 `DesktopEngine.launchOptions.permissions` 里：
 
@@ -121,7 +118,7 @@ if (permissions.includes('network')) {
 "network": { "domains": ["api.example.com", "*.tile.example.org"] }
 ```
 
-由运行时强制执行的权限：`network`（没有它不能联网，有它也只能连列出的域名，见[网络](/zh/guide/network#域名)）、`audio`（没有它不能发出声音，见[音频](/zh/guide/audio)）、`system-info`（没有它 `cpuUsage()` / `memoryUsage()` 抛出错误）、`mouse`（没有它收不到 `DesktopEngine.input` 的鼠标事件）、`key-activity`（只给自带内容，见[打字](/zh/guide/input#打字)）。`files`、`now-playing`、`window-positions` 目前还没有对应的 API，声明的作用是让用户知情。`desktopengine dev` 和「开发」菜单载入的内容由开发者自己运行，不询问，得到声明的全部权限；没有声明的同样用不了。
+由运行时强制执行的权限：`network`（没有它不能联网，有它也只能连列出的域名，见[网络](/zh/guide/network#域名)）、`audio`（没有它不能发出声音，见[音频](/zh/guide/audio)）、`system-info`（没有它 `cpuUsage()` / `memoryUsage()` 抛出错误）、`mouse`（没有它收不到 `DesktopEngine.input` 的鼠标事件）、`key-activity`（只给自带内容，见[打字](/zh/guide/input#打字)）。`desktopengine dev` 和「开发」菜单载入的内容由开发者自己运行，不询问，得到声明的全部权限；没有声明的同样用不了。
 
 ## API 版本
 

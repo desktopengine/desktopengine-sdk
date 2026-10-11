@@ -113,11 +113,16 @@ test('parameters follow the rules of the app', () => {
   expected.forEach((fragment) => assert.ok(errors.some((message) => message.includes(fragment)), `expected an error about ${fragment}\n${errors.join('\n')}`));
 });
 
-test('unknown permissions and fields are warnings, not errors', () => {
-  const { errors, warnings } = validateManifest({ ...minimal, permissions: ['camera'], extra: true });
-  assert.deepEqual(errors, []);
-  assert.ok(warnings.some((message) => message.includes('camera')));
-  assert.ok(warnings.some((message) => message.includes('extra')));
+test('unknown fields are warnings, unknown permissions errors', () => {
+  const fields = validateManifest({ ...minimal, extra: true });
+  assert.deepEqual(fields.errors, []);
+  assert.ok(fields.warnings.some((message) => message.includes('extra')));
+
+  // the app never asks about them nor gives them: a misspelled permission would silently be off
+  for (const permission of ['camera', 'files', 'now-playing', 'window-positions']) {
+    const { errors } = validateManifest({ ...minimal, permissions: [permission] });
+    assert.ok(errors.some((message) => message.includes(`Unknown permission "${permission}"`)), errors.join('\n'));
+  }
 });
 
 test('the mouse permission asks for the API that has DesktopEngine.input', () => {

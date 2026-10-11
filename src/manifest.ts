@@ -13,7 +13,7 @@ export const TYPE_ALIASES: Readonly<Record<string, ContentType>> = { pet: 'compa
 /** The API version that introduced each type's current name, for types newer than API 1 */
 export const TYPE_API_VERSIONS: Readonly<Partial<Record<ContentType, number>>> = { companion: 2 };
 export const WIDGET_SIZES = ['small', 'medium', 'large'] as const;
-export const PERMISSIONS = ['network', 'files', 'audio', 'system-info', 'now-playing', 'window-positions', 'mouse', 'key-activity'] as const;
+export const PERMISSIONS = ['network', 'audio', 'system-info', 'mouse', 'key-activity'] as const;
 /** The API version that introduced each permission's API, for permissions newer than API 1 */
 export const PERMISSION_API_VERSIONS: Readonly<Partial<Record<Permission, number>>> = { mouse: 3, 'key-activity': 3 };
 /** Permissions only content that comes with the app gets: others that declare them never get them */
@@ -302,7 +302,7 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
         if (typeof permission !== 'string') {
           errors.push(`"permissions[${index}]" must be a string`);
         } else if (!isOneOf(PERMISSIONS, permission)) {
-          warnings.push(`Unknown permission "${permission}", the known ones are ${PERMISSIONS.join(', ')}`);
+          errors.push(`Unknown permission "${permission}", the known ones are ${PERMISSIONS.join(', ')}`);
         } else {
           if (BUILTIN_ONLY_PERMISSIONS.includes(permission) && !String(manifest.id ?? '').startsWith(OFFICIAL_ID_PREFIX)) {
             warnings.push(`Only content that comes with DesktopEngine gets the "${permission}" permission: the app lists it but never gives it to other content`);

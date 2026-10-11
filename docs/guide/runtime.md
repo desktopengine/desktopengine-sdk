@@ -19,7 +19,6 @@ Content runs in JavaScriptCore, not in a browser. The type declarations (the [AP
 
 ## Not there yet
 
-- APIs for the `files`, `now-playing` and `window-positions` permissions.
 - Reading the system's audio output (music visualizers), IndexedDB.
 - Native ES modules in the runtime (bundling `src/` covers them for now).
 
