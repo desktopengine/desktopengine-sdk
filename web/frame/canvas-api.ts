@@ -72,10 +72,7 @@ export const WEBGL_EXTENSION_ALIASES: Record<1 | 2, Readonly<Record<string, stri
 
 // MARK: Colors
 
-/**
- * The CSS named colors, and transparent, as the engine has them (rrggbbaa). mediumpurple and palevioletred are 3/255
- * off CSS's in one channel, there too
- */
+/** The CSS named colors, and transparent, as the engine has them (rrggbbaa) */
 const NAMED_COLORS = new Map((
   'aliceblue:f0f8ffff antiquewhite:faebd7ff aqua:00ffffff aquamarine:7fffd4ff azure:f0ffffff beige:f5f5dcff '
   + 'bisque:ffe4c4ff black:000000ff blanchedalmond:ffebcdff blue:0000ffff blueviolet:8a2be2ff brown:a52a2aff '
@@ -93,11 +90,11 @@ const NAMED_COLORS = new Map((
   + 'lightgrey:d3d3d3ff lightpink:ffb6c1ff lightsalmon:ffa07aff lightseagreen:20b2aaff lightskyblue:87cefaff '
   + 'lightslategray:778899ff lightslategrey:778899ff lightsteelblue:b0c4deff lightyellow:ffffe0ff lime:00ff00ff '
   + 'limegreen:32cd32ff linen:faf0e6ff magenta:ff00ffff maroon:800000ff mediumaquamarine:66cdaaff mediumblue:0000cdff '
-  + 'mediumorchid:ba55d3ff mediumpurple:9370d8ff mediumseagreen:3cb371ff mediumslateblue:7b68eeff '
+  + 'mediumorchid:ba55d3ff mediumpurple:9370dbff mediumseagreen:3cb371ff mediumslateblue:7b68eeff '
   + 'mediumspringgreen:00fa9aff mediumturquoise:48d1ccff mediumvioletred:c71585ff midnightblue:191970ff '
   + 'mintcream:f5fffaff mistyrose:ffe4e1ff moccasin:ffe4b5ff navajowhite:ffdeadff navy:000080ff oldlace:fdf5e6ff '
   + 'olive:808000ff olivedrab:6b8e23ff orange:ffa500ff orangered:ff4500ff orchid:da70d6ff palegoldenrod:eee8aaff '
-  + 'palegreen:98fb98ff paleturquoise:afeeeeff palevioletred:d87093ff papayawhip:ffefd5ff peachpuff:ffdab9ff '
+  + 'palegreen:98fb98ff paleturquoise:afeeeeff palevioletred:db7093ff papayawhip:ffefd5ff peachpuff:ffdab9ff '
   + 'peru:cd853fff pink:ffc0cbff plum:dda0ddff powderblue:b0e0e6ff purple:800080ff rebeccapurple:663399ff red:ff0000ff '
   + 'rosybrown:bc8f8fff royalblue:4169e1ff saddlebrown:8b4513ff salmon:fa8072ff sandybrown:f4a460ff seagreen:2e8b57ff '
   + 'seashell:fff5eeff sienna:a0522dff silver:c0c0c0ff skyblue:87ceebff slateblue:6a5acdff slategray:708090ff '
