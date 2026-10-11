@@ -48,15 +48,19 @@ export const TEXT_METRICS = [
 const LENGTH_UNITS = new Set(['px', 'em', 'rem', 'pt', 'pc', 'in', 'cm', 'mm', 'q']);
 
 /**
- * letterSpacing or wordSpacing as the engine takes it: a string of a number and a unit, in any case, which reads back
- * as the number as JavaScript writes it and the unit in lowercase (`"1PX"` is `"1px"`); null for anything else
+ * letterSpacing or wordSpacing as the engine takes it: a string of a number and a unit, in any case, or a zero without
+ * one, which reads back as the number as JavaScript writes it and the unit in lowercase (`"1PX"` is `"1px"`, `"0"` is
+ * `"0px"`); null for anything else
  */
 export function parseLength(value: unknown): string | null {
   if (typeof value !== 'string') return null;
-  const match = /^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)([a-z]+)$/.exec(value.trim().toLowerCase());
-  if (!match || !LENGTH_UNITS.has(match[2])) return null;
+  const match = /^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)([a-z]*)$/.exec(value.trim().toLowerCase());
+  if (!match) return null;
   const number = Number(match[1]);
-  return Number.isFinite(number) ? `${number}${match[2]}` : null;
+  if (!Number.isFinite(number)) return null;
+  // a zero needs no unit, as in CSS (WebKit takes it, Chrome doesn't: it's given to the browser as 0px)
+  if (!match[2]) return number === 0 ? '0px' : null;
+  return LENGTH_UNITS.has(match[2]) ? `${number}${match[2]}` : null;
 }
 
 /**
@@ -64,6 +68,13 @@ export function parseLength(value: unknown): string | null {
  * it
  */
 export const STATE_STACK_SIZE = 16;
+
+/**
+ * The largest ImageBitmap the engine makes: at most this wide and high, and at most IMAGE_BITMAP_MAX_PIXELS pixels;
+ * createImageBitmap rejects a larger one with an InvalidStateError
+ */
+export const IMAGE_BITMAP_MAX_SIZE = 16384;
+export const IMAGE_BITMAP_MAX_PIXELS = 8192 * 8192;
 
 /**
  * The WebGL extensions the engine has for a WebGL 1 and a WebGL 2 context. The app offers the ones of them the Mac's

@@ -1311,7 +1311,8 @@ declare namespace DesktopEngine {
     font: string;
     /**
      * Space added after each character of fillText, strokeText and measureText, a CSS length: `"2px"`, `"0.1em"` (of the
-     * font's size; `rem` too), `pt`, `pc`, `in`, `cm`, `mm`, `q`; `"0px"` by default. Anything else is ignored (API 5)
+     * font's size; `rem` too), `pt`, `pc`, `in`, `cm`, `mm`, `q`, or `"0"` without a unit (it reads as `"0px"`);
+     * `"0px"` by default. Anything else is ignored (API 5)
      */
     letterSpacing: string;
     /** Space added after each space (and no-break space) besides letterSpacing, as for letterSpacing (API 5) */
@@ -4196,8 +4197,9 @@ declare var ImageBitmap: {
 /**
  * A bitmap of an image (loaded), a canvas, ImageData, another ImageBitmap or a Blob of an image file (decoded away
  * from the JavaScript thread), as on the web (API 5): all of it, or the rectangle (sx, sy, sw, sh), transparent where
- * it's outside. The promise rejects with an InvalidStateError for an image that hasn't loaded or data that isn't an
- * image, a RangeError for a rectangle of size 0
+ * it's outside. The promise rejects with an InvalidStateError for an image that hasn't loaded, data that isn't an
+ * image or a bitmap larger than 16384 wide or high or than 8192 × 8192 pixels in all, a RangeError for a rectangle of
+ * size 0
  */
 declare function createImageBitmap(image: DesktopEngine.CanvasDrawable | Blob, options?: DesktopEngine.ImageBitmapOptions): Promise<DesktopEngine.ImageBitmap>;
 declare function createImageBitmap(image: DesktopEngine.CanvasDrawable | Blob, sx: number, sy: number, sw: number, sh: number, options?: DesktopEngine.ImageBitmapOptions): Promise<DesktopEngine.ImageBitmap>;

@@ -13,7 +13,7 @@ import path from 'node:path';
 
 import {
   COMPOSITE_OPERATIONS, CONTEXT_2D_METHODS, CONTEXT_2D_PROPERTIES, CONTEXT_2D_READONLY, TEXT_METRICS, WEBGL_EXTENSIONS,
-  WEBGL_EXTENSION_ALIASES, formatColor, parseColor, parseFont,
+  WEBGL_EXTENSION_ALIASES, formatColor, parseColor, parseFont, parseLength,
 } from '../web/frame/canvas-api.ts';
 
 const declarations = fs.readFileSync(path.join(import.meta.dirname, '..', 'types', 'desktop-engine.d.ts'), 'utf8');
@@ -96,4 +96,13 @@ test('fonts are read as the engine reads them', () => {
   for (const value of ['1.5em serif', 'large sans-serif', 'caption', '0px Arial', '700', 'bold16px Arial', '100% Arial', 12]) {
     assert.equal(parseFont(value), null, String(value));
   }
+});
+
+test('letterSpacing and wordSpacing are read as the engine reads them', () => {
+  assert.equal(parseLength('2PX'), '2px');
+  assert.equal(parseLength(' 0.5em '), '0.5em');
+  assert.equal(parseLength('1e1px'), '10px');
+  // a zero needs no unit, as in CSS
+  for (const zero of ['0', '-0', '+0', '0.0', '.0', '0e3', '00']) assert.equal(parseLength(zero), '0px', zero);
+  for (const bad of ['1', '2 px', 'px', '2vw', '2%', '', 'Infinitypx', 2]) assert.equal(parseLength(bad), null, String(bad));
 });
