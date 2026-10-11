@@ -2,6 +2,40 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 4.1.0 (2026-10-12)
+
+API version 5 (was 4): packages with `"apiVersion": 5` need an app that has it.
+
+### Features
+
+- dev --web passes WebSockets to the domains of network.domains through its proxy, as the store's preview does, and the SDK exports proxyPreviewWebSocket for other servers
+- dev --web sends every request method through its proxy, with the request's headers and body, as the app does; the store's preview and its review still send GET and HEAD only
+- ellipse() and roundRect() for 2D canvases, API 5
+- getTransform() and setTransform() taking a matrix for 2D canvases, API 5
+- structuredClone, MessageChannel, FileReader, CustomEvent and navigator, API 5
+- createConicGradient, letterSpacing, wordSpacing, the blend modes and the rest of TextMetrics for 2D canvases, API 5
+- Path2D, with SVG path data, and isPointInPath and isPointInStroke for 2D canvases, API 5
+- createImageBitmap and new ImageData(), API 5
+
+### Bug Fixes
+
+- The web runtime's canvases offer only what the app's do: browser-only 2D members such as ellipse and roundRect are undefined, other compositing modes, colors and fonts are ignored, and WebGL lists only the app's extensions
+- In the web runtime, new WebSocket() throws a SecurityError as in the app when the network permission or network.domains doesn't allow the address, and http and ws addresses fail as the app's App Transport Security makes them
+- The preview proxy counts every spelling of the IPv6 loopback and unspecified addresses as the local network, not only ::1 and ::
+- **canvas:** mediumpurple and palevioletred are CSS's colors in 2D canvases, in the app and the web runtime
+- **canvas:** copy, source-in, source-out, destination-in and destination-atop clear the 2D canvas outside what's drawn, as on the web, so masking with destination-in works
+- **canvas:** restore() brings back the whole clip of the 2D state it returns to, so a clip made before an earlier save() isn't lost
+- **canvas:** lighten and darken blend 2D drawing as on the web, translucent colors included; darker is another name for darken
+- **canvas:** 2D gradients match the web: stops mix without premultiplying, more than five stops work, stops at one offset make a hard edge, and radial gradients with a start radius are right
+- **canvas:** arc() with equal start and end angles draws nothing and angles 2π or more apart draw the whole circle, as on the web; a negative radius throws IndexSizeError in arc() and arcTo()
+- dev --web warns about request headers that the store's preview and review refuse, and its proxy passes back no cross-origin policies
+- dev --web's WebSocket proxy passes an abnormal closure on as one, and a close without a code as 1005
+- after a 2D canvas resizes, restore() in the web runtime brings back the saved states, as in the app
+- fillStyle and strokeStyle in the web runtime keep giving back the gradient or pattern they were set to when nothing else refers to it
+- navigator.language and languages are written as browsers write them in the web preview too, and the declarations say where the text baselines are
+- the web runtime takes letterSpacing and wordSpacing of "0" without a unit, and rejects ImageBitmaps larger than the app makes
+- the web runtime's createImageBitmap crops, resizes and flips as the app does, in WebKit too
+
 ## 4.0.0 (2026-10-11)
 
 API version 4 (was 3): packages with `"apiVersion": 4` need an app that has it.
