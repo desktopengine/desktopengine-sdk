@@ -599,6 +599,7 @@ export class WebDesktop {
   private scheduleResize(): void {
     window.clearTimeout(this.resizeTimer);
     this.resizeTimer = window.setTimeout(() => {
+      const screensBefore = this.screens;
       const before = JSON.stringify(this.screens.map((screen) => screen.bounds));
       const scaleBefore = this.scaleFactor;
       this.layout();
@@ -606,9 +607,28 @@ export class WebDesktop {
         if (scaleBefore !== this.scaleFactor) this.updateAllPlayback();
         return;
       }
-      // like a display changing resolution: the contents start again on the new screens
-      for (const content of this.contents) content.restart();
+      // like a display changing resolution: the contents start again on the new screens, a widget or companion at the
+      // same place in its screen's free area (one at the right edge or on the Dock stays there as the page grows)
+      for (const content of this.contents) {
+        const position = this.followingScreens(content, screensBefore);
+        content.restart(position ? { position } : undefined);
+      }
     }, 250);
+  }
+
+  /** Where a content's window goes on the new screens: the fractions of the free area left of and above it it had before */
+  private followingScreens(content: WebContent, before: WebScreen[]): { x: number; y: number } | undefined {
+    const frame = content.windows.find((win) => win.visible && win.type !== 'desktop')?.frame;
+    if (!frame || !before.length) return undefined;
+    const screen = content.spec.screen ?? 0;
+    const was = before[Math.min(screen, before.length - 1)].visibleFrame;
+    const area = this.screens[Math.min(screen, this.screens.length - 1)].visibleFrame;
+    const fraction = (offset: number, free: number) => (free > 0 ? Math.min(Math.max(offset / free, 0), 1) : 0);
+    const place = (start: number, free: number, f: number) => Math.round(start + Math.max(free, 0) * f);
+    return {
+      x: place(area.x, area.width - frame.width, fraction(frame.x - was.x, was.width - frame.width)),
+      y: place(area.y, area.height - frame.height, fraction(frame.y - was.y, was.height - frame.height)),
+    };
   }
 
   /** @internal: where a window at `frame` goes on the screen numbered `screen`, moved in so all of it is on it */
