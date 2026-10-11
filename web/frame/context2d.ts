@@ -27,11 +27,8 @@ export type DrawableSource = (value: unknown) => CanvasImageSource | null | unde
 /** A number argument as the engine reads it */
 const num = (value: unknown): number => (typeof value === 'number' ? value : value === true ? 1 : 0);
 
-/**
- * The browser's compositing for the engine's modes. The engine's lighten adds, as lighter does; its darken and darker
- * multiply the destination by the source's color, as multiply does for opaque sources
- */
-const COMPOSITING: Readonly<Record<string, GlobalCompositeOperation>> = { lighten: 'lighter', darker: 'multiply', darken: 'multiply' };
+/** The browser's compositing for the engine's modes whose names browsers don't have: darker is darken's other name */
+const COMPOSITING: Readonly<Record<string, GlobalCompositeOperation>> = { darker: 'darken' };
 
 /** What drawing state a save keeps: the browser's values for these, the transform and the line dash */
 const STATE = [

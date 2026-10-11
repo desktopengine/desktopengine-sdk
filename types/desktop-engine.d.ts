@@ -1119,7 +1119,7 @@ declare namespace DesktopEngine {
     readonly actualBoundingBoxDescent: number;
   }
 
-  /** Compositing mode */
+  /** Compositing mode, as on the web; `darker` is another name for `darken` */
   type GlobalCompositeOperation =
     | 'source-over' | 'lighter' | 'lighten' | 'darker' | 'darken' | 'destination-out' | 'destination-over'
     | 'source-atop' | 'xor' | 'copy' | 'source-in' | 'destination-in' | 'source-out' | 'destination-atop';
