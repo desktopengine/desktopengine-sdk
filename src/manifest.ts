@@ -24,7 +24,7 @@ export const PARAMETER_TYPES = ['toggle', 'number', 'text', 'color', 'choice'] a
 export const MANIFEST_FILE = 'manifest.json';
 export const ENTRY_FILE = 'index.js';
 /** `DesktopEngine.apiVersion` these types and rules describe. */
-export const API_VERSION = 4;
+export const API_VERSION = 5;
 /** The most domains `network.domains` may list */
 export const MAX_NETWORK_DOMAINS = 32;
 

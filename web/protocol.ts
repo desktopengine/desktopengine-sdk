@@ -10,7 +10,7 @@
 // Coordinates are global points, as DesktopEngine.Window uses them: origin at the top left of the main screen, y down.
 
 /** `DesktopEngine.apiVersion` on the web, the same as the SDK's `API_VERSION` (a test checks) */
-export const API_VERSION = 4;
+export const API_VERSION = 5;
 
 export interface Rect {
   x: number;

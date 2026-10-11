@@ -1109,6 +1109,12 @@ declare namespace DesktopEngine {
   /** Pattern object */
   interface CanvasPattern {}
 
+  /** A point or corner radius given as `{ x, y }` (roundRect) */
+  interface DOMPointLike {
+    x?: number;
+    y?: number;
+  }
+
   /** Text metrics */
   interface TextMetrics {
     /** Text width */
@@ -1248,6 +1254,14 @@ declare namespace DesktopEngine {
     lineTo(x: number, y: number): void;
     /** Adds a rectangle to the path */
     rect(x: number, y: number, w: number, h: number): void;
+    /**
+     * Adds a rectangle with rounded corners to the path, as a closed subpath, then starts a new one at (x, y) (API 5).
+     * `radii` is one radius or a list of 1 to 4: all corners; top left and bottom right, top right and bottom left;
+     * top left, top right and bottom left, bottom right; or each corner clockwise from the top left. A radius is a
+     * number, or `{ x, y }` for an elliptical corner. Radii that don't fit are scaled down together. Throws a
+     * RangeError for a negative radius or another count
+     */
+    roundRect(x: number, y: number, w: number, h: number, radii?: number | DOMPointLike | Array<number | DOMPointLike>): void;
     /** Cubic Bézier curve */
     bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void;
     /** Quadratic Bézier curve */
@@ -1259,6 +1273,11 @@ declare namespace DesktopEngine {
      * Throws an IndexSizeError for a negative radius
      */
     arc(x: number, y: number, radius: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void;
+    /**
+     * Elliptical arc around (x, y), turned by `rotation` (radians), its angles as `arc`'s (API 5). Throws an
+     * IndexSizeError for a negative radius
+     */
+    ellipse(x: number, y: number, radiusX: number, radiusY: number, rotation: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void;
     /** Measures text */
     measureText(text: string): TextMetrics;
     /** Fills text */

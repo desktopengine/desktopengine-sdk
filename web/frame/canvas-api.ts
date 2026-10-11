@@ -24,7 +24,8 @@ export const CONTEXT_2D_METHODS = [
   'isContextLost', 'save', 'restore', 'resetCurrentState', 'rotate', 'translate', 'scale', 'transform', 'setTransform',
   'resetTransform', 'drawImage', 'fillRect', 'strokeRect', 'clearRect', 'getImageData', 'createImageData',
   'putImageData', 'createLinearGradient', 'createRadialGradient', 'createPattern', 'beginPath', 'closePath', 'fill',
-  'stroke', 'moveTo', 'lineTo', 'rect', 'bezierCurveTo', 'quadraticCurveTo', 'arcTo', 'arc', 'measureText', 'fillText',
+  'stroke', 'moveTo', 'lineTo', 'rect', 'roundRect', 'bezierCurveTo', 'quadraticCurveTo', 'arcTo', 'arc', 'ellipse',
+  'measureText', 'fillText',
   'strokeText', 'clip', 'resetClip', 'getLineDash', 'setLineDash', 'isPointInPath',
 ] as const;
 

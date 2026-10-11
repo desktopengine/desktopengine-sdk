@@ -328,6 +328,20 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
     arc(x, y, radius, startAngle, endAngle, counterclockwise) {
       if (arguments.length >= 5) native.arc(num(x), num(y), num(radius), num(startAngle), num(endAngle), Boolean(counterclockwise));
     },
+    ellipse(x, y, radiusX, radiusY, rotation, startAngle, endAngle, counterclockwise) {
+      if (arguments.length < 7) return;
+      native.ellipse(num(x), num(y), num(radiusX), num(radiusY), num(rotation), num(startAngle), num(endAngle), Boolean(counterclockwise));
+    },
+    roundRect(x, y, width, height, radii) {
+      if (arguments.length < 4) return;
+      // a radius is a number or an { x, y }, their parts read as numbers
+      const corner = (radius: unknown): number | DOMPointInit => {
+        if ((typeof radius !== 'object' || radius === null) && typeof radius !== 'function') return num(radius);
+        const point = radius as { x?: unknown; y?: unknown };
+        return { x: num(point.x), y: num(point.y) };
+      };
+      native.roundRect(num(x), num(y), num(width), num(height), Array.isArray(radii) ? radii.map(corner) : corner(radii));
+    },
     measureText(text) {
       if (arguments.length < 1) return undefined;
       const metrics = native.measureText(String(text));
