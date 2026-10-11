@@ -824,8 +824,12 @@ declare namespace DesktopEngine {
   // Video
   // ---------------------------------------------------------------------------
 
-  /** Video scaling mode */
-  type VideoObjectFit = 'contain' | 'cover' | 'fill';
+  /**
+   * Video scaling mode, as CSS's object-fit: `contain` fits it in, `cover` fills the component and crops the rest,
+   * `fill` stretches it to the component's size, `none` (API 4) shows it at its own size, a video pixel to a point,
+   * centered
+   */
+  type VideoObjectFit = 'contain' | 'cover' | 'fill' | 'none';
 
   /** Video constructor options */
   interface VideoOptions extends ComponentOptions {
@@ -917,8 +921,12 @@ declare namespace DesktopEngine {
   // Image (view component)
   // ---------------------------------------------------------------------------
 
-  /** Image scaling mode; defaults to contain */
-  type ImageSize = 'contain' | 'cover';
+  /**
+   * Image scaling mode; defaults to contain. `contain` fits it in, `cover` fills the component and crops the rest,
+   * `fill` (API 4) stretches it to the component's size, `none` (API 4) shows it at its own size, an image pixel to a
+   * point; `position` places it in the space left or picks the part shown
+   */
+  type ImageSize = 'contain' | 'cover' | 'fill' | 'none';
   /** Image alignment; defaults to center */
   type ImagePosition = 'top' | 'left' | 'center' | 'bottom' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 

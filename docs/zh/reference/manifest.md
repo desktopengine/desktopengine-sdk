@@ -125,10 +125,11 @@ if (permissions.includes('network')) {
 
 ## API 版本
 
-运行时有一个整数的 API 版本，新增 API 时递增，JavaScript 里是 `DesktopEngine.apiVersion`，当前的 SDK 对应的版本是 3（`desktopengine --help` 的第一行也会显示）。用到之后新增的 API 时，在清单的 `"apiVersion"` 写上它的版本，API 版本更低的应用会拒绝导入并提示用户更新；也可以不写，在运行时判断 `DesktopEngine.apiVersion` 后降级。
+运行时有一个整数的 API 版本，新增 API 时递增，JavaScript 里是 `DesktopEngine.apiVersion`，当前的 SDK 对应的版本是 4（`desktopengine --help` 的第一行也会显示）。用到之后新增的 API 时，在清单的 `"apiVersion"` 写上它的版本，API 版本更低的应用会拒绝导入并提示用户更新；也可以不写，在运行时判断 `DesktopEngine.apiVersion` 后降级。
 
 | 版本 | 新增 |
 | --- | --- |
 | 1 | 首个版本 |
 | 2 | `companion` 类型，原名 `pet` |
 | 3 | `DesktopEngine.input`，`mouse` 和 `key-activity` 权限，见[鼠标和打字](/zh/guide/input) |
+| 4 | `Image` 的 `size` 可以是 `fill`（拉伸）和 `none`（原始尺寸），`Video` 的 `objectFit` 可以是 `none` |

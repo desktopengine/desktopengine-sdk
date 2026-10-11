@@ -573,6 +573,14 @@ const POSITIONS: Record<string, string> = {
   'top-left': 'left top', 'top-right': 'right top', 'bottom-left': 'left bottom', 'bottom-right': 'right bottom',
 };
 
+/** One of the table's own keys, not e.g. 'constructor' */
+function isKey(table: Record<string, string>, value: string): boolean {
+  return Object.prototype.hasOwnProperty.call(table, value);
+}
+
+/** An image's size as a background-size: 'none' is the image's own size, a pixel to a CSS pixel as in the app */
+const IMAGE_SIZES: Record<string, string> = { contain: 'contain', cover: 'cover', fill: '100% 100%', none: 'auto' };
+
 export class ImageImpl extends ComponentImpl {
   private source: string | null = null;
   private sizeValue = 'contain';
@@ -618,9 +626,9 @@ export class ImageImpl extends ComponentImpl {
   }
 
   set size(value: string) {
-    if (value !== 'contain' && value !== 'cover') return;
+    if (!isKey(IMAGE_SIZES, value)) return;
     this.sizeValue = value;
-    this.element.style.backgroundSize = value;
+    this.element.style.backgroundSize = IMAGE_SIZES[value];
   }
 
   get position(): string {
@@ -628,7 +636,7 @@ export class ImageImpl extends ComponentImpl {
   }
 
   set position(value: string) {
-    if (!(value in POSITIONS)) return;
+    if (!isKey(POSITIONS, value)) return;
     this.positionValue = value;
     this.element.style.backgroundPosition = POSITIONS[value];
   }
@@ -733,7 +741,7 @@ export class VideoImpl extends ComponentImpl {
   }
 
   set objectFit(value: string) {
-    if (['contain', 'cover', 'fill'].includes(value)) this.video.style.objectFit = value;
+    if (['contain', 'cover', 'fill', 'none'].includes(value)) this.video.style.objectFit = value;
   }
 
   get playbackRate(): number {
