@@ -6,6 +6,19 @@ Content runs in JavaScriptCore, not in a browser. The type declarations (the [AP
 - `DesktopEngine.system.cpuUsage()` / `memoryUsage()` give CPU and memory usage; they need the `system-info` permission and throw without it.
 - `DesktopEngine.input` follows the mouse anywhere on screen with the `mouse` permission, see [Mouse and Typing](./input).
 
+## Globals
+
+Besides the language's own (`Promise`, `Intl`, `WebAssembly`…), content has these globals of browsers:
+
+- Timing: `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval`, `requestAnimationFrame`, `cancelAnimationFrame`, `queueMicrotask` and `performance`.
+- `console`, `globalThis` and `self`, and `require()` for CommonJS modules.
+- `atob` and `btoa`; `crypto.getRandomValues()` and `crypto.randomUUID()`, with the system's cryptographically strong random numbers (API 4).
+- `fetch`, `Headers`, `Request`, `Response`, `AbortController`, `WebSocket` and `XMLHttpRequest`, see [Network](./network).
+- `URL`, `URLSearchParams`, `TextEncoder`, `TextDecoder`, `Blob`, `File`, `FormData` and streams, see [Data](./data).
+- `DOMException`, `Event` and `EventTarget`.
+- `localStorage` and `sessionStorage`, see [Storage and Files](./storage).
+- `Audio`, `AudioContext` and the other Web Audio classes, see [Audio](./audio).
+
 ## Canvas
 
 - Canvases have 2D, WebGL 1 and WebGL 2 (`getContext('webgl2')`, OpenGL ES 3.0 on ANGLE). `texImage3D` / `texSubImage3D` also take images, `ImageData` and canvases, with the layers top to bottom in the source image (spaced by `UNPACK_IMAGE_HEIGHT`, the height by default). Macs with Apple silicon have `WEBGL_compressed_texture_astc`.
@@ -19,6 +32,7 @@ Content runs in JavaScriptCore, not in a browser. The type declarations (the [AP
 
 ## Not there yet
 
+- `structuredClone`, `crypto.subtle`, `FileReader`, `CustomEvent`, `MessageChannel`, `BroadcastChannel`, Workers, `OffscreenCanvas`, `createImageBitmap` and `Path2D`; `navigator` and `location`.
 - Reading the system's audio output (music visualizers), IndexedDB.
 - Native ES modules in the runtime (bundling `src/` covers them for now).
 

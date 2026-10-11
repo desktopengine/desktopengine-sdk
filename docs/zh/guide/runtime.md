@@ -6,6 +6,19 @@
 - `DesktopEngine.system.cpuUsage()` / `memoryUsage()` 提供 CPU 和内存用量，需要 `system-info` 权限，没有时抛出错误。
 - `DesktopEngine.input` 在整个屏幕上跟随鼠标，需要 `mouse` 权限，见[鼠标和打字](./input)。
 
+## 全局对象
+
+除了语言自带的（`Promise`、`Intl`、`WebAssembly` 等），内容还有这些浏览器里的全局对象：
+
+- 计时：`setTimeout`、`setInterval`、`clearTimeout`、`clearInterval`、`requestAnimationFrame`、`cancelAnimationFrame`、`queueMicrotask` 和 `performance`。
+- `console`、`globalThis` 和 `self`，以及加载 CommonJS 模块的 `require()`。
+- `atob` 和 `btoa`；`crypto.getRandomValues()` 和 `crypto.randomUUID()`，用系统的密码学安全随机数（API 4）。
+- `fetch`、`Headers`、`Request`、`Response`、`AbortController`、`WebSocket` 和 `XMLHttpRequest`，见[网络](./network)。
+- `URL`、`URLSearchParams`、`TextEncoder`、`TextDecoder`、`Blob`、`File`、`FormData` 和流，见[数据](./data)。
+- `DOMException`、`Event` 和 `EventTarget`。
+- `localStorage` 和 `sessionStorage`，见[存储和文件](./storage)。
+- `Audio`、`AudioContext` 和其他 Web Audio 类，见[音频](./audio)。
+
 ## 画布
 
 - Canvas 支持 2D、WebGL 1 和 WebGL 2（`getContext('webgl2')`，基于 ANGLE 的 OpenGL ES 3.0）。`texImage3D` / `texSubImage3D` 也接受图片、`ImageData` 和画布，各层在源图中自上而下排列（层间距由 `UNPACK_IMAGE_HEIGHT` 决定，默认等于 height）。Apple 芯片的 Mac 提供 `WEBGL_compressed_texture_astc`。
@@ -19,6 +32,7 @@
 
 ## 还没有的
 
+- `structuredClone`、`crypto.subtle`、`FileReader`、`CustomEvent`、`MessageChannel`、`BroadcastChannel`、Worker、`OffscreenCanvas`、`createImageBitmap` 和 `Path2D`；`navigator` 和 `location`。
 - 读取系统的音频输出（音乐可视化）、IndexedDB。
 - 运行时原生支持 ES 模块（目前通过 `src/` 打包解决）。
 

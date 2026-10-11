@@ -666,6 +666,10 @@ export class VideoImpl extends ComponentImpl {
   private offscreen: { time: number; playing: boolean } | null = { time: 0, playing: false };
   /** Paused, its pause event not sent yet: unloading the element drops that event */
   private pausePending = false;
+  /** `paused`, as in the app: set by play() and pause() at once, then by the play and pause events */
+  private isPaused = true;
+  /** The duration once the file's metadata was in: the element forgets it out of a window */
+  private knownDuration = NaN;
 
   constructor(options?: Record<string, unknown>) {
     const video = document.createElement('video');
@@ -677,7 +681,9 @@ export class VideoImpl extends ComponentImpl {
     // not out of a window: the element emptying isn't the video's
     const emit = (name: string, payload?: () => unknown) => video.addEventListener(name, () => {
       if (name === 'pause') this.pausePending = false;
-      if (!this.offscreen) this.emit(name, payload?.());
+      if (this.offscreen) return;
+      if (name === 'play' || name === 'pause') this.isPaused = name === 'pause';
+      this.emit(name, payload?.());
     });
     emit('waiting');
     emit('play');
@@ -695,6 +701,9 @@ export class VideoImpl extends ComponentImpl {
     video.addEventListener('loadedmetadata', () => {
       if (this.loadTime) video.currentTime = this.loadTime;
     });
+    video.addEventListener('durationchange', () => {
+      if (Number.isFinite(video.duration) && video.duration > 0) this.knownDuration = video.duration;
+    });
     for (const key of ['objectFit', 'initialTime', 'playbackRate', 'autoplay', 'loop', 'muted', 'volume', 'src']) {
       if (options && key in options) (this as unknown as Record<string, unknown>)[key] = options[key];
     }
@@ -707,6 +716,7 @@ export class VideoImpl extends ComponentImpl {
 
   set src(value: string | null) {
     this.source = value === null || value === undefined ? null : String(value);
+    this.knownDuration = NaN;
     if (this.source && !mediaURL(this.source)) {
       setTimeout(() => this.emit('error', { errMsg: 'the video can\'t be read' }));
     }
@@ -794,8 +804,25 @@ export class VideoImpl extends ComponentImpl {
     this.video.volume = this.wantedVolume;
   }
 
+  /** The playback position in seconds: out of a window where it continues from */
+  get currentTime(): number {
+    return this.offscreen ? this.offscreen.time : this.video.currentTime;
+  }
+
+  /** The length in seconds, NaN until it's known */
+  get duration(): number {
+    return this.knownDuration;
+  }
+
+  get paused(): boolean {
+    return this.isPaused;
+  }
+
   play(): void {
+    this.isPaused = false;
     if (this.offscreen) {
+      // at the end it starts over, as the element does
+      if (this.offscreen.time >= this.knownDuration) this.offscreen.time = 0;
       this.offscreen.playing = true;
       return;
     }
@@ -809,6 +836,7 @@ export class VideoImpl extends ComponentImpl {
   }
 
   pause(): void {
+    this.isPaused = true;
     if (this.offscreen) {
       this.offscreen.playing = false;
       return;
@@ -824,7 +852,7 @@ export class VideoImpl extends ComponentImpl {
   seek(time: number): void {
     if (typeof time !== 'number' || !Number.isFinite(time)) throw new TypeError('seek needs a finite number of seconds');
     if (this.offscreen) {
-      this.offscreen.time = Math.max(time, 0);
+      this.offscreen.time = Math.min(Math.max(time, 0), Number.isNaN(this.knownDuration) ? Infinity : this.knownDuration);
       return;
     }
     this.video.currentTime = time;
@@ -841,6 +869,7 @@ export class VideoImpl extends ComponentImpl {
       // stopped like when it's paused, as in the app
       if (paused) {
         this.pausePending = false;
+        this.isPaused = true;
         setTimeout(() => this.emit('pause'));
       }
       return;

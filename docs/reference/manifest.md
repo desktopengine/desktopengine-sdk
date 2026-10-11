@@ -129,6 +129,6 @@ The runtime has an integer API version that goes up when APIs are added: `Deskto
 | 1 | The first version |
 | 2 | The `companion` type, formerly `pet` |
 | 3 | `DesktopEngine.input`, the `mouse` and `key-activity` permissions, see [Mouse and Typing](/guide/input) |
-| 4 | `Image`'s `size` `fill` (stretched) and `none` (its own size), `Video`'s `objectFit` `none`; every mouse button's `mousedown` and `mouseup`, with `button` and `buttons` in the mouse events' payload, see [Mouse](/guide/windows#mouse) |
+| 4 | `Image`'s `size` `fill` (stretched) and `none` (its own size), `Video`'s `objectFit` `none`; every mouse button's `mousedown` and `mouseup`, with `button` and `buttons` in the mouse events' payload, see [Mouse](/guide/windows#mouse); `queueMicrotask`, `atob`, `btoa` and `crypto` (`getRandomValues`, `randomUUID`), see [Globals](/guide/runtime#globals); `currentTime`, `duration` and `paused` of `Video` |
 
 Version 4 also changed APIs as in browsers: the double click event is `dblclick` (it was `dbclick`), and `click` and `dblclick` get the mouse events' payload, `{ x, y, … }` (it was `{ position: { x, y } }`). It removed `wxBindCanvasTexture` and `blBindCanvasTexture` of WebGL contexts, the global `mixin` and `promisify`, and the `files`, `now-playing` and `window-positions` permissions, which had no API. Content that used them needs `"apiVersion": 4` once it's changed.

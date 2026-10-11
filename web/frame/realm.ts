@@ -21,14 +21,14 @@ const LANGUAGE = [
   'Uint8Array', 'Int8Array', 'Uint16Array', 'Int16Array', 'Uint32Array', 'Int32Array', 'Float16Array', 'Float32Array',
   'Float64Array', 'Uint8ClampedArray', 'BigUint64Array', 'BigInt64Array', 'DataView', 'Map', 'BigInt', 'Set', 'WeakMap',
   'WeakSet', 'Proxy', 'Reflect', 'FinalizationRegistry', 'WeakRef', 'Iterator', 'decodeURI', 'decodeURIComponent',
-  'encodeURI', 'encodeURIComponent', 'escape', 'unescape', 'eval', 'isFinite', 'isNaN', 'queueMicrotask', 'WebAssembly',
+  'encodeURI', 'encodeURIComponent', 'escape', 'unescape', 'eval', 'isFinite', 'isNaN', 'WebAssembly',
 ];
 
 /** What the engine defines globally (types/desktop-engine.d.ts) */
 const ENGINE = [
   'DesktopEngine', 'DesktopEngineCore', 'DesktopEngineRuntime', 'console', 'performance', 'setTimeout', 'clearTimeout',
-  'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'require', 'module', 'exports',
-  'postMessage', 'WebGLRenderingContext', 'WebGL2RenderingContext',
+  'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'queueMicrotask', 'atob', 'btoa',
+  'crypto', 'require', 'module', 'exports', 'postMessage', 'WebGLRenderingContext', 'WebGL2RenderingContext',
   'DOMException', 'Event', 'EventTarget', 'MessageEvent', 'CloseEvent', 'ProgressEvent', 'AbortController', 'AbortSignal',
   'fetch', 'Headers', 'Request', 'Response', 'WebSocket', 'XMLHttpRequest', 'XMLHttpRequestEventTarget',
   'XMLHttpRequestUpload', 'Blob', 'File', 'FormData', 'URL', 'URLSearchParams', 'TextEncoder', 'TextDecoder',
@@ -46,7 +46,7 @@ const ENGINE = [
 
 const VISIBLE = new Set([...LANGUAGE, ...ENGINE]);
 /** Browser functions that throw unless `this` is the real global object */
-const BOUND = new Set(['queueMicrotask', 'postMessage']);
+const BOUND = new Set(['queueMicrotask', 'atob', 'btoa', 'postMessage']);
 
 const realGlobal = globalThis as unknown as Record<PropertyKey, unknown>;
 /** The content's own globals: the hidden names it assigned, and the globals it created */

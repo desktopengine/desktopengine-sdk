@@ -331,6 +331,25 @@ function format(values: unknown[]): string {
     .join(' ');
 }
 
+/**
+ * The engine's crypto: getRandomValues and randomUUID, without the browser's `subtle`, which the app doesn't have.
+ * The browser checks the arrays and throws the same DOMExceptions
+ */
+function installCrypto(): void {
+  const browserCrypto = scope.crypto;
+  const getRandomValues = browserCrypto.getRandomValues.bind(browserCrypto);
+  const randomUUID = (): `${string}-${string}-${string}-${string}-${string}` => {
+    // browsers have randomUUID only in secure contexts
+    const bytes = browserCrypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  };
+  const crypto = Object.create({ getRandomValues, randomUUID, [Symbol.toStringTag]: 'Crypto' }) as Crypto;
+  Object.defineProperty(scope, 'crypto', { value: crypto, writable: true, configurable: true, enumerable: true });
+}
+
 function installConsole(): void {
   const original = scope.console;
   const forward = (level: 'log' | 'info' | 'warn' | 'error' | 'debug') => (...values: unknown[]) => {
@@ -443,6 +462,7 @@ function launch(message: LaunchMessage): void {
   installStorage(scope);
   installAudio();
   if (hasPermission('audio')) installPointerInput();
+  installCrypto();
   installConsole();
 
   const desktopEngine = createGlobal(message);

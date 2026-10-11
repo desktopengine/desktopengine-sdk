@@ -493,6 +493,9 @@ declare namespace DesktopEngine {
     devicepixelratiochange: void;
   }
 
+  /** The integer typed arrays `crypto.getRandomValues` fills */
+  type RandomValuesArray = Int8Array | Uint8Array | Uint8ClampedArray | Int16Array | Uint16Array | Int32Array | Uint32Array | BigInt64Array | BigUint64Array;
+
   /** Video progress payload */
   interface VideoProgressPayload {
     /** Percentage buffered, from 0 to 100 */
@@ -875,6 +878,15 @@ declare namespace DesktopEngine {
     muted: boolean;
     /** Volume from 0 to 1; accepts numbers only */
     volume: number;
+    /** The playback position in seconds; right after `seek()`, where it goes. Read-only, `seek()` changes it */
+    readonly currentTime: number;
+    /** The length in seconds, NaN until it's known */
+    readonly duration: number;
+    /**
+     * Whether it's paused, as in the DOM: true until it plays or `play()` is called, and after `pause()`. The `pause`
+     * event sets it (it ended, the content was suspended, it left its window), the `play` event clears it
+     */
+    readonly paused: boolean;
     /** Starts playback */
     play(): void;
     /** Pauses playback */
@@ -4008,6 +4020,36 @@ declare function cancelAnimationFrame(id: number): void;
 
 /** High resolution time: performance.now() and performance.timeOrigin */
 declare var performance: DesktopEngine.Performance;
+
+/**
+ * Runs a callback as a microtask: once the code running now and the microtasks queued before it are done, before
+ * timers, frames and events. What the callback throws is reported like an uncaught exception
+ */
+declare function queueMicrotask(callback: () => void): void;
+
+/**
+ * Encodes a string of bytes (characters 0 to 255, e.g. from `String.fromCharCode`) in Base64. Throws an
+ * "InvalidCharacterError" DOMException for other characters: encode text to UTF-8 bytes with TextEncoder first
+ */
+declare function btoa(data: string): string;
+/**
+ * Decodes Base64 to a string of bytes (characters 0 to 255). ASCII whitespace is ignored and the `=` padding is
+ * optional; throws an "InvalidCharacterError" DOMException for anything else that isn't Base64
+ */
+declare function atob(data: string): string;
+
+/** Cryptographically strong random values from the system: the Web Crypto API without `subtle` */
+interface Crypto {
+  /**
+   * Fills an integer typed array with random values and returns it. Throws a "TypeMismatchError" DOMException for
+   * other arrays (Float32Array, Float64Array, DataView), a "QuotaExceededError" one for more than 65536 bytes
+   */
+  getRandomValues<T extends DesktopEngine.RandomValuesArray>(array: T): T;
+  /** A random version 4 UUID in lowercase, e.g. "3b241101-e2bb-4255-8caf-4136c566a962" */
+  randomUUID(): `${string}-${string}-${string}-${string}-${string}`;
+}
+/** `getRandomValues` and `randomUUID`; there's no `crypto.subtle` */
+declare var crypto: Crypto;
 
 // -----------------------------------------------------------------------------
 // Events and errors: DOMException, Event and EventTarget, shared by fetch, WebSocket and audio
