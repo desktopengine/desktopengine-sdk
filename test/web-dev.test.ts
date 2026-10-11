@@ -161,6 +161,65 @@ test('the proxy\'s WebSockets reach network.domains only, and never the local ne
   assert.deepEqual(reports.at(-1), { url: 'wss://ws.example.com/socket', status: 'ws.example.com resolves to the local network' });
 });
 
+test('dev --web\'s proxy sends every method, the review\'s GET and HEAD only', async (t) => {
+  // the review node's proxy: no options
+  const review = http.createServer((request, response) => {
+    void proxyPreviewRequest(manifest, new URL(request.url!, 'http://localhost'), request, response);
+  });
+  await new Promise<void>((resolve) => review.listen(0, '127.0.0.1', resolve));
+  t.after(() => review.close());
+  const reviewProxy = `http://127.0.0.1:${(review.address() as { port: number }).port}/?url=${encodeURIComponent('https://api.example.com/v1')}`;
+  const refused = await fetch(reviewProxy, { method: 'POST', body: '{}' });
+  assert.equal(refused.status, 405);
+  assert.match(await refused.text(), /GET and HEAD/);
+  assert.equal((await fetch(reviewProxy, { method: 'OPTIONS', headers: { 'Access-Control-Request-Method': 'POST' } })).status, 405);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'desktopengine-sdk-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest));
+  fs.writeFileSync(path.join(dir, 'index.js'), '\n');
+  const server = new WebDevServer({ projectDir: dir, watch: false });
+  await server.start();
+  t.after(() => server.stop());
+  const reports: { url: string; status: number | string; method?: string }[] = [];
+  server.on('proxy', (entry) => reports.push(entry));
+  const proxy = (target: string) => `http://127.0.0.1:${server.port}/proxy?token=${server.proxyToken}&url=${encodeURIComponent(target)}`;
+  assert.match(await (await fetch(`http://127.0.0.1:${server.port}/?token=${server.token}`)).text(), /proxySendsAnyMethod: true/);
+
+  // the browser's question before a request with another method or headers
+  const preflight = await fetch(proxy('https://api.example.com/v1'), {
+    method: 'OPTIONS',
+    headers: { 'Access-Control-Request-Method': 'PUT', 'Access-Control-Request-Headers': 'authorization,content-type' },
+  });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get('access-control-allow-origin'), '*');
+  assert.equal(preflight.headers.get('access-control-allow-methods'), 'PUT');
+  assert.equal(preflight.headers.get('access-control-allow-headers'), 'authorization,content-type');
+
+  const undeclared = await fetch(proxy('https://example.com/'), { method: 'POST', body: 'x' });
+  assert.equal(undeclared.status, 403);
+  assert.deepEqual(reports.at(-1), { url: 'https://example.com/', status: 'not in network.domains', method: 'POST' });
+  const trace = await new Promise<number>((resolve, reject) => {
+    http.request(proxy('https://api.example.com/v1'), { method: 'TRACE' }, (response) => {
+      response.resume();
+      resolve(response.statusCode ?? 0);
+    }).on('error', reject).end();
+  });
+  assert.equal(trace, 405);
+  // read before anything is sent: no more than 20 MB
+  const large = await fetch(proxy('https://api.example.com/upload'), { method: 'PUT', body: new Uint8Array(20 * 1024 * 1024 + 1) });
+  assert.equal(large.status, 413);
+  // a declared domain that resolves to the local network
+  const original = dns.lookup;
+  (dns as { lookup: unknown }).lookup = async () => [{ address: '127.0.0.1', family: 4 }];
+  t.after(() => {
+    (dns as { lookup: unknown }).lookup = original;
+  });
+  const local = await fetch(proxy('https://api.example.com/v1'), { method: 'DELETE' });
+  assert.equal(local.status, 403);
+  assert.match(await local.text(), /local network/);
+});
+
 test('dev --web serves the desktop page, the build, its files and the logs', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'desktopengine-sdk-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

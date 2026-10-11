@@ -71,7 +71,7 @@ The version is **rejected automatically** when:
 - In Chrome, it doesn't start, throws an uncaught exception, has a promise rejection nobody handles, or shows nothing. Most visitors to the store use Chrome, so content has to work there.
 - It can't be obfuscated, or stops working once it is, e.g. because it depends on function or class names or on its own source text.
 
-So before you submit, run your content with `desktopengine dev --web` in Chrome and watch the terminal. Requests in the browser go through a proxy that has only GET and HEAD, so a failed request there must not end in an exception: catch it and carry on, as you would offline (see [Network](./network)).
+So before you submit, run your content with `desktopengine dev --web` in Chrome and watch the terminal. Requests in the browser go through a proxy that has only GET and HEAD there, so a failed request must not end in an exception: catch it and carry on, as you would offline (see [Network](./network)). `dev --web` sends the other methods too, and says in the terminal when your content uses one.
 
 Other findings don't reject anything by themselves: they're shown to the reviewer, who decides. They include console errors, domains declared but never used, code made from strings (`eval`, `new Function`), blank screenshots, text such as passwords or payments in the screenshots, high energy use, screenshots in Chrome that look different from the app's, a much lower frame rate in the browser, and problems in WebKit.
 

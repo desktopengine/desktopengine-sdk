@@ -6,7 +6,8 @@
 // The network on the web, with the app's rules: http(s) and ws(s) need the network permission and a host in
 // network.domains (no IP addresses or local names), and only https and wss reach it, as the app's App Transport
 // Security lets content reach no other. Requests go through the host's preview proxy, which browsers need anyway
-// (CORS) and which only forwards GET and HEAD requests and WebSockets. Paths and defile:// URLs read the package's and
+// (CORS): the store's forwards GET and HEAD requests and WebSockets, dev --web's every method
+// (`proxySendsAnyMethod`). Paths and defile:// URLs read the package's and
 // the content's own files, as in the app. Images, videos and audio load remote files through the same rules.
 
 import { fileBytes, fileURL, mimeType } from './files.ts';
@@ -81,6 +82,8 @@ export function mediaURL(src: string): string | null {
   return null;
 }
 
+const methodDenial = (method: string): string => `the web preview sends only GET and HEAD requests (the app and dev --web send ${method} too)`;
+
 /** Replaces fetch, XMLHttpRequest and WebSocket in the frame's realm */
 export function installNetwork(scope: typeof globalThis): void {
   const nativeFetch = scope.fetch.bind(scope);
@@ -98,12 +101,15 @@ export function installNetwork(scope: typeof globalThis): void {
     const target = new URL(url);
     const denial = networkDenial(target);
     if (denial) throw new TypeError(`Failed to fetch ${url}: ${denial}`);
-    if (method !== 'GET' && method !== 'HEAD') {
-      throw new TypeError(`Failed to fetch ${url}: the web preview only sends GET requests, the app sends ${method} too`);
-    }
+    const reads = method === 'GET' || method === 'HEAD';
+    if (!reads && !state.launch?.proxySendsAnyMethod) throw new TypeError(`Failed to fetch ${url}: ${methodDenial(method)}`);
+    let body: BodyInit | null | undefined = reads ? undefined : init?.body ?? (request ? await request.arrayBuffer() : undefined);
+    // in one piece: browsers send a body as a stream only over HTTP/2
+    if (body instanceof ReadableStream) body = await new Response(body).blob();
     const response = await nativeFetch(proxied(target.href), {
       method,
       headers: init?.headers ?? request?.headers,
+      body,
       signal: init?.signal ?? request?.signal,
       credentials: 'omit',
       cache: init?.cache,
@@ -126,7 +132,7 @@ export function installNetwork(scope: typeof globalThis): void {
         const denial = networkDenial(new URL(href));
         const upper = method.toUpperCase();
         if (denial) this.denial = denial;
-        else if (upper !== 'GET' && upper !== 'HEAD') this.denial = `the web preview only sends GET requests, the app sends ${upper} too`;
+        else if (upper !== 'GET' && upper !== 'HEAD' && !state.launch?.proxySendsAnyMethod) this.denial = methodDenial(upper);
         target = this.denial ? 'data:,' : proxied(new URL(href).href);
       }
       super.open(method, target, async, username, password);

@@ -51,6 +51,11 @@ export interface DesktopOptions {
   frameURL?: string;
   /** The preview proxy: http(s) and ws(s) requests go to `<proxy>?url=…`. Without one, contents have no network */
   proxy?: string;
+  /**
+   * The desktop's proxy sends every method with the request's headers and body, as `dev --web`'s does. By default
+   * contents send GET and HEAD only, which is what the store's preview proxy takes; other requests fail in the frame
+   */
+  proxySendsAnyMethod?: boolean;
   appearance?: 'light' | 'dark';
   /** Frames per second at most, 0 for the display's */
   maxFramesPerSecond?: number;
@@ -729,6 +734,8 @@ export class WebDesktop {
       permissions,
       networkDomains: manifest.network?.domains ?? [],
       proxy: content.proxy,
+      // a content's own proxy is the store's kind
+      proxySendsAnyMethod: this.options.proxySendsAnyMethod === true && !content.spec.proxy,
       appearance: this.options.appearance ?? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'),
       apiVersion: API_VERSION,
       maxFramesPerSecond: this.options.maxFramesPerSecond ?? 0,

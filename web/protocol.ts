@@ -54,6 +54,8 @@ export interface LaunchMessage {
   networkDomains: string[];
   /** Where http(s) and ws(s) requests go: `<proxy>?url=<url>`; without one, the content has no network on the web */
   proxy?: string;
+  /** Whether the proxy sends every method, with the request's headers and body; otherwise only GET and HEAD go */
+  proxySendsAnyMethod?: boolean;
   appearance: 'light' | 'dark';
   apiVersion: number;
   /** At most this many frames per second (0: the display's) */

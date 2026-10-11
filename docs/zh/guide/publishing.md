@@ -71,7 +71,7 @@ desktopengine publish --submit --copyright original --notes "The first version"
 - 在 Chrome 里没有启动、抛出未捕获的异常、有没人处理的 Promise rejection，或者什么都没显示。商店的大多数访客用 Chrome，内容必须能在那里运行。
 - 代码无法混淆，或者混淆后就不能运行了，例如依赖函数名、类名或者代码自身的文本。
 
-所以提交之前，请在 Chrome 里用 `desktopengine dev --web` 运行内容，看着终端的输出。浏览器里的请求经过一个只支持 GET 和 HEAD 的代理，请求在那里失败时不能变成异常：像离线时一样捕获错误、继续运行（见[网络](./network)）。
+所以提交之前，请在 Chrome 里用 `desktopengine dev --web` 运行内容，看着终端的输出。审核时浏览器里的请求经过一个只支持 GET 和 HEAD 的代理，请求在那里失败时不能变成异常：像离线时一样捕获错误、继续运行（见[网络](./network)）。`dev --web` 也会转发别的方法，内容用到时终端会提示。
 
 其他发现本身不会导致拒绝，而是交给审核员判断，包括：控制台错误、声明了却没用到的域名、用字符串生成代码（`eval`、`new Function`）、空白的截图、截图里有密码或付款之类的文字、能耗高、Chrome 的截图和应用里的明显不同、浏览器里的帧率低得多，以及 WebKit 里的问题。
 

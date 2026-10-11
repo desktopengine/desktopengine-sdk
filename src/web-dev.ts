@@ -11,8 +11,8 @@
 //   /package         the build: manifest, index.js and the list of the other files; /files/<path> serves them
 //   /events          server-sent events: `revision` after every rebuild, so the page runs the new build
 //   /log             the page posts what the content logs, printed in the terminal
-//   /proxy?url=…     GET and HEAD requests and WebSockets to the domains of network.domains, as the store's preview
-//                    proxy does
+//   /proxy?url=…     requests and WebSockets to the domains of network.domains: every method with its headers and
+//                    body, where the store's preview proxy (and the review's) sends GET and HEAD only
 //
 // Every mini program on the store must run on the web (only a preview: the app's engine is what counts).
 
@@ -44,7 +44,7 @@ export interface WebDevServerEvents {
   built: [info: { revision: number; manifest: Manifest; warnings: string[] }];
   'build-failed': [error: Error];
   log: [entry: { kind: 'console' | 'exception' | 'host-message'; level?: string; message: string; stack?: string }];
-  proxy: [entry: { url: string; status: number | string }];
+  proxy: [entry: { url: string; status: number | string; method?: string }];
 }
 
 export interface WebDevServerOptions {
@@ -171,7 +171,7 @@ function clientFor(target: URL): typeof http | typeof https {
 }
 
 /** One request, connecting only to an address that was checked */
-function requestOnce(target: URL, method: string, accept: string, deadline: number): Promise<http.IncomingMessage> {
+function requestOnce(target: URL, method: string, headers: http.OutgoingHttpHeaders, body: Buffer | null, deadline: number): Promise<http.IncomingMessage> {
   let client: typeof http | typeof https;
   try {
     client = clientFor(target);
@@ -182,26 +182,38 @@ function requestOnce(target: URL, method: string, accept: string, deadline: numb
     const outgoing = client.request(target, {
       method,
       // the body is passed on as it comes: no compression to undo
-      headers: { Accept: accept, 'Accept-Encoding': 'identity', 'User-Agent': 'DesktopEngine-Preview/1' },
+      headers: { ...headers, 'Accept-Encoding': 'identity', 'User-Agent': 'DesktopEngine-Preview/1', ...(body ? { 'Content-Length': String(body.length) } : {}) },
       timeout: Math.max(deadline - Date.now(), 1),
       lookup: checkedLookup,
     } as https.RequestOptions, resolve);
     outgoing.on('timeout', () => outgoing.destroy(new ProxyError(504, 'the server took too long')));
     outgoing.on('error', reject);
-    outgoing.end();
+    outgoing.end(body ?? undefined);
   });
 }
 
-/** The body, up to PROXY_LIMIT bytes and the deadline: no more is read */
-function readLimited(incoming: http.IncomingMessage, deadline: number): Promise<Buffer> {
+/**
+ * A body, up to PROXY_LIMIT bytes and the deadline: no more is read. A response that's too large is cut off; the page's
+ * request (`request`) is read to its end, so that it hears the 413
+ */
+function readLimited(incoming: http.IncomingMessage, deadline: number, request = false): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let length = 0;
+    let tooLarge = false;
     const timer = setTimeout(() => incoming.destroy(new ProxyError(504, 'the server took too long')), Math.max(deadline - Date.now(), 1));
     incoming.on('data', (chunk: Buffer) => {
+      if (tooLarge) return;
       length += chunk.length;
-      if (length > PROXY_LIMIT) incoming.destroy(new ProxyError(502, 'the response is too large for the preview'));
-      else chunks.push(chunk);
+      if (length <= PROXY_LIMIT) {
+        chunks.push(chunk);
+      } else if (request) {
+        tooLarge = true;
+        clearTimeout(timer);
+        reject(new ProxyError(413, 'the request is too large for the preview'));
+      } else {
+        incoming.destroy(new ProxyError(502, 'the response is too large for the preview'));
+      }
     });
     incoming.on('end', () => {
       clearTimeout(timer);
@@ -214,52 +226,98 @@ function readLimited(incoming: http.IncomingMessage, deadline: number): Promise<
   });
 }
 
+/** Headers of the page's request that aren't the content's to pass on: the browser's own, the connection's, cookies */
+const HELD_REQUEST_HEADERS = /^(host|connection|keep-alive|proxy-.*|te|trailer|transfer-encoding|upgrade|cookie2?|origin|referer|accept-encoding|content-length|user-agent|priority|sec-.*)$/;
+/** Headers of the response that aren't passed back: the connection's, cookies, and what the proxy sets itself */
+const HELD_RESPONSE_HEADERS = /^(connection|keep-alive|proxy-.*|te|trailer|transfer-encoding|upgrade|set-cookie2?|content-length|cache-control|access-control-.*)$/;
+
+export interface PreviewProxyOptions {
+  /**
+   * Every method but CONNECT and TRACE, with the request's headers (cookies aside) and a body of at most 20 MB, and the
+   * response's headers for the content to read, as in the app: `dev --web`'s proxy, on the developer's computer.
+   * Without it, as the store's preview proxy and the review's: GET and HEAD only, with only Accept passed on
+   */
+  anyMethod?: boolean;
+}
+
 /**
- * The preview proxy of `dev --web` (and the review node's web check): `?url=` with GET or HEAD, to the domains of the
- * manifest's network.domains that don't resolve to the local network, following redirects that stay there, without
- * cookies or credentials either way, at most 20 MB. `report` hears every request's URL and status or error.
+ * The preview proxy of `dev --web` (and the review node's web check): `?url=`, to the domains of the manifest's
+ * network.domains that don't resolve to the local network, following redirects that stay there, without cookies or
+ * credentials either way, at most 20 MB. GET and HEAD only, but with `anyMethod`. `report` hears every request's URL,
+ * its status or error and its method.
  */
 export async function proxyPreviewRequest(
   manifest: Manifest | null,
   url: URL,
   request: http.IncomingMessage,
   response: http.ServerResponse,
-  report: (url: string, status: number | string) => void = () => undefined,
+  report: (url: string, status: number | string, method: string) => void = () => undefined,
+  { anyMethod = false }: PreviewProxyOptions = {},
 ): Promise<void> {
   // the sandboxed frame has an opaque origin
   const cors = { 'Access-Control-Allow-Origin': '*' };
+  let method = request.method ?? 'GET';
   const fail = (status: number, message: string, target?: string): void => {
-    if (target) report(target, message);
+    if (target) report(target, message, method);
     response.writeHead(status, { 'Content-Type': 'text/plain', ...cors }).end(message);
   };
+  // the browser asks first before other methods and headers
+  if (anyMethod && method === 'OPTIONS' && request.headers['access-control-request-method']) {
+    response.writeHead(204, {
+      ...cors,
+      'Access-Control-Allow-Methods': String(request.headers['access-control-request-method']),
+      'Access-Control-Allow-Headers': String(request.headers['access-control-request-headers'] ?? ''),
+      'Access-Control-Max-Age': '600',
+    }).end();
+    return;
+  }
   let target: URL;
   try {
     target = new URL(url.searchParams.get('url') ?? '');
   } catch {
     return fail(400, 'bad url');
   }
-  if (request.method !== 'GET' && request.method !== 'HEAD') return fail(405, 'the preview only sends GET and HEAD', target.href);
+  if (anyMethod ? /^(CONNECT|TRACE|TRACK)$/i.test(method) : method !== 'GET' && method !== 'HEAD') {
+    return fail(405, anyMethod ? `the preview doesn't send ${method}` : 'the preview only sends GET and HEAD', target.href);
+  }
   const deadline = Date.now() + PROXY_TIMEOUT;
   try {
+    let headers: http.OutgoingHttpHeaders = { Accept: String(request.headers.accept ?? '*/*') };
+    let body: Buffer | null = null;
+    if (anyMethod) {
+      headers = Object.fromEntries(Object.entries(request.headers).filter(([name, value]) => value !== undefined && !HELD_REQUEST_HEADERS.test(name)));
+      if (method !== 'GET' && method !== 'HEAD') body = await readLimited(request, deadline, true);
+    }
     for (let hop = 0; ; hop++) {
       if (!manifest || !allowedByManifest(manifest, target)) return fail(403, 'not in network.domains', target.href);
-      const upstream = await requestOnce(target, request.method, String(request.headers.accept ?? '*/*'), deadline);
+      const upstream = await requestOnce(target, method, headers, body, deadline);
       const location = upstream.headers.location;
       const status = upstream.statusCode ?? 502;
       if (status >= 300 && status < 400 && location) {
         upstream.resume();
         if (hop >= REDIRECTS) return fail(508, 'too many redirects', target.href);
-        target = new URL(location, target);
+        const next = new URL(location, target);
+        // as fetch does: credentials stay with their site, and a 303, or a 301 or 302 after a POST, goes on as a GET
+        if (next.origin !== target.origin) delete headers.authorization;
+        if ((status === 303 && method !== 'HEAD') || ((status === 301 || status === 302) && method === 'POST')) {
+          method = 'GET';
+          body = null;
+          delete headers['content-type'];
+        }
+        target = next;
         continue;
       }
       if (Number(upstream.headers['content-length']) > PROXY_LIMIT) {
         upstream.destroy();
         return fail(502, 'the response is too large for the preview', target.href);
       }
-      const body = request.method === 'HEAD' ? Buffer.alloc(0) : await readLimited(upstream, deadline);
-      report(target.href, status);
-      response.writeHead(status, { 'Content-Type': upstream.headers['content-type'] ?? 'application/octet-stream', 'Cache-Control': 'no-store', ...cors });
-      response.end(request.method === 'HEAD' ? undefined : body);
+      const content = method === 'HEAD' ? Buffer.alloc(0) : await readLimited(upstream, deadline);
+      report(target.href, status, method);
+      const passed = anyMethod
+        ? { 'content-type': 'application/octet-stream', ...Object.fromEntries(Object.entries(upstream.headers).filter(([name, value]) => value !== undefined && !HELD_RESPONSE_HEADERS.test(name))), 'access-control-expose-headers': '*' }
+        : { 'Content-Type': upstream.headers['content-type'] ?? 'application/octet-stream' };
+      response.writeHead(status, { ...passed, 'Cache-Control': 'no-store', ...cors });
+      response.end(method === 'HEAD' ? undefined : content);
       return;
     }
   } catch (error) {
@@ -541,7 +599,7 @@ export class WebDevServer extends EventEmitter<WebDevServerEvents> {
 
   private async proxy(url: URL, request: http.IncomingMessage, response: http.ServerResponse): Promise<void> {
     const manifest = this.build?.manifest;
-    await proxyPreviewRequest(manifest ?? null, url, request, response, (target, status) => this.emit('proxy', { url: target, status }));
+    await proxyPreviewRequest(manifest ?? null, url, request, response, (target, status, method) => this.emit('proxy', { url: target, status, method }), { anyMethod: true });
   }
 
   /** WebSockets: the proxy's only */
@@ -606,6 +664,8 @@ root.dataset.appearance = appearance;
 const desktop = new WebDesktop(document.getElementById('desktop'), {
   insets: { top: 24, bottom: 70 },
   proxy: location.origin + '/proxy?token=' + ${JSON.stringify(proxyToken)},
+  // this proxy sends every method, the store's GET and HEAD only
+  proxySendsAnyMethod: true,
   appearance,
   muted: true,
 });

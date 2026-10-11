@@ -389,10 +389,17 @@ async function webDev(projectDir: string, launch: LaunchRequest, port: number, s
     else if (entry.kind === 'exception') printAppMessage({ type: 'exception', message: entry.message, stack: entry.stack } as AppMessage);
     else printAppMessage({ type: 'console', level: entry.level ?? 'log', message: entry.message } as AppMessage);
   });
-  server.on('proxy', ({ url, status }) => {
-    const text = `${time()} ${color.dim(`${/^wss?:/i.test(url) ? 'WebSocket' : 'fetch'} ${url}: ${status}`)}`;
+  const otherMethods = new Set<string>();
+  server.on('proxy', ({ url, status, method = 'GET' }) => {
+    const socket = /^wss?:/i.test(url);
+    const text = `${time()} ${color.dim(`${socket ? 'WebSocket' : method === 'GET' ? 'fetch' : `fetch ${method}`} ${url}: ${status}`)}`;
     if (typeof status === 'number' && status < 400) console.log(text);
     else console.warn(color.yellow(text));
+    // this proxy sends them, the store's preview and its review don't
+    if (!socket && method !== 'GET' && method !== 'HEAD' && !otherMethods.has(method)) {
+      otherMethods.add(method);
+      console.warn(color.yellow(`${time()} ${method} requests fail in the store's preview and in review, which send GET and HEAD only: handle the failure there`));
+    }
   });
 
   try {
