@@ -1193,8 +1193,8 @@ declare namespace DesktopEngine {
   /**
    * The size of a text as fillText draws it, from the point it's drawn at (its textAlign and textBaseline). The font's
    * ascent and descent are Safari's: whole pixels, Helvetica, Times and Courier a little taller; textBaseline "top" and
-   * "hanging" are at the ascent, "bottom" and "ideographic" at the descent, as in Safari (Chrome puts them on the
-   * font's em box, a pixel or two inside)
+   * "hanging" are at the ascent, "bottom" and "ideographic" at the descent, "middle" halfway between them, as in Safari
+   * (Chrome puts them on the font's em box, a pixel or two inside)
    */
   interface TextMetrics {
     /** Text width */
