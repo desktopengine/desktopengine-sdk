@@ -34,7 +34,7 @@ Runs the project in DesktopEngine, rebuilds and reloads it when files change, an
 | Option | Description |
 | --- | --- |
 | `--size small\|medium\|large` | The widget size; the first of `widget.sizes` when it isn't one of them |
-| `--level desktop\|floating` | On the desktop, or above all windows; by default companions float above windows and the rest are on the desktop |
+| `--level desktop\|floating` | A widget on the desktop (default), or above all windows; companions always float above windows |
 | `--display <number>` | The display to run on, starting at 1; the main display by default |
 | `--span` | A wallpaper across all displays, when `manifest.json` declares [`wallpaper.span`](/guide/wallpaper#spanning-displays) |
 | `--param <key=value>` | The value of an option, can be repeated; the others take the manifest's `default` |

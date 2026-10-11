@@ -7,12 +7,10 @@
 | `desktop` | 壁纸：桌面层，在桌面图标之下，所有空间可见，也能收到鼠标移动 |
 | `widget` | 贴在桌面上的小组件：桌面图标之上，无边框、背景透明，可拖动 |
 | `overlay` | 浮于所有窗口之上：无边框、背景透明，所有空间和全屏应用上都可见，用于浮动小组件和桌面伙伴 |
-| `panel` | 带标题栏的浮动面板 |
-| `normal` | 普通窗口 |
 
-`desktop`、`widget`、`overlay` 显示时不会激活 DesktopEngine，不会抢走用户当前应用的焦点。
+窗口显示时不会激活 DesktopEngine，不会抢走用户当前应用的焦点。用户不能调整窗口大小：小组件的大小就是为它选的尺寸。
 
-内容能创建哪些窗口由它的类型决定，运行时强制执行：壁纸只能用 `desktop`；小组件和桌面伙伴只能用 `widget` 和 `overlay`（按用户选的位置，传入 `launchOptions.windowType` 即可）。其他类型，包括不写 `type` 的普通窗口，`new DesktopEngine.Window()` 会抛出错误。`desktopengine dev` 和「开发」菜单载入的内容也一样，发布前就能发现；没有清单的小程序不受限制。
+内容只能创建一种窗口，由它的类型和用户放的位置决定，运行时强制执行：壁纸用 `desktop`，桌面伙伴用 `overlay`，小组件贴在桌面上时用 `widget`、浮于所有窗口之上时用 `overlay`。传入 `launchOptions.windowType` 即可；其他类型或不写 `type`，`new DesktopEngine.Window()` 会抛出错误。`desktopengine dev` 和「开发」菜单载入的内容也一样，发布前就能发现；没有启动参数时（「开发」菜单）小组件用 `widget`，伙伴用 `overlay`。
 
 窗口本身是透明的，样式不支持圆角：需要圆角时，在 Canvas 上画圆角矩形（见小组件模板）。窗口创建后会一直存在，直到调用 `destroy()`。
 
@@ -22,7 +20,7 @@
 
 - `widget` 和 `overlay` 窗口按住任意位置就能拖动（系统原生拖动）：拖动时依次收到 `mousedown`、窗口的 `move` 和松手时的 `mouseup`，拖动过程中没有 `mousemove`；单击只收到 `click`，没有 `mousedown` / `mouseup`。
 - 窗口的 `dragRegion` 限定按住哪些地方会拖动窗口，其余地方的按下和拖动交给组件（`mousedown`、按住时的 `mousemove`、`mouseup`），适合表盘、滑块这类控件；`null`（默认）是整个窗口，`[]` 是哪里都不拖动。
-- 窗口拖到屏幕边缘松手后，大小不变，停在松手的位置，不过 macOS 仍会显示平铺的预览。把窗口的 `allowsTiling` 设为 `true`，macOS 就会把它平铺（例如占半屏），这时需要处理 `resize`。
+- 窗口拖到屏幕边缘松手后，大小不变，停在松手的位置，不过 macOS 仍会显示平铺的预览。
 - 窗口的 `hitRegion`（以窗口左上角为原点的矩形数组，单位点）限定只有这些地方响应鼠标，其余地方的点击、拖动和悬停都会穿透到下面的窗口；`null`（默认）是整个窗口。窗口透明的地方默认仍然会接住鼠标，不规则形状的桌面伙伴应随画面更新它（见 companion 模板）。
 - `mouseenter`、`mousemove`、`mouseleave` 在窗口不是当前窗口时也会触发。
 - 事件回调的参数是普通对象，`this` 是触发事件的对象；双击事件名是 `dbclick`。

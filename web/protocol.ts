@@ -44,8 +44,10 @@ export interface LaunchMessage {
   /** DesktopEngine.launchOptions, as the app makes them */
   options: Record<string, unknown>;
   screens: WebScreen[];
-  /** The content type limits the window types it may make; undefined: any (no manifest) */
+  /** The content type, for messages; undefined: no manifest */
   contentType?: 'wallpaper' | 'widget' | 'companion';
+  /** The only window type it may make where it's placed (`options.windowType`); undefined: any (no manifest) */
+  allowedWindowType?: string;
   /** What it was granted: network, audio, system-info… */
   permissions: string[];
   /** network.domains */

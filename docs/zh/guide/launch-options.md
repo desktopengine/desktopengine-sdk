@@ -4,7 +4,7 @@
 
 ```js
 const options = DesktopEngine.launchOptions || {};
-options.windowType;   // 'widget'（贴在桌面上）或 'overlay'（浮于窗口之上），传给 new DesktopEngine.Window({ type })
+options.windowType;   // 唯一能创建的窗口类型，传给 new DesktopEngine.Window({ type })：'widget'（贴在桌面上）或 'overlay'（浮于窗口之上）；壁纸是 'desktop'
 options.width;        // 小组件宽度（点），与所选尺寸对应
 options.height;
 options.position;     // { x, y }：用户上次拖到的位置；没有时小组件由应用算好默认位置，伙伴自己决定

@@ -7,12 +7,10 @@ Content draws in native windows made with `new DesktopEngine.Window({ type })`.
 | `desktop` | Wallpapers: the desktop level, below the desktop icons, on all Spaces, and it gets mouse moves |
 | `widget` | Widgets on the desktop: above the desktop icons, borderless with a clear background, can be dragged |
 | `overlay` | Above all windows: borderless with a clear background, on all Spaces and over full screen apps; for floating widgets and desktop companions |
-| `panel` | A floating panel with a title bar |
-| `normal` | A standard window |
 
-Showing a `desktop`, `widget` or `overlay` window doesn't activate DesktopEngine, so it doesn't take the focus from the user's current app.
+Showing a window doesn't activate DesktopEngine, so it doesn't take the focus from the user's current app. The user can't resize windows: a widget has the size picked for it.
 
-The content's type decides which windows it can create, and the runtime enforces it: wallpapers only `desktop`; widgets and desktop companions only `widget` and `overlay` (where the user put it: pass `launchOptions.windowType`). Any other type, including a standard window without `type`, makes `new DesktopEngine.Window()` throw. Content from `desktopengine dev` and the Develop menu is held to the same rules, so you find out before you ship; mini programs without a manifest aren't.
+Content makes one type of window, decided by its type and where the user put it, and the runtime enforces it: `desktop` for wallpapers, `overlay` for desktop companions, and for widgets `widget` on the desktop or `overlay` above all windows. Pass `launchOptions.windowType`; any other type, or none, makes `new DesktopEngine.Window()` throw. Content from `desktopengine dev` and the Develop menu is held to the same rules, so you find out before you ship; without launch options (the Develop menu) a widget makes `widget` windows and a companion `overlay` ones.
 
 Windows are transparent and their styles have no corner radius: to round the corners, draw a rounded rectangle on a canvas (see the widget template). A window stays until you call `destroy()`.
 
@@ -22,7 +20,7 @@ Content can have at most 16 windows at once; after that `new DesktopEngine.Windo
 
 - Pressing anywhere in a `widget` or `overlay` window drags it (the system's own window dragging): a drag gets `mousedown`, the window's `move`, and `mouseup` on release, with no `mousemove` during the drag; a click only gets `click`, no `mousedown` / `mouseup`.
 - The window's `dragRegion` limits where a press drags the window; elsewhere presses and drags go to the components (`mousedown`, `mousemove` while the button is down, `mouseup`), for controls such as dials and sliders. `null` (the default) is the whole window, `[]` nowhere.
-- A window dropped on a screen edge keeps its size and stays where it was dropped, though macOS still shows where it would tile it. Set the window's `allowsTiling` to `true` to let macOS tile it, e.g. to half the screen, and handle `resize`.
+- A window dropped on a screen edge keeps its size and stays where it was dropped, though macOS still shows where it would tile it.
 - The window's `hitRegion` (an array of rectangles in points from the window's top left corner) limits the mouse to those parts: clicks, drags and hovers elsewhere pass through to the windows below. `null` (the default) is the whole window. Transparent parts of a window still catch the mouse by default, so an irregularly shaped companion should update it as it draws (see the companion template).
 - `mouseenter`, `mousemove` and `mouseleave` fire even when the window isn't the key window.
 - Event callbacks get plain objects, and `this` is the object that fired the event; the double click event is named `dbclick`.

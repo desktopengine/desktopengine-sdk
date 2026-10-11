@@ -169,15 +169,8 @@ const windows = new Set<WindowImpl>();
 let windowOrder = 0;
 
 function allowedTypes(): string[] | null {
-  switch (state.launch?.contentType) {
-    case 'wallpaper':
-      return ['desktop'];
-    case 'widget':
-    case 'companion':
-      return ['widget', 'overlay'];
-    default:
-      return null;
-  }
+  const type = state.launch?.allowedWindowType;
+  return type ? [type] : null;
 }
 
 function positiveRects(value: unknown): Rect[] | null {
@@ -215,7 +208,7 @@ export class WindowImpl extends ComponentImpl {
     const type = typeof options?.type === 'string' ? options.type : 'normal';
     const allowed = allowedTypes();
     if (allowed && !allowed.includes(type)) {
-      throw new TypeError(`a ${state.launch?.contentType} can't make "${type}" windows, only ${allowed.map((name) => `"${name}"`).join(' or ')}`);
+      throw new TypeError(`a ${state.launch?.contentType} placed here can't make "${type}" windows, only ${allowed.map((name) => `"${name}"`).join(' or ')} (launchOptions.windowType)`);
     }
     if (allowed && windows.size >= MAX_WINDOWS) {
       throw new Error(`content can have at most ${MAX_WINDOWS} windows: destroy() the ones it no longer needs`);

@@ -60,10 +60,10 @@ declare namespace DesktopEngine {
     instanceId?: string;
     /** Content type */
     type?: ContentType;
-    /** The level the user chose: pinned to the desktop, or floating above windows */
+    /** The level the user chose: pinned to the desktop, or floating above windows (always floating for a companion) */
     level?: 'desktop' | 'floating';
-    /** The window type to pass to `new DesktopEngine.Window({ type })` */
-    windowType?: 'widget' | 'overlay';
+    /** The window type to pass to `new DesktopEngine.Window({ type })`, the only one the content can make where it is */
+    windowType?: WindowType;
     /** Widget size (widgets only) */
     size?: WidgetSize;
     /** Widget window width (points) */
@@ -710,19 +710,18 @@ declare namespace DesktopEngine {
    * - desktop: desktop level (wallpapers), below the desktop icons, visible in all Spaces
    * - widget: a widget pinned to the desktop, above the desktop icons, borderless with a transparent background, draggable
    * - overlay: floats above all windows, borderless with a transparent background, visible in all Spaces (floating widgets, desktop companions)
-   * - panel: a floating panel (with a title bar)
-   * - normal: a regular window (default)
-   * desktop, widget and overlay windows don't activate the app when shown, so they don't take focus from the current app.
+   * None of them can be resized by the user, and showing one doesn't activate the app, so it doesn't take focus from the current app.
    */
-  type WindowType = 'desktop' | 'widget' | 'overlay' | 'panel' | 'normal';
+  type WindowType = 'desktop' | 'widget' | 'overlay';
 
   /** Window constructor options */
   interface WindowOptions extends ComponentOptions {
     /**
-     * Window type; defaults to a regular window. The content's type limits it and `new` throws for the others:
-     * a wallpaper makes desktop windows, widgets and companions widget and overlay windows (`launchOptions.windowType`)
+     * Window type: `launchOptions.windowType`. Where the content is placed decides it and `new` throws for the others:
+     * a wallpaper makes desktop windows, a widget widget windows on the desktop and overlay windows above all windows,
+     * a companion overlay windows
      */
-    type?: WindowType;
+    type: WindowType;
     /** Parent window; the new window is shown above it as a child window */
     parent?: Window;
   }
@@ -749,9 +748,9 @@ declare namespace DesktopEngine {
      */
     dragRegion: Rect[] | null;
     /**
-     * Whether macOS may tile the window, e.g. to half the screen when it's dropped on a screen edge. false (default): it
-     * keeps its size and where it was dropped. Tiling from the Window menu, a keyboard shortcut or a title bar double
-     * click set to fill is undone too; resizing by the edges, zooming and full screen aren't affected.
+     * Whether macOS may tile the window, e.g. to half the screen when it's dropped on a screen edge. macOS only tiles
+     * windows the user can resize, which the window types content makes aren't, so it has no effect: a window dropped on
+     * a screen edge keeps its size.
      */
     allowsTiling: boolean;
     /** Shows the window and activates the app */
@@ -818,7 +817,7 @@ declare namespace DesktopEngine {
      * content already has 16 windows (destroy() the ones it no longer needs). Widget and overlay windows stay below the
      * menu bar and cover at most half of a display.
      */
-    new (options?: WindowOptions): Window;
+    new (options: WindowOptions): Window;
   }
 
   // ---------------------------------------------------------------------------

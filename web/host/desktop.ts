@@ -95,7 +95,7 @@ export interface ContentSpec {
   parameters?: Record<string, ParameterValue>;
   /** small, medium or large, for a widget */
   size?: 'small' | 'medium' | 'large';
-  /** On the desktop, or above everything; companions float, the rest stay on the desktop, by default */
+  /** For a widget: on the desktop (default), or above everything; a companion always floats above everything */
   level?: 'desktop' | 'floating';
   /** Where its window starts, global points */
   position?: { x: number; y: number };
@@ -189,6 +189,17 @@ export class WebContent {
     return contentKind(this.spec.manifest?.type);
   }
 
+  /** Where the user put it: a companion always floats above windows, a wallpaper is on the desktop, a widget on the desktop unless told */
+  get level(): 'desktop' | 'floating' {
+    if (this.type === 'companion') return 'floating';
+    return this.type === 'wallpaper' ? 'desktop' : (this.spec.level ?? 'desktop');
+  }
+
+  /** The only window type it may make (launchOptions.windowType); undefined: any (no manifest) */
+  get allowedWindowType(): string | undefined {
+    return this.type && windowType(this.type, this.level);
+  }
+
   /** It may play sound: its frame takes the pointer over its windows while the desktop's sound is on */
   get mayPlaySound(): boolean {
     return (this.spec.permissions ?? this.spec.manifest?.permissions ?? []).includes('audio');
@@ -246,7 +257,7 @@ export class WebContent {
         this.emit('launched', undefined);
         break;
       case 'windows':
-        this.windows = sanitizeWindows(message.windows, this.type);
+        this.windows = sanitizeWindows(message.windows, this.allowedWindowType);
         this.emit('windows', this.windows);
         break;
       case 'console':
@@ -358,18 +369,22 @@ export function contentKind(type: unknown): ContentKind | undefined {
   return type === 'wallpaper' || type === 'widget' || type === 'companion' ? type : undefined;
 }
 
+/** The window type of a content's windows where it's placed, as the app gives it */
+export function windowType(kind: ContentKind, level: 'desktop' | 'floating'): string {
+  if (kind === 'wallpaper') return 'desktop';
+  return kind === 'companion' || level === 'floating' ? 'overlay' : 'widget';
+}
+
 /** A window's stacking within its content: a content can't rank its windows above another content's */
 const MAX_Z = 10_000;
 
 /**
- * The windows a frame says it has, as the host can trust them: the types its kind of content may make (a wallpaper only
- * desktop windows), finite frames, stacking within bounds, and regions that are lists of rectangles. Anything else is
+ * The windows a frame says it has, as the host can trust them: the one type the content may make where it's placed (a
+ * wallpaper only desktop windows), finite frames, stacking within bounds, and regions that are lists of rectangles. Anything else is
  * dropped rather than allowed to break hit testing for every content.
  */
-export function sanitizeWindows(value: unknown, contentType: string | undefined): WindowState[] {
+export function sanitizeWindows(value: unknown, allowedType: string | undefined): WindowState[] {
   if (!Array.isArray(value)) return [];
-  const kind = contentKind(contentType);
-  const allowed = kind === 'wallpaper' ? ['desktop'] : kind === 'widget' || kind === 'companion' ? ['widget', 'overlay'] : null;
   const finite = (number: unknown): number | null => (typeof number === 'number' && Number.isFinite(number) ? number : null);
   const rect = (raw: unknown): Rect | null => {
     const r = raw as Partial<Rect> | null;
@@ -385,7 +400,7 @@ export function sanitizeWindows(value: unknown, contentType: string | undefined)
     const win = raw as Partial<WindowState> | null;
     const frame = rect(win?.frame);
     const type = typeof win?.type === 'string' ? win.type : '';
-    if (!frame || (allowed && !allowed.includes(type))) continue;
+    if (!frame || (allowedType && type !== allowedType)) continue;
     windows.push({
       id: String(win?.id ?? ''),
       type,
@@ -681,6 +696,7 @@ export class WebDesktop {
       options: this.launchOptions(content, permissions),
       screens: this.screens,
       contentType: contentKind(manifest.type),
+      allowedWindowType: content.allowedWindowType,
       permissions,
       networkDomains: manifest.network?.domains ?? [],
       proxy: content.proxy,
@@ -696,13 +712,13 @@ export class WebDesktop {
   private launchOptions(content: WebContent, permissions: string[]): Record<string, unknown> {
     const spec = content.spec;
     const type = spec.manifest?.type;
-    const level = spec.level ?? (contentKind(type) === 'companion' ? 'floating' : 'desktop');
+    const level = content.level;
     const display = (screen: WebScreen) => ({ id: screen.id, name: screen.name, frame: { ...screen.bounds }, visibleFrame: { ...screen.visibleFrame }, scale: screen.scale });
     const options: Record<string, unknown> = {
       instanceId: spec.instanceId ?? `web-${instances}`,
       type,
       level,
-      windowType: level === 'floating' ? 'overlay' : 'widget',
+      windowType: content.allowedWindowType ?? (level === 'floating' ? 'overlay' : 'widget'),
       parameters: content.parameters,
       locale: this.options.locale ?? navigator.language,
       permissions: [...permissions].sort(),
