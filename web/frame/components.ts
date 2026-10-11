@@ -4,11 +4,14 @@
 // This source code is licensed under the Apache Licence 2.0.
 
 // The engine's components on the web: Component (a flex container), Window (a positioned box on the desktop), Canvas
-// (a real <canvas>, so 2D and WebGL are the browser's), CanvasImage, Image and Video. The rules of the engine hold:
-// the content's type limits the window types, at most 16 windows, widget and overlay windows below the menu bar and
-// at most half a display, drawImage and texImage2D take the engine's Canvas and CanvasImage.
+// (a real <canvas>: 2D and WebGL draw with the browser's contexts, which offer what the engine's have, see
+// context2d.ts and webgl.ts), CanvasImage, Image and Video. The rules of the engine hold: the content's type limits
+// the window types, at most 16 windows, widget and overlay windows below the menu bar and at most half a display,
+// drawImage and texImage2D take the engine's Canvas and CanvasImage.
 
+import { createContext2D } from './context2d.ts';
 import { defineEvents, Evented } from './events.ts';
+import { adaptWebGL } from './webgl.ts';
 import { applyStyle, BASE_CSS, createStyle, type StyleValue } from './style.ts';
 import { mediaURL } from './network.ts';
 import { hasPermission, nextIdentifier, send, state } from './state.ts';
@@ -383,17 +386,38 @@ export function allWindows(): WindowImpl[] {
 
 // MARK: Canvas
 
-/** The browser's object for an engine object passed to drawImage, createPattern or texImage2D */
+/** The browser's object for an engine object passed to texImage2D and its kin */
 function unwrap(value: unknown): unknown {
   if (value instanceof CanvasImpl) return value.canvas;
   if (value instanceof CanvasImageImpl) return value.image;
   return value;
 }
 
+let imageDataCanvas: HTMLCanvasElement | null = null;
+
+/**
+ * What the 2D context's drawImage and createPattern draw for an engine drawable: a Canvas, a CanvasImage once it
+ * loaded (null before), or ImageData, which the engine draws too and a browser doesn't
+ */
+function drawableSource(value: unknown): CanvasImageSource | null | undefined {
+  if (value instanceof CanvasImpl) return value.canvas;
+  if (value instanceof CanvasImageImpl) return value.complete ? value.image : null;
+  if (value instanceof ImageData) {
+    imageDataCanvas ??= document.createElement('canvas');
+    imageDataCanvas.width = value.width;
+    imageDataCanvas.height = value.height;
+    imageDataCanvas.getContext('2d')!.putImageData(value, 0, 0);
+    return imageDataCanvas;
+  }
+  return undefined;
+}
+
 export class CanvasImpl extends ComponentImpl {
   readonly canvas: HTMLCanvasElement;
   private explicitSize = { width: false, height: false };
-  private context: RenderingContext | null = null;
+  private context: object | null = null;
+  /** A 2D context's: it keeps its state when the canvas is resized */
+  private keepingState: ((resize: () => void) => void) | null = null;
   private contextType: string | null = null;
   private sizeObserver: ResizeObserver;
 
@@ -407,8 +431,10 @@ export class CanvasImpl extends ComponentImpl {
     // a drawing buffer that wasn't sized follows the layout
     this.sizeObserver = new ResizeObserver(() => {
       const rect = canvas.getBoundingClientRect();
-      if (!this.explicitSize.width && rect.width >= 2) canvas.width = Math.min(Math.round(rect.width), 16383);
-      if (!this.explicitSize.height && rect.height >= 2) canvas.height = Math.min(Math.round(rect.height), 16383);
+      this.resizeBuffer(
+        !this.explicitSize.width && rect.width >= 2 ? Math.min(Math.round(rect.width), 16383) : canvas.width,
+        !this.explicitSize.height && rect.height >= 2 ? Math.min(Math.round(rect.height), 16383) : canvas.height,
+      );
     });
     this.sizeObserver.observe(canvas);
     canvas.addEventListener('webglcontextlost', (event) => {
@@ -432,7 +458,7 @@ export class CanvasImpl extends ComponentImpl {
     const number = Math.round(Number(value));
     if (!Number.isFinite(number)) return;
     this.explicitSize.width = true;
-    this.canvas.width = Math.min(Math.max(number, 2), 16383);
+    this.resizeBuffer(Math.min(Math.max(number, 2), 16383), this.canvas.height);
   }
 
   override get height(): number {
@@ -443,10 +469,24 @@ export class CanvasImpl extends ComponentImpl {
     const number = Math.round(Number(value));
     if (!Number.isFinite(number)) return;
     this.explicitSize.height = true;
-    this.canvas.height = Math.min(Math.max(number, 2), 16383);
+    this.resizeBuffer(this.canvas.width, Math.min(Math.max(number, 2), 16383));
   }
 
-  getContext(type: unknown, options?: Record<string, unknown>): RenderingContext | null {
+  /**
+   * As the engine resizes the drawing buffer: the size it has already changes nothing (a browser clears the canvas and
+   * resets a 2D context's state then), a new one clears it and keeps the state
+   */
+  private resizeBuffer(width: number, height: number): void {
+    if (width === this.canvas.width && height === this.canvas.height) return;
+    const resize = () => {
+      if (width !== this.canvas.width) this.canvas.width = width;
+      if (height !== this.canvas.height) this.canvas.height = height;
+    };
+    if (this.keepingState) this.keepingState(resize);
+    else resize();
+  }
+
+  getContext(type: unknown, options?: Record<string, unknown>): object | null {
     const name = String(type);
     const kind = name === '2d' ? '2d' : name === 'webgl2' ? 'webgl2' : /webgl/.test(name) && !/webgl2/.test(name) ? 'webgl' : null;
     if (!kind) return null;
@@ -457,51 +497,18 @@ export class CanvasImpl extends ComponentImpl {
       premultipliedAlpha: true,
       preserveDrawingBuffer: false,
     };
-    const context = this.canvas.getContext(kind, attributes) as RenderingContext | null;
+    const context = this.canvas.getContext(kind, attributes);
     if (!context) return null;
-    this.context = context;
     this.contextType = kind;
-    if (kind === '2d') this.adapt2D(context as CanvasRenderingContext2D);
-    else this.adaptWebGL(context as WebGLRenderingContext);
-    return context;
-  }
-
-  private adapt2D(context: CanvasRenderingContext2D): void {
-    const canvas = this;
-    Object.defineProperty(context, 'canvas', { get: () => canvas });
-    const drawImage = context.drawImage.bind(context) as (...args: unknown[]) => void;
-    const createPattern = context.createPattern.bind(context);
-    const createImageData = context.createImageData.bind(context) as (...args: unknown[]) => ImageData;
-    const setLineDash = context.setLineDash.bind(context);
-    Object.assign(context, {
-      drawImage: (...args: unknown[]) => drawImage(unwrap(args[0]), ...args.slice(1)),
-      createPattern: (image: unknown, repetition?: string | null) => createPattern(unwrap(image) as CanvasImageSource, repetition ?? 'repeat') ?? undefined,
-      // the engine's third argument fills it
-      createImageData: (...args: unknown[]) => {
-        if (args[0] instanceof ImageData) return createImageData(args[0]);
-        const data = createImageData(Number(args[0]), Number(args[1]));
-        if (args[2] instanceof Uint8ClampedArray) data.data.set(args[2].subarray(0, data.data.length));
-        return data;
-      },
-      setLineDash: (segments: unknown[]) => setLineDash(Array.from(segments ?? [], (value) => Number(value))),
-      resetCurrentState: () => {
-        context.reset?.();
-      },
-      isPointInPath: () => {
-        console.warn('isPointInPath isn\'t implemented in DesktopEngine');
-        return undefined;
-      },
-    });
-  }
-
-  private adaptWebGL(context: WebGLRenderingContext): void {
-    const canvas = this;
-    Object.defineProperty(context, 'canvas', { get: () => canvas });
-    for (const name of ['texImage2D', 'texSubImage2D', 'texImage3D', 'texSubImage3D']) {
-      const original = (context as unknown as Record<string, ((...args: unknown[]) => void) | undefined>)[name];
-      if (!original) continue;
-      (context as unknown as Record<string, unknown>)[name] = (...args: unknown[]) => original.apply(context, args.map(unwrap));
+    if (kind === '2d') {
+      const context2D = createContext2D(context as CanvasRenderingContext2D, this, drawableSource);
+      this.context = context2D.context;
+      this.keepingState = context2D.keepingState;
+    } else {
+      adaptWebGL(context as WebGLRenderingContext, kind === 'webgl2' ? 2 : 1, this, unwrap);
+      this.context = context;
     }
+    return this.context;
   }
 }
 defineEvents(CanvasImpl.prototype, ['webglcontextlost', 'contextlost']);
