@@ -2,6 +2,12 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 3.0.1 (2026-10-11)
+
+### Bug Fixes
+
+- When the web runtime's page is resized, a widget or companion keeps its place in the free area, so one at the right edge or above the Dock stays there
+
 ## 3.0.0 (2026-10-11)
 
 ### Breaking Changes
