@@ -1254,7 +1254,10 @@ declare namespace DesktopEngine {
     quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void;
     /** Arc tangent to two lines */
     arcTo(x1: number, y1: number, x2: number, y2: number, radius: number): void;
-    /** Arc */
+    /**
+     * Arc, clockwise unless `counterclockwise`; angles 2π or more apart draw the whole circle, equal angles nothing.
+     * Throws an IndexSizeError for a negative radius
+     */
     arc(x: number, y: number, radius: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void;
     /** Measures text */
     measureText(text: string): TextMetrics;

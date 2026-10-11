@@ -323,12 +323,10 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
       if (arguments.length >= 4) native.quadraticCurveTo(num(cpx), num(cpy), num(x), num(y));
     },
     arcTo(x1, y1, x2, y2, radius) {
-      // a negative radius throws in a browser, not in the engine
-      if (arguments.length >= 5 && !(num(radius) < 0)) native.arcTo(num(x1), num(y1), num(x2), num(y2), num(radius));
+      if (arguments.length >= 5) native.arcTo(num(x1), num(y1), num(x2), num(y2), num(radius));
     },
     arc(x, y, radius, startAngle, endAngle, counterclockwise) {
-      if (arguments.length < 5 || num(radius) < 0) return;
-      native.arc(num(x), num(y), num(radius), num(startAngle), num(endAngle), arguments.length > 5 && num(counterclockwise) !== 0);
+      if (arguments.length >= 5) native.arc(num(x), num(y), num(radius), num(startAngle), num(endAngle), Boolean(counterclockwise));
     },
     measureText(text) {
       if (arguments.length < 1) return undefined;
