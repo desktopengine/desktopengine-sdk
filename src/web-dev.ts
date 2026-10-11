@@ -91,30 +91,27 @@ export function allowedByManifest(manifest: Manifest, url: URL): boolean {
  * every domain there.
  */
 export function isLocalAddress(address: string): boolean {
-  if (net.isIPv6(address)) {
-    // IPv6 addresses that carry an IPv4 one: mapped, compatible, NAT64 (64:ff9b::/96) and 6to4 (2002::/16)
-    const words = ipv6Words(address);
-    const embedded = (high: number, low: number) => `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
-    const zeros = (count: number) => words.slice(0, count).every((word) => word === 0);
-    if (zeros(5) && words[5] === 0xffff) return isLocalAddress(embedded(words[6], words[7]));
-    if (zeros(6) && (words[6] || words[7] > 1)) return isLocalAddress(embedded(words[6], words[7]));
-    if (words[0] === 0x64 && words[1] === 0xff9b && words.slice(2, 6).every((word) => word === 0)) return isLocalAddress(embedded(words[6], words[7]));
-    if (words[0] === 0x2002) return isLocalAddress(embedded(words[1], words[2]));
-  }
   if (net.isIPv4(address)) {
     const [a, b] = address.split('.').map(Number);
     return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b < 32)
       || (a === 192 && b === 168) || (a === 100 && b >= 64 && b < 128) || (a === 192 && b === 0);
   }
-  const value = address.toLowerCase();
-  if (value === '::' || value === '::1') return true;
-  const first = parseInt(value.split(':')[0] || '0', 16);
+  if (!net.isIPv6(address)) return false;
+  // however it's written (0:0:0:0:0:0:0:1 is ::1)
+  const words = ipv6Words(address);
+  // IPv6 addresses that carry an IPv4 one: mapped, compatible, NAT64 (64:ff9b::/96) and 6to4 (2002::/16)
+  const embedded = (high: number, low: number) => `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
+  const zeros = (count: number) => words.slice(0, count).every((word) => word === 0);
+  if (zeros(5) && words[5] === 0xffff) return isLocalAddress(embedded(words[6], words[7]));
+  if (zeros(6) && (words[6] || words[7] > 1)) return isLocalAddress(embedded(words[6], words[7]));
+  if (words[0] === 0x64 && words[1] === 0xff9b && words.slice(2, 6).every((word) => word === 0)) return isLocalAddress(embedded(words[6], words[7]));
+  if (words[0] === 0x2002) return isLocalAddress(embedded(words[1], words[2]));
+  // :: and ::1
+  if (zeros(7) && words[7] <= 1) return true;
+  const [first, second] = words;
   // fe80::/10 link-local, ff00::/8 multicast, fc00::/7 unique local except the fake-IP range fc00::/18
   if ((first & 0xffc0) === 0xfe80 || (first & 0xff00) === 0xff00) return true;
-  if ((first & 0xfe00) === 0xfc00) {
-    const second = parseInt(value.split(':')[1] || '0', 16);
-    return !(first === 0xfc00 && second < 0x4000);
-  }
+  if ((first & 0xfe00) === 0xfc00) return !(first === 0xfc00 && second < 0x4000);
   return false;
 }
 

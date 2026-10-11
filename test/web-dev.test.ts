@@ -46,7 +46,7 @@ test('the web proxy reaches the domains of network.domains, as the engine does',
 });
 
 test('the proxy refuses domains that resolve to the local network', () => {
-  for (const address of ['127.0.0.1', '10.1.2.3', '172.20.0.1', '192.168.1.1', '169.254.1.1', '100.64.0.1', '0.0.0.0', '224.0.0.1', '::1', '::', 'fe80::1', 'fd12::1', '::ffff:192.168.0.1', '::ffff:7f00:1', '::127.0.0.1', '64:ff9b::a9fe:a9fe', '64:ff9b::192.168.1.1', '2002:c0a8:101::1']) {
+  for (const address of ['127.0.0.1', '0:0:0:0:0:0:0:1', '0::1', '0:0::', 'FE80::1', '10.1.2.3', '172.20.0.1', '192.168.1.1', '169.254.1.1', '100.64.0.1', '0.0.0.0', '224.0.0.1', '::1', '::', 'fe80::1', 'fd12::1', '::ffff:192.168.0.1', '::ffff:7f00:1', '::127.0.0.1', '64:ff9b::a9fe:a9fe', '64:ff9b::192.168.1.1', '2002:c0a8:101::1']) {
     assert.equal(isLocalAddress(address), true, address);
   }
   // fake-IP ranges of proxy software aren't
