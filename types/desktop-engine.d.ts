@@ -382,17 +382,11 @@ declare namespace DesktopEngine {
     height: number;
   }
 
-  /** click / dbclick payload */
-  interface ClickPayload {
-    /** Click position (in the component's coordinate system, origin at the top-left) */
-    position: { x: number; y: number };
-  }
-
-  /** Mouse event payload */
+  /** Mouse event payload, also of click and dblclick: the fields of the DOM's MouseEvent of the same name */
   interface MousePayload {
-    /** x in the component's coordinate system */
+    /** x in the component's coordinate system (points, origin at the top-left) */
     x: number;
-    /** y in the component's coordinate system */
+    /** y in the component's coordinate system (points, origin at the top-left) */
     y: number;
     /** Whether Control is pressed */
     ctrlKey: boolean;
@@ -402,6 +396,13 @@ declare namespace DesktopEngine {
     metaKey: boolean;
     /** Whether Shift is pressed */
     shiftKey: boolean;
+    /**
+     * The button that went down or up (mousedown, mouseup; 0 for the other events): 0 the primary button, 1 the middle
+     * one, 2 the secondary one, 3 and 4 back and forward, as in the DOM
+     */
+    button: number;
+    /** The buttons held down after the event, added up: 1 the primary button, 2 the secondary one, 4 the middle one, 8 back, 16 forward, as in the DOM */
+    buttons: number;
   }
 
   /** wheel payload (fired only while the window is the key window) */
@@ -450,13 +451,13 @@ declare namespace DesktopEngine {
   interface ComponentEventMap {
     /** Layout frame changed */
     framechange: FrameChangePayload;
-    /** Single click */
-    click: ClickPayload;
-    /** Double click (the event name is dbclick, not dblclick) */
-    dbclick: ClickPayload;
-    /** Mouse button pressed */
+    /** A click of the primary button */
+    click: MousePayload;
+    /** A double click of the primary button */
+    dblclick: MousePayload;
+    /** A mouse button pressed: any button, see `button` */
     mousedown: MousePayload;
-    /** Mouse button released */
+    /** A mouse button released: any button, see `button` */
     mouseup: MousePayload;
     /** Mouse entered */
     mouseenter: MousePayload;
@@ -573,7 +574,7 @@ declare namespace DesktopEngine {
 
   /** mousedown / mouseup of `DesktopEngine.input` */
   interface GlobalMouseButtonPayload extends GlobalPoint {
-    /** 0 the primary button, 1 the middle one (and any other), 2 the secondary one, as in the DOM */
+    /** 0 the primary button, 1 the middle one, 2 the secondary one, 3 and 4 back and forward, as in the DOM */
     button: number;
   }
 
@@ -654,9 +655,9 @@ declare namespace DesktopEngine {
     /** framechange callback */
     onframechange: EventHandler<this, FrameChangePayload> | null | undefined;
     /** click callback */
-    onclick: EventHandler<this, ClickPayload> | null | undefined;
-    /** dbclick (double-click) callback */
-    ondbclick: EventHandler<this, ClickPayload> | null | undefined;
+    onclick: EventHandler<this, MousePayload> | null | undefined;
+    /** dblclick (double-click) callback */
+    ondblclick: EventHandler<this, MousePayload> | null | undefined;
     /** mousedown callback */
     onmousedown: EventHandler<this, MousePayload> | null | undefined;
     /** mouseup callback */
@@ -673,8 +674,8 @@ declare namespace DesktopEngine {
     offframechange(): void;
     /** Removes the onclick callback */
     offclick(): void;
-    /** Removes the ondbclick callback */
-    offdbclick(): void;
+    /** Removes the ondblclick callback */
+    offdblclick(): void;
     /** Removes the onmousedown callback */
     offmousedown(): void;
     /** Removes the onmouseup callback */
@@ -1505,10 +1506,6 @@ declare namespace DesktopEngine {
     bindRenderbuffer(target: GLenum, renderbuffer: WebGLRenderbuffer | null): void;
     /** Binds a framebuffer */
     bindFramebuffer(target: GLenum, framebuffer: WebGLFramebuffer | null): void;
-    /** Binds canvas/image contents as a texture (non-standard) */
-    wxBindCanvasTexture(target: GLenum, drawable: CanvasDrawable): void;
-    /** Same as wxBindCanvasTexture (non-standard) */
-    blBindCanvasTexture(target: GLenum, drawable: CanvasDrawable): void;
     /** Binds a texture */
     bindTexture(target: GLenum, texture: WebGLTexture | null): void;
     /** Blend color */
@@ -5482,18 +5479,6 @@ declare var Audio: {
   prototype: HTMLAudioElement;
   new (src?: string): HTMLAudioElement;
 };
-
-/**
- * Copies the enumerable members of the objects (methods are bound to their original object) to target
- * @remarks A helper exposed by the engine's core polyfill
- */
-declare function mixin(instances: object[], target: object): void;
-
-/**
- * Wraps the methods on an object's prototype to return Promises (injecting success/fail into the first argument object)
- * @remarks A helper exposed by the engine's core polyfill; this inside then is the global object
- */
-declare function promisify(obj: object): void;
 
 /**
  * Sends a message to the app. Widgets and desktop companions placed on the desktop use `'host'` to report the window position or to ask to be removed.

@@ -434,6 +434,8 @@ interface Press {
   content: WebContent;
   window: WindowState;
   pointerId: number;
+  /** The DOM's button pressed: the others than the primary one never move the window */
+  button: number;
   start: { x: number; y: number };
   origin: { x: number; y: number };
   movesWindow: boolean;
@@ -445,6 +447,7 @@ interface Press {
 interface PointerInput {
   pointerId: number;
   button: number;
+  buttons: number;
   ctrlKey: boolean;
   altKey: boolean;
   metaKey: boolean;
@@ -548,6 +551,12 @@ export class WebDesktop {
       this.pointerUp(this.point(event), event);
     });
     this.element.addEventListener('pointercancel', (event) => this.pointerCancel(event));
+    // the secondary button goes to the window, as in the app, which has no menu there
+    this.element.addEventListener('contextmenu', (event) => {
+      const point = this.point(event);
+      const hit = this.windowAt(point.x, point.y);
+      if (hit && hit.window.type !== 'desktop') event.preventDefault();
+    });
     // the pointer going into the frame that takes it still hovers that frame's window
     this.element.addEventListener('pointerleave', () => {
       if (!this.press && !this.pointerTaker) this.setHovered(null, { x: 0, y: 0 }, null);
@@ -862,7 +871,8 @@ export class WebDesktop {
     return best ? { content: best.content, window: best.window } : null;
   }
 
-  private pointer(content: WebContent, kind: Extract<HostMessage, { type: 'pointer' }>['kind'], windowId: string | null, point: { x: number; y: number }, event: PointerInput | null): void {
+  /** `button` is the one that went down or up, for down and up */
+  private pointer(content: WebContent, kind: Extract<HostMessage, { type: 'pointer' }>['kind'], windowId: string | null, point: { x: number; y: number }, event: PointerInput | null, button = 0): void {
     content.post({
       type: 'pointer',
       kind,
@@ -873,6 +883,8 @@ export class WebDesktop {
       altKey: event?.altKey ?? false,
       metaKey: event?.metaKey ?? false,
       shiftKey: event?.shiftKey ?? false,
+      button: kind === 'down' || kind === 'up' ? button : 0,
+      buttons: event?.buttons ?? 0,
     });
   }
 
@@ -903,17 +915,19 @@ export class WebDesktop {
     this.setCursor(hit && this.movesAt(hit.window, point.x, point.y) ? 'grab' : '');
   }
 
-  /** The window pressed, if the press is on one */
+  /** The window pressed, if the press is on one. Another button pressed during a press isn't a press of its own */
   private pointerDown(point: { x: number; y: number }, event: PointerInput): WindowState | null {
-    if (event.button !== 0 || this.press) return null;
+    if (event.button < 0 || this.press) return null;
     const hit = this.windowAt(point.x, point.y);
-    if (!hit) return null;
-    this.bringToFront(hit.content);
-    const movesWindow = this.movesAt(hit.window, point.x, point.y);
+    // the app passes only the primary button's presses on the desktop to wallpapers
+    if (!hit || (event.button !== 0 && hit.window.type === 'desktop')) return null;
+    if (event.button === 0) this.bringToFront(hit.content);
+    const movesWindow = event.button === 0 && this.movesAt(hit.window, point.x, point.y);
     this.press = {
       content: hit.content,
       window: hit.window,
       pointerId: event.pointerId,
+      button: event.button,
       start: point,
       origin: { x: hit.window.frame.x, y: hit.window.frame.y },
       movesWindow,
@@ -921,7 +935,7 @@ export class WebDesktop {
       moved: false,
     };
     // a press that moves the window reaches the contents only once it turns into a drag; a click just clicks
-    if (!movesWindow) this.pointer(hit.content, 'down', hit.window.id, point, event);
+    if (!movesWindow) this.pointer(hit.content, 'down', hit.window.id, point, event, event.button);
     return hit.window;
   }
 
@@ -936,7 +950,7 @@ export class WebDesktop {
     if (!press.moved) return;
     if (!press.dragging) {
       press.dragging = true;
-      this.pointer(press.content, 'down', press.window.id, press.start, event);
+      this.pointer(press.content, 'down', press.window.id, press.start, event, press.button);
       this.setCursor('grabbing');
     }
     const next = this.clamp(press.window, press.origin.x + dx, press.origin.y + dy);
@@ -958,10 +972,10 @@ export class WebDesktop {
     if (!press || press.pointerId !== event.pointerId) return;
     this.press = null;
     if (press.movesWindow) {
-      if (press.dragging) this.pointer(press.content, 'up', press.window.id, point, event);
+      if (press.dragging) this.pointer(press.content, 'up', press.window.id, point, event, press.button);
       else this.pointer(press.content, 'click', press.window.id, press.start, event);
     } else {
-      this.pointer(press.content, 'up', press.window.id, point, event);
+      this.pointer(press.content, 'up', press.window.id, point, event, press.button);
     }
     this.pointerMove(point, event);
   }
@@ -970,7 +984,7 @@ export class WebDesktop {
     const press = this.press;
     if (!press || press.pointerId !== event.pointerId) return;
     this.press = null;
-    if (press.dragging || !press.movesWindow) this.pointer(press.content, 'up', press.window.id, press.start, event);
+    if (press.dragging || !press.movesWindow) this.pointer(press.content, 'up', press.window.id, press.start, event, press.button);
     this.setHovered(null, press.start, event);
     this.setCursor('');
   }
@@ -1020,6 +1034,7 @@ export class WebDesktop {
     const event: PointerInput = {
       pointerId: Number(message.pointerId) || 0,
       button: Number(message.button) || 0,
+      buttons: Number(message.buttons) || 0,
       ctrlKey: message.ctrlKey === true,
       altKey: message.altKey === true,
       metaKey: message.metaKey === true,

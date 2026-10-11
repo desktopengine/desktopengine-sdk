@@ -14,7 +14,7 @@ import { mediaURL } from './network.ts';
 import { hasPermission, nextIdentifier, send, state } from './state.ts';
 import type { Rect, WindowState } from '../protocol.ts';
 
-const COMPONENT_EVENTS = ['framechange', 'click', 'dbclick', 'mousedown', 'mouseup', 'mouseenter', 'mouseleave', 'mousemove', 'wheel'];
+const COMPONENT_EVENTS = ['framechange', 'click', 'dblclick', 'mousedown', 'mouseup', 'mouseenter', 'mouseleave', 'mousemove', 'wheel'];
 const MAX_WINDOWS = 16;
 
 /** Which component an element is, for finding what the pointer is on */

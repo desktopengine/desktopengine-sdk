@@ -80,6 +80,10 @@ export type HostMessage =
       altKey: boolean;
       metaKey: boolean;
       shiftKey: boolean;
+      /** down / up: the DOM's button that went down or up, 0 otherwise */
+      button: number;
+      /** The DOM's buttons held after the event */
+      buttons: number;
       deltaX?: number;
       deltaY?: number;
     }
@@ -146,6 +150,7 @@ export type FrameMessage =
       y: number;
       pointerId: number;
       button: number;
+      buttons: number;
       ctrlKey: boolean;
       altKey: boolean;
       metaKey: boolean;

@@ -28,7 +28,7 @@ const LANGUAGE = [
 const ENGINE = [
   'DesktopEngine', 'DesktopEngineCore', 'DesktopEngineRuntime', 'console', 'performance', 'setTimeout', 'clearTimeout',
   'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'require', 'module', 'exports',
-  'postMessage', 'mixin', 'promisify', 'WebGLRenderingContext', 'WebGL2RenderingContext',
+  'postMessage', 'WebGLRenderingContext', 'WebGL2RenderingContext',
   'DOMException', 'Event', 'EventTarget', 'MessageEvent', 'CloseEvent', 'ProgressEvent', 'AbortController', 'AbortSignal',
   'fetch', 'Headers', 'Request', 'Response', 'WebSocket', 'XMLHttpRequest', 'XMLHttpRequestEventTarget',
   'XMLHttpRequestUpload', 'Blob', 'File', 'FormData', 'URL', 'URLSearchParams', 'TextEncoder', 'TextDecoder',

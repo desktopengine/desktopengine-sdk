@@ -23,7 +23,7 @@ Content can have at most 16 windows at once; after that `new DesktopEngine.Windo
 - A window dropped on a screen edge keeps its size and stays where it was dropped, though macOS still shows where it would tile it.
 - The window's `hitRegion` (an array of rectangles in points from the window's top left corner) limits the mouse to those parts: clicks, drags and hovers elsewhere pass through to the windows below. `null` (the default) is the whole window. Transparent parts of a window still catch the mouse by default, so an irregularly shaped companion should update it as it draws (see the companion template).
 - `mouseenter`, `mousemove` and `mouseleave` fire even when the window isn't the key window.
-- Event callbacks get plain objects, and `this` is the object that fired the event; the double click event is named `dbclick`.
+- Event callbacks get plain objects, and `this` is the object that fired the event. The mouse events, `click` and `dblclick` have the fields of the DOM's `MouseEvent` of the same name: `x` and `y` in the component, the modifier keys, `button` (the one that went down or up) and `buttons` (the ones held). Every button gives `mousedown` and `mouseup`; only the primary one clicks and drags the window.
 
 ## Keyboard
 

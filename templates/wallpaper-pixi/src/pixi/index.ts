@@ -53,7 +53,6 @@ export function bindPointerEvents(app: Application, source?: DesktopEngine.Canva
   const view = app.canvas as unknown as DesktopEngine.Canvas;
   // a window's event map extends a component's
   const eventSource: DesktopEngine.EventedObject<DesktopEngine.ComponentEventMap> = source ?? view;
-  let buttons = 0;
   // stands in for the DOM element: not in a document, so positions map against the drawing buffer
   const element = {
     ...eventTarget,
@@ -63,14 +62,13 @@ export function bindPointerEvents(app: Application, source?: DesktopEngine.Canva
     get height() { return view.height; },
   };
   const dispatch = (type: PointerEventName, payload: PointerPayload = {}): void => {
-    if (type === 'mousedown') buttons = 1;
-    if (type === 'mouseup') buttons = 0;
     const resolution = events.resolution;
     eventTarget.dispatchEvent(new MouseEvent(POINTER_EVENTS[type], {
       clientX: (payload.x ?? 0) * resolution,
       clientY: (payload.y ?? 0) * resolution,
-      button: 0,
-      buttons,
+      // which button, and the ones held: the mouse events have them as in the DOM (apps with API 4 and later)
+      button: payload.button ?? 0,
+      buttons: payload.buttons ?? 0,
       ctrlKey: !!payload.ctrlKey, altKey: !!payload.altKey, metaKey: !!payload.metaKey, shiftKey: !!payload.shiftKey,
       deltaX: payload.deltaX ?? 0, deltaY: payload.deltaY ?? 0, deltaZ: payload.deltaZ ?? 0, deltaMode: 0,
       target: element,

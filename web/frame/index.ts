@@ -280,6 +280,7 @@ function installPointerInput(): void {
       y: event.clientY,
       pointerId: event.pointerId,
       button: event.button,
+      buttons: event.buttons,
       ctrlKey: event.ctrlKey,
       altKey: event.altKey,
       metaKey: event.metaKey,
@@ -291,6 +292,8 @@ function installPointerInput(): void {
   scope.addEventListener('pointerup', forward('up'));
   scope.addEventListener('pointercancel', forward('cancel'));
   document.documentElement.addEventListener('pointerleave', forward('leave'));
+  // the frame takes the pointer only over the content's windows, which have no menu
+  scope.addEventListener('contextmenu', (event: MouseEvent) => event.preventDefault());
   // over this frame the page doesn't see the wheel either: passed back for other contents' DesktopEngine.input
   scope.addEventListener('wheel', (event: WheelEvent) => {
     send({
@@ -300,6 +303,7 @@ function installPointerInput(): void {
       y: event.clientY,
       pointerId: 0,
       button: 0,
+      buttons: event.buttons,
       ctrlKey: event.ctrlKey,
       altKey: event.altKey,
       metaKey: event.metaKey,
@@ -463,25 +467,6 @@ function launch(message: LaunchMessage): void {
     clearInterval: clearTimer,
     require: (id: string) => requireFrom('/', id, {}),
   });
-  // the engine's core helpers
-  scope.mixin = (instances: object[], target: Record<string, unknown>) => {
-    for (const instance of instances) {
-      for (const key in instance) {
-        const value = (instance as Record<string, unknown>)[key];
-        target[key] = typeof value === 'function' ? value.bind(instance) : value;
-      }
-    }
-  };
-  scope.promisify = (object: Record<string, (...args: unknown[]) => unknown>) => {
-    for (const key of Object.keys(Object.getPrototypeOf(object))) {
-      object[key] = new Proxy(object[key], {
-        apply: (target, thisArg, args) => new Promise((resolve, reject) => {
-          args[0] = { ...(args[0] as object ?? {}), success: resolve, fail: reject };
-          target.apply(thisArg, args);
-        }),
-      });
-    }
-  };
   // the engine's global postMessage(name, message): 'host' reaches the app, here the page
   scope.postMessage = ((name: unknown, payload?: unknown) => {
     if (name === 'host') send({ type: 'host-message', message: JSON.parse(JSON.stringify(payload ?? null)) });
@@ -514,8 +499,17 @@ function chainAt(win: WindowImpl, x: number, y: number): ComponentImpl[] {
   return chain;
 }
 
-function mousePayload(component: ComponentImpl, message: Extract<HostMessage, { type: 'pointer' }>): Record<string, unknown> {
-  return { ...component.localPoint(message.x, message.y), ctrlKey: message.ctrlKey, altKey: message.altKey, metaKey: message.metaKey, shiftKey: message.shiftKey };
+/** As in the app: like the DOM's MouseEvent, with the button that went down or up and the ones held after */
+function mousePayload(component: ComponentImpl, message: Extract<HostMessage, { type: 'pointer' }>, button = 0): Record<string, unknown> {
+  return {
+    ...component.localPoint(message.x, message.y),
+    ctrlKey: message.ctrlKey,
+    altKey: message.altKey,
+    metaKey: message.metaKey,
+    shiftKey: message.shiftKey,
+    button,
+    buttons: Number(message.buttons) || 0,
+  };
 }
 
 function click(chain: ComponentImpl[], message: Extract<HostMessage, { type: 'pointer' }>): void {
@@ -523,7 +517,7 @@ function click(chain: ComponentImpl[], message: Extract<HostMessage, { type: 'po
   const double = now - lastClick.time < 400 && Math.hypot(message.x - lastClick.x, message.y - lastClick.y) < 5 && lastClick.target === chain[0];
   lastClick = { time: double ? 0 : now, x: message.x, y: message.y, target: chain[0] };
   for (const component of chain) {
-    component.emit(double ? 'dbclick' : 'click', { position: component.localPoint(message.x, message.y) });
+    component.emit(double ? 'dblclick' : 'click', mousePayload(component, message));
   }
 }
 
@@ -548,13 +542,14 @@ function pointer(message: Extract<HostMessage, { type: 'pointer' }>): void {
     }
     case 'down':
       pressed = { chain, x: message.x, y: message.y, moved: false };
-      for (const component of chain) component.emit('mousedown', mousePayload(component, message));
+      for (const component of chain) component.emit('mousedown', mousePayload(component, message, message.button));
       break;
     case 'up': {
       const press = pressed;
       pressed = null;
-      for (const component of press?.chain ?? chain) component.emit('mouseup', mousePayload(component, message));
-      if (press && !press.moved) click(chain, message);
+      for (const component of press?.chain ?? chain) component.emit('mouseup', mousePayload(component, message, message.button));
+      // only the primary button clicks
+      if (press && !press.moved && message.button === 0) click(chain, message);
       break;
     }
     case 'click':
