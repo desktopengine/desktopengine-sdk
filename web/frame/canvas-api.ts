@@ -4,9 +4,9 @@
 // This source code is licensed under the Apache Licence 2.0.
 
 // What the engine's canvas contexts have: the web runtime gives content these and nothing more, so what runs in a
-// preview runs in the app (a browser's contexts have more: ellipse, roundRect, filter, conic gradients, more
-// compositing modes and colors, more WebGL extensions). The app's engine is what counts: these lists follow it, and
-// types/desktop-engine.d.ts declares the same (test/web-dev.test.ts checks that they agree). Plain data, no DOM: the
+// preview runs in the app (a browser's contexts have more: filter, conic gradients, letterSpacing, more compositing
+// modes and colors, more WebGL extensions). The app's engine is what counts: these lists follow it, and
+// types/desktop-engine.d.ts declares the same (test/web-canvas.test.ts checks that they agree). Plain data, no DOM: the
 // tests read it in Node.js.
 
 /** The 2D context's properties that content sets and reads */
