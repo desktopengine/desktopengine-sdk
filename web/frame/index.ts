@@ -14,7 +14,7 @@ import { CanvasImageImpl, CanvasImpl, ComponentImpl, componentOf, ImageImpl, Vid
 import { Evented, defineEvents } from './events.ts';
 import { createFileSystem, loadPackage, requireFrom } from './files.ts';
 import { installNetwork } from './network.ts';
-import { IMAGE_BITMAP_MAX_PIXELS, IMAGE_BITMAP_MAX_SIZE } from './canvas-api.ts';
+import { createImageBitmapFunction } from './bitmap.ts';
 import { createPath2D } from './path2d.ts';
 import { cancelAnimationFrame, clearTimer, hostFrame, requestAnimationFrame, setInterval, setTimeout, startStats } from './scheduler.ts';
 import { guard, hasPermission, report, send, state } from './state.ts';
@@ -502,19 +502,9 @@ function launch(message: LaunchMessage): void {
   if (hasPermission('audio')) installPointerInput();
   installCrypto();
   installNavigator(message.options.locale);
-  // createImageBitmap of the engine's canvases and images: the browser's of their elements, no larger than the
-  // engine makes them
-  const browserCreateImageBitmap = scope.createImageBitmap.bind(scope) as (...args: unknown[]) => Promise<ImageBitmap>;
+  // createImageBitmap as the engine makes bitmaps, of the engine's canvases and images too
   Object.defineProperty(scope, 'createImageBitmap', {
-    value: async function createImageBitmap(...args: unknown[]) {
-      const bitmap = await browserCreateImageBitmap(...(args.length ? [unwrap(args[0]), ...args.slice(1)] : []));
-      const { width, height } = bitmap;
-      if (width > IMAGE_BITMAP_MAX_SIZE || height > IMAGE_BITMAP_MAX_SIZE || width * height > IMAGE_BITMAP_MAX_PIXELS) {
-        bitmap.close();
-        throw new DOMException('createImageBitmap: the bitmap is too large', 'InvalidStateError');
-      }
-      return bitmap;
-    },
+    value: createImageBitmapFunction(scope.createImageBitmap.bind(scope), unwrap),
     writable: true, configurable: true, enumerable: true,
   });
   // the engine's Path2D, around the browser's (which the 2D contexts draw)
