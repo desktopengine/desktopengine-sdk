@@ -56,6 +56,7 @@ The web runtime implements the same JavaScript API on top of the browser: window
 - In a 2D canvas, `clip()` narrows the clip there is, as in browsers, where the app replaces it with the new one; `resetClip()` and `resetCurrentState()` only remove the clips made since the last `save()`. The `source-in`, `source-out`, `destination-in`, `destination-atop` and `copy` compositing modes clear the canvas outside what's drawn, where the app leaves it; `darken` and `darker` look as in the app with opaque colors only. Text is drawn by the browser, so glyphs and their widths can differ a little.
 - Files in `defile://usr/`, `localStorage` and `sessionStorage` are kept in memory and gone when the page reloads.
 - The scroll wheel doesn't reach the content, and keyboard events never do (as in the app).
+- When a component listens to `click`, or one of its parents (the window too) does, the app holds back the primary button's `mousedown` and `mouseup` of a click and only fires `click`; the web runtime fires all three.
 - `DesktopEngine.system.cpuUsage()` and `memoryUsage()` return made-up values that change slowly: a web page can't see the computer's.
 
 ## build

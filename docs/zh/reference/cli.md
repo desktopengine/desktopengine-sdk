@@ -56,6 +56,7 @@ desktopengine dev [folder] [options]
 - 2D 画布里，`clip()` 和浏览器一样在已有的裁剪区域内再裁剪，App 里则换成新的区域；`resetClip()` 和 `resetCurrentState()` 只去掉上一次 `save()` 之后的裁剪。`source-in`、`source-out`、`destination-in`、`destination-atop` 和 `copy` 合成模式会清掉画出来的部分以外的画布，App 里不动那些地方；`darken` 和 `darker` 只有颜色不透明时和 App 里一样。文字由浏览器绘制，字形和宽度可能略有不同。
 - `defile://usr/` 里的文件、`localStorage` 和 `sessionStorage` 存在内存里，网页重新加载就没了。
 - 内容收不到滚轮事件，键盘事件也收不到（和 App 一样）。
+- 一个组件或它的上层（包括窗口）监听了 `click` 时，App 对一次单击不发主按键的 `mousedown` 和 `mouseup`，只发 `click`；网页运行时三个都发。
 - `DesktopEngine.system.cpuUsage()` 和 `memoryUsage()` 返回缓慢变化的模拟值：网页看不到电脑的数据。
 
 ## build
