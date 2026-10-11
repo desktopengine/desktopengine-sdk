@@ -52,7 +52,7 @@ desktopengine dev [folder] [options]
 
 网页运行时在浏览器之上实现了同样的 JavaScript API：窗口是定位的元素，画布用浏览器的画布绘制。内容只看得到它在 DesktopEngine 里有的东西，所以走的是和 App 里一样的路径：全局对象只有 DesktopEngine 里有的，看不到 `window`、`document` 和 DOM；画布的成员、合成模式、颜色、字体和 WebGL 扩展也只有 DesktopEngine 的画布有的。只有浏览器才有的和在 App 里一样用不了：`ellipse()`、`roundRect()`、`filter`、`letterSpacing` 读出来是 `undefined`，`multiply` 合成模式、`oklch()` 颜色和 `em` 字号会被忽略，`getExtension('WEBGL_lose_context')` 返回 `null`。它很接近，但不完全一样：发布前要在 App 里检查。不同之处：
 
-- 对 [`network.domains`](/zh/guide/network#域名) 里域名的请求（`fetch`、`XMLHttpRequest`、图片和视频）经过代理，只能 GET 和 HEAD，不带 cookie；`dev --web` 不支持 WebSocket。
+- 对 [`network.domains`](/zh/guide/network#域名) 里域名的请求（`fetch`、`XMLHttpRequest`、图片和视频）经过代理，只能 GET 和 HEAD，不带 cookie；WebSocket 也经过它。
 - 2D 画布里，`clip()` 和浏览器一样在已有的裁剪区域内再裁剪，App 里则换成新的区域；`resetClip()` 和 `resetCurrentState()` 只去掉上一次 `save()` 之后的裁剪。`source-in`、`source-out`、`destination-in`、`destination-atop` 和 `copy` 合成模式会清掉画出来的部分以外的画布，App 里不动那些地方；`darken` 和 `darker` 只有颜色不透明时和 App 里一样。文字由浏览器绘制，字形和宽度可能略有不同。
 - `defile://usr/` 里的文件、`localStorage` 和 `sessionStorage` 存在内存里，网页重新加载就没了。
 - 内容收不到滚轮事件，键盘事件也收不到（和 App 一样）。

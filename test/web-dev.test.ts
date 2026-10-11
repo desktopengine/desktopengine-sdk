@@ -11,8 +11,12 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
+import crypto from 'node:crypto';
+import type { Duplex } from 'node:stream';
+
 import type { Manifest } from '../src/manifest.ts';
 import { WebDevServer, allowedByManifest, isLocalAddress, proxyPreviewRequest, webRuntimePath } from '../src/web-dev.ts';
+import { WebSocketConnection, acceptKey, acceptUpgrade } from '../src/websocket.ts';
 
 const manifest: Manifest = {
   id: 'com.example.web',
@@ -75,6 +79,86 @@ test('the proxy connects only to the address it checked', async (t) => {
   assert.equal(answer.status, 403);
   assert.match(await answer.text(), /local network/);
   assert.match(String(reports[0]?.[1]), /local network/);
+});
+
+/** A WebSocket handshake with a server: the response's status, or the connection on 101 */
+function handshake(url: string, protocols?: string): Promise<{ status: number; body: string; connection?: WebSocketConnection; protocol?: string }> {
+  const key = crypto.randomBytes(16).toString('base64');
+  return new Promise((resolve, reject) => {
+    const request = http.request(url, {
+      headers: { Connection: 'Upgrade', Upgrade: 'websocket', 'Sec-WebSocket-Key': key, 'Sec-WebSocket-Version': '13', ...(protocols ? { 'Sec-WebSocket-Protocol': protocols } : {}) },
+    });
+    request.on('upgrade', (response, socket: Duplex, head: Buffer) => {
+      assert.equal(response.headers['sec-websocket-accept'], acceptKey(key));
+      const protocol = response.headers['sec-websocket-protocol'];
+      resolve({ status: 101, body: '', connection: new WebSocketConnection(socket, head, { client: true }), protocol: typeof protocol === 'string' ? protocol : undefined });
+    });
+    request.on('response', async (response) => {
+      let body = '';
+      for await (const chunk of response) body += String(chunk);
+      resolve({ status: response.statusCode ?? 0, body });
+    });
+    request.on('error', reject);
+    request.end();
+  });
+}
+
+const next = <T extends unknown[]>(emitter: WebSocketConnection, event: 'message' | 'close') =>
+  new Promise<T>((resolve) => emitter.once(event, (...args: unknown[]) => resolve(args as T)));
+
+test('WebSockets speak both sides: text, binary messages over 64 KB, subprotocols and the close', async (t) => {
+  const server = http.createServer();
+  server.on('upgrade', (request, socket: Duplex, head: Buffer) => {
+    const connection = acceptUpgrade(request, socket, head, String(request.headers['sec-websocket-protocol']).split(',')[0]);
+    // an echo
+    connection?.on('message', (data) => (data === 'bye' ? connection.close(4001, 'see you') : connection.send(data)));
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => server.close());
+  const { port } = server.address() as { port: number };
+  const { status, connection, protocol } = await handshake(`http://127.0.0.1:${port}/`, 'chat, json');
+  assert.equal(status, 101);
+  assert.equal(protocol, 'chat');
+  const client = connection!;
+  client.send('hello');
+  assert.deepEqual(await next(client, 'message'), ['hello']);
+  const big = crypto.randomBytes(70_000);
+  client.send(big);
+  const [echoed] = await next<[Buffer]>(client, 'message');
+  assert.ok(Buffer.isBuffer(echoed) && echoed.equals(big));
+  client.send('bye');
+  assert.deepEqual(await next(client, 'close'), [4001, 'see you']);
+});
+
+test('the proxy\'s WebSockets reach network.domains only, and never the local network', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'desktopengine-sdk-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ ...manifest, network: { domains: ['ws.example.com'] } }));
+  fs.writeFileSync(path.join(dir, 'index.js'), '\n');
+  const server = new WebDevServer({ projectDir: dir, watch: false });
+  await server.start();
+  t.after(() => server.stop());
+  const reports: { url: string; status: number | string }[] = [];
+  server.on('proxy', (entry) => reports.push(entry));
+  const proxy = (target: string, token = server.proxyToken) => `http://127.0.0.1:${server.port}/proxy?token=${token}&url=${encodeURIComponent(target)}`;
+
+  assert.equal((await handshake(proxy('wss://ws.example.com/', server.token))).status, 403, 'the proxy\'s token only');
+  assert.equal((await handshake(`http://127.0.0.1:${server.port}/events?token=${server.token}`)).status, 403, 'WebSockets are the proxy\'s only');
+  const undeclared = await handshake(proxy('wss://example.com/'));
+  assert.equal(undeclared.status, 403);
+  assert.match(undeclared.body, /network\.domains/);
+  assert.equal((await handshake(proxy('https://ws.example.com/'))).status, 400, 'ws: or wss:');
+  assert.equal((await handshake(proxy('wss://127.0.0.1/'))).status, 403);
+  // a declared domain that resolves to the local network
+  const original = dns.lookup;
+  (dns as { lookup: unknown }).lookup = async () => [{ address: '127.0.0.1', family: 4 }];
+  t.after(() => {
+    (dns as { lookup: unknown }).lookup = original;
+  });
+  const local = await handshake(proxy('wss://ws.example.com/socket'));
+  assert.equal(local.status, 403);
+  assert.match(local.body, /local network/);
+  assert.deepEqual(reports.at(-1), { url: 'wss://ws.example.com/socket', status: 'ws.example.com resolves to the local network' });
 });
 
 test('dev --web serves the desktop page, the build, its files and the logs', async (t) => {

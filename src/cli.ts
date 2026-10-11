@@ -390,7 +390,7 @@ async function webDev(projectDir: string, launch: LaunchRequest, port: number, s
     else printAppMessage({ type: 'console', level: entry.level ?? 'log', message: entry.message } as AppMessage);
   });
   server.on('proxy', ({ url, status }) => {
-    const text = `${time()} ${color.dim(`fetch ${url}: ${status}`)}`;
+    const text = `${time()} ${color.dim(`${/^wss?:/i.test(url) ? 'WebSocket' : 'fetch'} ${url}: ${status}`)}`;
     if (typeof status === 'number' && status < 400) console.log(text);
     else console.warn(color.yellow(text));
   });

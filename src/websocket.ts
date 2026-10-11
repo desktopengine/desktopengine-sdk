@@ -3,8 +3,10 @@
 //
 // This source code is licensed under the Apache Licence 2.0.
 
-// The server side of RFC 6455, enough for `desktopengine dev`: text and binary messages, fragments, ping and close.
-// The app connects with URLSessionWebSocketTask; Node.js has no WebSocket server of its own.
+// RFC 6455, enough for `desktopengine dev` and the web preview's proxy: text and binary messages, fragments, ping and
+// close, without extensions. The server side for the app (it connects with URLSessionWebSocketTask) and the browser;
+// the client side for the proxy's connection to the content's server. Node.js has no WebSocket server of its own, and
+// its client can't be made to connect only to an address that was checked.
 
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
@@ -22,10 +24,10 @@ export function acceptKey(key: string): string {
 }
 
 /**
- * Completes the handshake of an HTTP `upgrade` request.
+ * Completes the handshake of an HTTP `upgrade` request, with the subprotocol given (one the client offered).
  * @returns `null` when the request isn't a WebSocket handshake
  */
-export function acceptUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): WebSocketConnection | null {
+export function acceptUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer, protocol?: string): WebSocketConnection | null {
   const key = request.headers['sec-websocket-key'];
   const upgrade = String(request.headers.upgrade ?? '').toLowerCase();
   if (upgrade !== 'websocket' || typeof key !== 'string' || key.length === 0) {
@@ -37,6 +39,7 @@ export function acceptUpgrade(request: IncomingMessage, socket: Duplex, head: Bu
     'Upgrade: websocket',
     'Connection: Upgrade',
     `Sec-WebSocket-Accept: ${acceptKey(key)}`,
+    ...(protocol ? [`Sec-WebSocket-Protocol: ${protocol}`] : []),
     '',
     '',
   ].join('\r\n'));
@@ -46,19 +49,27 @@ export function acceptUpgrade(request: IncomingMessage, socket: Duplex, head: Bu
 export interface WebSocketConnectionEvents {
   /** text messages are strings, binary ones Buffers */
   message: [data: string | Buffer];
-  close: [code: number];
+  /** 1006 when the connection ended without a close frame */
+  close: [code: number, reason: string];
+}
+
+export interface WebSocketConnectionOptions {
+  /** The client's side of the connection: what it sends is masked, what it receives isn't */
+  client?: boolean;
 }
 
 export class WebSocketConnection extends EventEmitter<WebSocketConnectionEvents> {
   private readonly socket: Duplex;
+  private readonly client: boolean;
   private buffer: Buffer;
   private fragments: Buffer[] = [];
   private fragmentOpcode = 0;
   private closed = false;
 
-  constructor(socket: Duplex, head?: Buffer) {
+  constructor(socket: Duplex, head?: Buffer, { client = false }: WebSocketConnectionOptions = {}) {
     super();
     this.socket = socket;
+    this.client = client;
     this.buffer = head && head.length > 0 ? Buffer.from(head) : Buffer.alloc(0);
 
     const tcp = socket as Duplex & { setNoDelay?: (noDelay: boolean) => void };
@@ -67,8 +78,8 @@ export class WebSocketConnection extends EventEmitter<WebSocketConnectionEvents>
       this.buffer = Buffer.concat([this.buffer, data]);
       this.parse();
     });
-    socket.on('close', () => this.finish(1006));
-    socket.on('error', () => this.finish(1006));
+    socket.on('close', () => this.finish(1006, ''));
+    socket.on('error', () => this.finish(1006, ''));
     if (this.buffer.length > 0) setImmediate(() => this.parse());
   }
 
@@ -76,46 +87,65 @@ export class WebSocketConnection extends EventEmitter<WebSocketConnectionEvents>
     return !this.closed;
   }
 
-  /** Sends a text message, objects are sent as JSON. */
-  send(message: string | object): void {
+  /** Sends a text message, or a binary one for a Buffer; other objects are sent as JSON. */
+  send(message: string | Buffer | object): void {
+    if (Buffer.isBuffer(message)) {
+      this.writeFrame(OPCODE.binary, message);
+      return;
+    }
     const text = typeof message === 'string' ? message : JSON.stringify(message);
     this.writeFrame(OPCODE.text, Buffer.from(text, 'utf8'));
   }
 
+  /** A code that can't be sent (1005, 1006, 1015, out of range) is sent as 1000 */
   close(code = 1000, reason = ''): void {
     if (this.closed) return;
-    const reasonData = Buffer.from(reason, 'utf8').subarray(0, 123);
+    const sent = (code >= 1000 && code < 1005) || (code > 1006 && code < 1015) || (code >= 3000 && code < 5000) ? code : 1000;
+    // at most 123 bytes, not cut inside a character
+    let reasonData = Buffer.from(reason, 'utf8');
+    while (reasonData.length > 123) reasonData = Buffer.from(reasonData.subarray(0, 123).toString('utf8').replace(/.$/su, ''), 'utf8');
     const body = Buffer.alloc(2 + reasonData.length);
-    body.writeUInt16BE(code, 0);
+    body.writeUInt16BE(sent, 0);
     reasonData.copy(body, 2);
     this.writeFrame(OPCODE.close, body);
     this.socket.end();
-    this.finish(code);
+    this.finish(code, reason);
   }
 
-  private finish(code: number): void {
+  private finish(code: number, reason: string): void {
     if (this.closed) return;
     this.closed = true;
-    this.emit('close', code);
+    this.emit('close', code, reason);
   }
 
   private writeFrame(opcode: number, payload: Buffer): void {
     if (this.closed || this.socket.destroyed) return;
+    const maskBit = this.client ? 0x80 : 0;
     let header: Buffer;
     if (payload.length < 126) {
-      header = Buffer.from([0x80 | opcode, payload.length]);
+      header = Buffer.from([0x80 | opcode, maskBit | payload.length]);
     } else if (payload.length < 0x10000) {
       header = Buffer.alloc(4);
       header[0] = 0x80 | opcode;
-      header[1] = 126;
+      header[1] = maskBit | 126;
       header.writeUInt16BE(payload.length, 2);
     } else {
       header = Buffer.alloc(10);
       header[0] = 0x80 | opcode;
-      header[1] = 127;
+      header[1] = maskBit | 127;
       header.writeBigUInt64BE(BigInt(payload.length), 2);
     }
-    this.socket.write(Buffer.concat([header, payload]));
+    if (!this.client) {
+      this.socket.write(Buffer.concat([header, payload]));
+      return;
+    }
+    // clients mask what they send
+    const mask = crypto.randomBytes(4);
+    const masked = Buffer.from(payload);
+    for (let i = 0; i < masked.length; i++) {
+      masked[i] ^= mask[i & 3];
+    }
+    this.socket.write(Buffer.concat([header, mask, masked]));
   }
 
   private parse(): void {
@@ -145,18 +175,21 @@ export class WebSocketConnection extends EventEmitter<WebSocketConnectionEvents>
         this.close(1009, 'message too big');
         return;
       }
-      // clients must mask what they send
-      if (!masked) {
-        this.close(1002, 'unmasked frame');
+      // clients must mask what they send, servers mustn't
+      if (masked === this.client) {
+        this.close(1002, masked ? 'masked frame' : 'unmasked frame');
         return;
       }
-      if (buffer.length < offset + 4 + length) return;
+      const maskLength = masked ? 4 : 0;
+      if (buffer.length < offset + maskLength + length) return;
 
-      const mask = buffer.subarray(offset, offset + 4);
-      offset += 4;
+      const mask = buffer.subarray(offset, offset + maskLength);
+      offset += maskLength;
       const payload = Buffer.from(buffer.subarray(offset, offset + length));
-      for (let i = 0; i < payload.length; i++) {
-        payload[i] ^= mask[i & 3];
+      if (masked) {
+        for (let i = 0; i < payload.length; i++) {
+          payload[i] ^= mask[i & 3];
+        }
       }
       this.buffer = buffer.subarray(offset + length);
       this.handleFrame(fin, opcode, payload);
@@ -195,7 +228,7 @@ export class WebSocketConnection extends EventEmitter<WebSocketConnectionEvents>
         }
         return;
       case OPCODE.close:
-        this.close(payload.length >= 2 ? payload.readUInt16BE(0) : 1000);
+        this.close(payload.length >= 2 ? payload.readUInt16BE(0) : 1000, payload.subarray(2).toString('utf8'));
         return;
       case OPCODE.ping:
         this.writeFrame(OPCODE.pong, payload);

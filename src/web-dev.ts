@@ -11,7 +11,8 @@
 //   /package         the build: manifest, index.js and the list of the other files; /files/<path> serves them
 //   /events          server-sent events: `revision` after every rebuild, so the page runs the new build
 //   /log             the page posts what the content logs, printed in the terminal
-//   /proxy?url=…     GET requests to the domains of network.domains, as the store's preview proxy does
+//   /proxy?url=…     GET and HEAD requests and WebSockets to the domains of network.domains, as the store's preview
+//                    proxy does
 //
 // Every mini program on the store must run on the web (only a preview: the app's engine is what counts).
 
@@ -25,15 +26,19 @@ import net from 'node:net';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { fileURLToPath } from 'node:url';
+import type { Duplex } from 'node:stream';
 import { buildProject } from './build.ts';
 import { affectsPackage } from './files.ts';
+import { WebSocketConnection, acceptKey, acceptUpgrade } from './websocket.ts';
 import type { LaunchRequest } from './dev.ts';
 import type { Manifest } from './manifest.ts';
 
 const REBUILD_DELAY = 150;
 const PROXY_LIMIT = 20 * 1024 * 1024;
-/** A proxied request, redirects included, ends after this */
+/** A proxied request, redirects included, ends after this; so does a WebSocket's handshake */
 const PROXY_TIMEOUT = 30_000;
+/** A proxied WebSocket closes after this much from the server, as the store's does: a preview doesn't stream forever */
+const WEBSOCKET_LIMIT = 50 * 1024 * 1024;
 
 export interface WebDevServerEvents {
   built: [info: { revision: number; manifest: Manifest; warnings: string[] }];
@@ -141,33 +146,48 @@ class ProxyError extends Error {
 }
 
 /**
- * One request, connecting only to an address that was checked: the check is in the lookup the connection itself uses,
- * so the name can't resolve to something else between the check and the connection (DNS rebinding)
+ * The lookup of the proxy's connections: they connect only to an address that was checked, as the check is in the
+ * lookup the connection itself uses, so the name can't resolve to something else between the check and the connection
+ * (DNS rebinding)
  */
-function requestOnce(target: URL, method: string, accept: string, deadline: number): Promise<http.IncomingMessage> {
-  if (net.isIP(target.hostname.replace(/^\[|\]$/g, ''))) return Promise.reject(new ProxyError(403, 'an address, not a domain'));
+function checkedLookup(hostname: string, options: { all?: boolean }, callback: (...args: unknown[]) => void): void {
+  dns.lookup(hostname, { all: true }).then(
+    (addresses) => {
+      if (!addresses.length || addresses.some(({ address }) => isLocalAddress(address))) {
+        callback(new ProxyError(403, `${hostname} resolves to the local network`));
+      } else if (options.all) {
+        callback(null, addresses);
+      } else {
+        callback(null, addresses[0].address, addresses[0].family);
+      }
+    },
+    (error: Error) => callback(error),
+  );
+}
+
+/** The client for an http or https URL that names a domain */
+function clientFor(target: URL): typeof http | typeof https {
+  if (net.isIP(target.hostname.replace(/^\[|\]$/g, ''))) throw new ProxyError(403, 'an address, not a domain');
   const client = target.protocol === 'https:' ? https : target.protocol === 'http:' ? http : null;
-  if (!client) return Promise.reject(new ProxyError(403, `${target.protocol} isn't http or https`));
+  if (!client) throw new ProxyError(403, `${target.protocol} isn't http or https`);
+  return client;
+}
+
+/** One request, connecting only to an address that was checked */
+function requestOnce(target: URL, method: string, accept: string, deadline: number): Promise<http.IncomingMessage> {
+  let client: typeof http | typeof https;
+  try {
+    client = clientFor(target);
+  } catch (error) {
+    return Promise.reject(error);
+  }
   return new Promise((resolve, reject) => {
     const outgoing = client.request(target, {
       method,
       // the body is passed on as it comes: no compression to undo
       headers: { Accept: accept, 'Accept-Encoding': 'identity', 'User-Agent': 'DesktopEngine-Preview/1' },
       timeout: Math.max(deadline - Date.now(), 1),
-      lookup: (hostname: string, options: { all?: boolean }, callback: (...args: unknown[]) => void) => {
-        dns.lookup(hostname, { all: true }).then(
-          (addresses) => {
-            if (!addresses.length || addresses.some(({ address }) => isLocalAddress(address))) {
-              callback(new ProxyError(403, `${hostname} resolves to the local network`));
-            } else if (options.all) {
-              callback(null, addresses);
-            } else {
-              callback(null, addresses[0].address, addresses[0].family);
-            }
-          },
-          (error: Error) => callback(error),
-        );
-      },
+      lookup: checkedLookup,
     } as https.RequestOptions, resolve);
     outgoing.on('timeout', () => outgoing.destroy(new ProxyError(504, 'the server took too long')));
     outgoing.on('error', reject);
@@ -250,6 +270,117 @@ export async function proxyPreviewRequest(
   }
 }
 
+/**
+ * A WebSocket's handshake with the content's server (`target` is its http or https URL), offering the subprotocols the
+ * page's WebSocket offered and no extensions, connecting only to an address that was checked. Redirects aren't
+ * followed, as WebSockets don't
+ */
+function connectWebSocket(target: URL, protocols: string | undefined, deadline: number): Promise<{ socket: Duplex; head: Buffer; protocol?: string }> {
+  let client: typeof http | typeof https;
+  try {
+    client = clientFor(target);
+  } catch (error) {
+    return Promise.reject(error);
+  }
+  const key = crypto.randomBytes(16).toString('base64');
+  return new Promise((resolve, reject) => {
+    const outgoing = client.request(target, {
+      headers: {
+        Connection: 'Upgrade',
+        Upgrade: 'websocket',
+        'Sec-WebSocket-Key': key,
+        'Sec-WebSocket-Version': '13',
+        'User-Agent': 'DesktopEngine-Preview/1',
+        ...(protocols ? { 'Sec-WebSocket-Protocol': protocols } : {}),
+      },
+      timeout: Math.max(deadline - Date.now(), 1),
+      lookup: checkedLookup,
+    } as https.RequestOptions);
+    outgoing.on('upgrade', (response, socket: Duplex & { setTimeout?: (timeout: number) => void }, head: Buffer) => {
+      socket.setTimeout?.(0);
+      if (response.headers['sec-websocket-accept'] !== acceptKey(key) || response.headers['sec-websocket-extensions']) {
+        socket.destroy();
+        reject(new ProxyError(502, 'the server\'s WebSocket handshake is wrong'));
+        return;
+      }
+      const protocol = response.headers['sec-websocket-protocol'];
+      resolve({ socket, head, protocol: typeof protocol === 'string' ? protocol : undefined });
+    });
+    outgoing.on('response', (response) => {
+      response.resume();
+      reject(new ProxyError(502, `the server didn't accept the WebSocket (${response.statusCode})`));
+    });
+    outgoing.on('timeout', () => outgoing.destroy(new ProxyError(504, 'the server took too long')));
+    outgoing.on('error', reject);
+    outgoing.end();
+  });
+}
+
+/**
+ * The preview proxy's WebSockets, as the store's: an `upgrade` request to `?url=ws://…` or `wss://…` connects to the
+ * domains of the manifest's network.domains that don't resolve to the local network, offering the page's
+ * subprotocols, and passes text and binary messages on as they come, and the close; it closes after 50 MB from the
+ * server. `report` hears the URL and 101, or the error. The `dev --web` server and the review node's web check call
+ * it from their HTTP server's `upgrade` event.
+ */
+export async function proxyPreviewWebSocket(
+  manifest: Manifest | null,
+  url: URL,
+  request: http.IncomingMessage,
+  socket: Duplex,
+  head: Buffer,
+  report: (url: string, status: number | string) => void = () => undefined,
+): Promise<void> {
+  // the browser may leave during the handshake with the server
+  socket.on('error', () => socket.destroy());
+  const refuse = (status: number, message: string, target?: string): void => {
+    if (target) report(target, message);
+    const body = Buffer.from(message, 'utf8');
+    socket.end(`HTTP/1.1 ${status} ${http.STATUS_CODES[status] ?? 'Error'}\r\nContent-Type: text/plain\r\nContent-Length: ${body.length}\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n${message}`);
+  };
+  let target: URL;
+  try {
+    target = new URL(url.searchParams.get('url') ?? '');
+  } catch {
+    return refuse(400, 'bad url');
+  }
+  if (target.protocol !== 'ws:' && target.protocol !== 'wss:') return refuse(400, 'not a ws or wss URL', target.href);
+  const server = new URL(target.href);
+  server.protocol = target.protocol === 'wss:' ? 'https:' : 'http:';
+  if (!manifest || !allowedByManifest(manifest, server)) return refuse(403, 'not in network.domains', target.href);
+  if (String(request.headers.upgrade ?? '').toLowerCase() !== 'websocket') return refuse(400, 'not a WebSocket handshake', target.href);
+  let upstream: Awaited<ReturnType<typeof connectWebSocket>>;
+  try {
+    upstream = await connectWebSocket(server, request.headers['sec-websocket-protocol'], Date.now() + PROXY_TIMEOUT);
+  } catch (error) {
+    return refuse(error instanceof ProxyError ? error.status : 502, (error as Error).message, target.href);
+  }
+  if (socket.destroyed) {
+    upstream.socket.destroy();
+    return;
+  }
+  const page = acceptUpgrade(request, socket, head, upstream.protocol);
+  if (!page) {
+    upstream.socket.destroy();
+    return;
+  }
+  report(target.href, 101);
+  const remote = new WebSocketConnection(upstream.socket, upstream.head, { client: true });
+  let received = 0;
+  remote.on('message', (data) => {
+    received += typeof data === 'string' ? Buffer.byteLength(data) : data.length;
+    if (received > WEBSOCKET_LIMIT) {
+      page.close(1009, 'the preview received too much');
+      remote.close(1000);
+      return;
+    }
+    page.send(data);
+  });
+  page.on('message', (data) => remote.send(data));
+  remote.on('close', (code, reason) => page.close(code, reason));
+  page.on('close', (code, reason) => remote.close(code, reason));
+}
+
 export class WebDevServer extends EventEmitter<WebDevServerEvents> {
   readonly projectDir: string;
   readonly launch: LaunchRequest;
@@ -266,6 +397,8 @@ export class WebDevServer extends EventEmitter<WebDevServerEvents> {
   private building: Promise<void> | null = null;
   private needsRebuild = false;
   private readonly eventStreams = new Set<http.ServerResponse>();
+  /** The proxy's WebSockets, closed when the server stops */
+  private readonly sockets = new Set<Duplex>();
 
   constructor({ projectDir, launch = {}, port = 0, watch = true }: WebDevServerOptions) {
     super();
@@ -287,6 +420,7 @@ export class WebDevServer extends EventEmitter<WebDevServerEvents> {
         response.end(error.message);
       });
     });
+    server.on('upgrade', (request: http.IncomingMessage, socket: Duplex, head: Buffer) => this.upgrade(request, socket, head));
     this.server = server;
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject);
@@ -309,6 +443,7 @@ export class WebDevServer extends EventEmitter<WebDevServerEvents> {
     clearTimeout(this.rebuildTimer);
     this.watcher?.close();
     for (const stream of this.eventStreams) stream.end();
+    for (const socket of this.sockets) socket.destroy();
     const server = this.server;
     this.server = null;
     if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -410,6 +545,18 @@ export class WebDevServer extends EventEmitter<WebDevServerEvents> {
   private async proxy(url: URL, request: http.IncomingMessage, response: http.ServerResponse): Promise<void> {
     const manifest = this.build?.manifest;
     await proxyPreviewRequest(manifest ?? null, url, request, response, (target, status) => this.emit('proxy', { url: target, status }));
+  }
+
+  /** WebSockets: the proxy's only */
+  private upgrade(request: http.IncomingMessage, socket: Duplex, head: Buffer): void {
+    const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+    if (url.pathname !== '/proxy' || !this.authorized(url)) {
+      socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
+      return;
+    }
+    this.sockets.add(socket);
+    socket.on('close', () => this.sockets.delete(socket));
+    void proxyPreviewWebSocket(this.build?.manifest ?? null, url, request, socket, head, (target, status) => this.emit('proxy', { url: target, status }));
   }
 }
 
