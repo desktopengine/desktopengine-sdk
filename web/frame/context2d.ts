@@ -495,15 +495,25 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
   for (const [name, value] of Object.entries(methods)) Object.defineProperty(context, name, { value, writable: true, enumerable: true });
 
   const keepingState = (resize: () => void): void => {
-    const state = snapshot();
-    resize();
-    apply(state);
-    native.imageSmoothingEnabled = smoothing;
-    // the browser forgot the saves, and the clip with them: restores come back to this state
-    for (const saved of stack) {
-      native.save();
-      saved.clipped = false;
+    // the saved states, read off the browser's stack before it forgets them: each save's, under the clip's own save
+    // when its state had a clip
+    const current = snapshot();
+    if (clipped) native.restore();
+    const saved: ReturnType<typeof snapshot>[] = [];
+    for (let index = stack.length - 1; index >= 0; index--) {
+      native.restore();
+      saved[index] = snapshot();
+      if (stack[index].clipped) native.restore();
     }
+    resize();
+    native.imageSmoothingEnabled = smoothing;
+    // the saves again, without their clips, which the browser forgot
+    stack.forEach((entry, index) => {
+      apply(saved[index]);
+      native.save();
+      entry.clipped = false;
+    });
+    apply(current);
     clipped = false;
   };
   return { context, keepingState };
