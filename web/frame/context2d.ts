@@ -38,6 +38,8 @@ const STATE = [
 ] as const;
 
 const DEFAULT_FONT = '10px Helvetica';
+/** What setTransform reads of a matrix (DOMMatrix2DInit) */
+const MATRIX_2D = ['a', 'b', 'c', 'd', 'e', 'f', 'm11', 'm12', 'm21', 'm22', 'm41', 'm42'] as const;
 /** The families CSS doesn't take in quotes */
 const GENERIC_FAMILIES = new Set([
   'serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui', 'ui-serif', 'ui-sans-serif', 'ui-monospace',
@@ -229,7 +231,31 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
       if (arguments.length >= 6) native.transform(num(a), num(b), num(c), num(d), num(e), num(f));
     },
     setTransform(a, b, c, d, e, f) {
-      if (arguments.length >= 6) native.setTransform(num(a), num(b), num(c), num(d), num(e), num(f));
+      if (arguments.length >= 6) {
+        native.setTransform(num(a), num(b), num(c), num(d), num(e), num(f));
+      } else if (arguments.length <= 1) {
+        // a matrix, e.g. getTransform's, its values read as numbers; none is the identity
+        if (a === undefined || a === null) {
+          native.setTransform();
+        } else if (typeof a !== 'object' && typeof a !== 'function') {
+          throw new TypeError('setTransform takes six numbers or a matrix { a, b, c, d, e, f }');
+        } else {
+          const matrix: Record<string, number> = {};
+          for (const key of MATRIX_2D) {
+            const value = (a as Record<string, unknown>)[key];
+            if (value !== undefined) matrix[key] = num(value);
+          }
+          native.setTransform(matrix);
+        }
+      }
+    },
+    getTransform() {
+      // a DOMMatrix's values, not the DOMMatrix: the app's has no methods
+      const { a, b, c, d, e, f, isIdentity } = native.getTransform();
+      return {
+        a, b, c, d, e, f, m11: a, m12: b, m13: 0, m14: 0, m21: c, m22: d, m23: 0, m24: 0, m31: 0, m32: 0, m33: 1, m34: 0,
+        m41: e, m42: f, m43: 0, m44: 1, is2D: true, isIdentity,
+      };
     },
     resetTransform() {
       native.setTransform(1, 0, 0, 1, 0, 0);

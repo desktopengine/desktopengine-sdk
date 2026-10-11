@@ -50,7 +50,7 @@ desktopengine dev [folder] [options]
 
 `dev --web` 在一个模拟 Mac 桌面的网页上运行项目，用的是 DesktopEngine 商店让用户安装前试用内容的网页运行时。它不需要 App，有浏览器的电脑都能用；和 `dev` 一样，改了文件会重新构建、重新运行，控制台输出打印在终端里。网页的菜单栏可以切换浅色和深色、打开声音、重新运行内容，小组件还可以选尺寸。
 
-网页运行时在浏览器之上实现了同样的 JavaScript API：窗口是定位的元素，画布用浏览器的画布绘制。内容只看得到它在 DesktopEngine 里有的东西，所以走的是和 App 里一样的路径：全局对象只有 DesktopEngine 里有的，看不到 `window`、`document` 和 DOM；画布的成员、合成模式、颜色、字体和 WebGL 扩展也只有 DesktopEngine 的画布有的。只有浏览器才有的和在 App 里一样用不了：`getTransform()`、`createConicGradient()`、`filter`、`letterSpacing` 读出来是 `undefined`，`multiply` 合成模式、`oklch()` 颜色和 `em` 字号会被忽略，`getExtension('WEBGL_lose_context')` 返回 `null`。它很接近，但不完全一样：发布前要在 App 里检查。不同之处：
+网页运行时在浏览器之上实现了同样的 JavaScript API：窗口是定位的元素，画布用浏览器的画布绘制。内容只看得到它在 DesktopEngine 里有的东西，所以走的是和 App 里一样的路径：全局对象只有 DesktopEngine 里有的，看不到 `window`、`document` 和 DOM；画布的成员、合成模式、颜色、字体和 WebGL 扩展也只有 DesktopEngine 的画布有的。只有浏览器才有的和在 App 里一样用不了：`createConicGradient()`、`isPointInStroke()`、`filter`、`letterSpacing` 读出来是 `undefined`，`multiply` 合成模式、`oklch()` 颜色和 `em` 字号会被忽略，`getExtension('WEBGL_lose_context')` 返回 `null`。它很接近，但不完全一样：发布前要在 App 里检查。不同之处：
 
 - 对 [`network.domains`](/zh/guide/network#域名) 里域名的请求（`fetch`、`XMLHttpRequest`、图片和视频）经过代理，不带 cookie；WebSocket 也经过它。`dev --web` 的代理会转发所有请求方法和它们的请求头、请求体，但商店的试用和审核只转发 GET 和 HEAD：内容用了别的方法时，终端会提示它在那里会失败。
 - 2D 画布里，`resetClip()` 和 `resetCurrentState()` 只去掉上一次 `save()` 之后的裁剪，App 里会全部去掉。文字由浏览器绘制，字形和宽度可能略有不同。

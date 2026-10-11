@@ -22,7 +22,7 @@ export const CONTEXT_2D_READONLY = ['canvas'] as const;
 /** The 2D context's methods. isPointInPath is there but not implemented: it only warns */
 export const CONTEXT_2D_METHODS = [
   'isContextLost', 'save', 'restore', 'resetCurrentState', 'rotate', 'translate', 'scale', 'transform', 'setTransform',
-  'resetTransform', 'drawImage', 'fillRect', 'strokeRect', 'clearRect', 'getImageData', 'createImageData',
+  'getTransform', 'resetTransform', 'drawImage', 'fillRect', 'strokeRect', 'clearRect', 'getImageData', 'createImageData',
   'putImageData', 'createLinearGradient', 'createRadialGradient', 'createPattern', 'beginPath', 'closePath', 'fill',
   'stroke', 'moveTo', 'lineTo', 'rect', 'roundRect', 'bezierCurveTo', 'quadraticCurveTo', 'arcTo', 'arc', 'ellipse',
   'measureText', 'fillText',

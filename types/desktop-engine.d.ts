@@ -1109,6 +1109,54 @@ declare namespace DesktopEngine {
   /** Pattern object */
   interface CanvasPattern {}
 
+  /**
+   * A 2D transform's matrix as getTransform() gives it: a DOMMatrix's values (`a`…`f` and the same as `m11`, `m12`,
+   * `m21`, `m22`, `m41`, `m42`), without its methods
+   */
+  interface TransformMatrix {
+    readonly a: number;
+    readonly b: number;
+    readonly c: number;
+    readonly d: number;
+    readonly e: number;
+    readonly f: number;
+    readonly m11: number;
+    readonly m12: number;
+    readonly m13: number;
+    readonly m14: number;
+    readonly m21: number;
+    readonly m22: number;
+    readonly m23: number;
+    readonly m24: number;
+    readonly m31: number;
+    readonly m32: number;
+    readonly m33: number;
+    readonly m34: number;
+    readonly m41: number;
+    readonly m42: number;
+    readonly m43: number;
+    readonly m44: number;
+    /** Always true */
+    readonly is2D: boolean;
+    readonly isIdentity: boolean;
+  }
+
+  /** A matrix for setTransform(): `a`…`f` or `m11`, `m12`, `m21`, `m22`, `m41`, `m42`; those left out are the identity's */
+  interface DOMMatrix2DInit {
+    a?: number;
+    b?: number;
+    c?: number;
+    d?: number;
+    e?: number;
+    f?: number;
+    m11?: number;
+    m12?: number;
+    m21?: number;
+    m22?: number;
+    m41?: number;
+    m42?: number;
+  }
+
   /** A point or corner radius given as `{ x, y }` (roundRect) */
   interface DOMPointLike {
     x?: number;
@@ -1212,8 +1260,15 @@ declare namespace DesktopEngine {
     scale(x: number, y: number): void;
     /** Multiplies the current transform matrix */
     transform(a: number, b: number, c: number, d: number, e: number, f: number): void;
-    /** Sets the transform matrix */
+    /** Sets the transform matrix; a value that isn't finite leaves the transform as it is */
     setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
+    /**
+     * Sets the transform to a matrix, such as one getTransform() gave; without one, to the identity (API 5). Throws a
+     * TypeError when a value's two names (`a` and `m11`…) differ
+     */
+    setTransform(transform?: DOMMatrix2DInit | null): void;
+    /** The transform's matrix, a new object each time (API 5) */
+    getTransform(): TransformMatrix;
     /** Resets the transform matrix to the identity */
     resetTransform(): void;
     /** Draws an image at (dx, dy) */
