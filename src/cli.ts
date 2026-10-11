@@ -390,7 +390,17 @@ async function webDev(projectDir: string, launch: LaunchRequest, port: number, s
     else printAppMessage({ type: 'console', level: entry.level ?? 'log', message: entry.message } as AppMessage);
   });
   const otherMethods = new Set<string>();
-  server.on('proxy', ({ url, status, method = 'GET' }) => {
+  const askedHeaders = new Set<string>();
+  server.on('proxy', ({ url, status, method = 'GET', asked }) => {
+    // the browser's question before the request, which comes next
+    if (asked) {
+      const names = asked.split(',').map((name) => name.trim().toLowerCase()).filter((name) => name && !askedHeaders.has(name));
+      if (names.length) {
+        names.forEach((name) => askedHeaders.add(name));
+        console.warn(color.yellow(`${time()} Requests with the ${names.join(', ')} header${names.length > 1 ? 's' : ''} (${method} ${url}) fail in the store's preview and in review: the browser asks first for headers other than Accept, Accept-Language, Content-Language and a plain text or form Content-Type, and they refuse. Handle the failure there`));
+      }
+      return;
+    }
     const socket = /^wss?:/i.test(url);
     const text = `${time()} ${color.dim(`${socket ? 'WebSocket' : method === 'GET' ? 'fetch' : `fetch ${method}`} ${url}: ${status}`)}`;
     if (typeof status === 'number' && status < 400) console.log(text);

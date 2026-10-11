@@ -195,6 +195,11 @@ test('dev --web\'s proxy sends every method, the review\'s GET and HEAD only', a
   assert.equal(preflight.headers.get('access-control-allow-origin'), '*');
   assert.equal(preflight.headers.get('access-control-allow-methods'), 'PUT');
   assert.equal(preflight.headers.get('access-control-allow-headers'), 'authorization,content-type');
+  // headers the review refuses: the terminal says so
+  assert.deepEqual(reports.at(-1), { url: 'https://api.example.com/v1', status: 204, method: 'PUT', asked: 'authorization,content-type' });
+  const reported = reports.length;
+  await fetch(proxy('https://api.example.com/v1'), { method: 'OPTIONS', headers: { 'Access-Control-Request-Method': 'DELETE' } });
+  assert.equal(reports.length, reported, 'a method alone is reported with its request');
 
   const undeclared = await fetch(proxy('https://example.com/'), { method: 'POST', body: 'x' });
   assert.equal(undeclared.status, 403);
