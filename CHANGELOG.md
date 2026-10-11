@@ -2,6 +2,20 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 4.0.0 (2026-10-11)
+
+API version 4 (was 3): packages with `"apiVersion": 4` need an app that has it.
+
+### Breaking Changes
+
+- The files, now-playing and window-positions permissions are removed and an unknown permission is an error; system-info is documented as CPU and memory only
+- API 4 follows the web: the double click event is dblclick, click gets the mouse events' { x, y, … }, every mouse button has mousedown and mouseup with button and buttons, and wxBindCanvasTexture, blBindCanvasTexture, mixin and promisify are gone
+
+### Features
+
+- Image's size can be "fill", which stretches the image, or "none", which shows it at its own size, and Video's objectFit can be "none", API 4
+- queueMicrotask, atob, btoa and crypto (getRandomValues, randomUUID) are globals, and a Video has currentTime, duration and paused
+
 ## 3.0.1 (2026-10-11)
 
 ### Bug Fixes
