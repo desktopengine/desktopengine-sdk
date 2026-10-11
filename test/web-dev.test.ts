@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import dns from 'node:dns/promises';
 import fs from 'node:fs';
 import http from 'node:http';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -128,6 +129,33 @@ test('WebSockets speak both sides: text, binary messages over 64 KB, subprotocol
   assert.ok(Buffer.isBuffer(echoed) && echoed.equals(big));
   client.send('bye');
   assert.deepEqual(await next(client, 'close'), [4001, 'see you']);
+});
+
+test('a WebSocket closed without a code or without a close frame reads 1005 or 1006 on the other side', async (t) => {
+  const pair = async () => {
+    const accepted = new Promise<net.Socket>((resolve) => server.once('connection', resolve));
+    const client = net.connect((server.address() as net.AddressInfo).port, '127.0.0.1');
+    const serverSide = new WebSocketConnection(await accepted);
+    return { serverSide, clientSide: new WebSocketConnection(client, undefined, { client: true }) };
+  };
+  const server = net.createServer();
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => server.close());
+
+  let { serverSide, clientSide } = await pair();
+  let closed = next(clientSide, 'close');
+  serverSide.close(1005);
+  assert.deepEqual(await closed, [1005, '']);
+
+  ({ serverSide, clientSide } = await pair());
+  closed = next(clientSide, 'close');
+  serverSide.destroy();
+  assert.deepEqual(await closed, [1006, '']);
+
+  ({ serverSide, clientSide } = await pair());
+  closed = next(clientSide, 'close');
+  serverSide.close(1006, 'gone');
+  assert.deepEqual(await closed, [1000, 'gone'], 'a close frame can\'t say 1006');
 });
 
 test('the proxy\'s WebSockets reach network.domains only, and never the local network', async (t) => {

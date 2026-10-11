@@ -449,8 +449,10 @@ export async function proxyPreviewWebSocket(
     page.send(data);
   });
   page.on('message', (data) => remote.send(data));
-  remote.on('close', (code, reason) => page.close(code, reason));
-  page.on('close', (code, reason) => remote.close(code, reason));
+  // an abnormal closure stays one: a close frame would make it a clean 1000
+  const pass = (to: WebSocketConnection) => (code: number, reason: string) => (code === 1006 || code === 1015 ? to.destroy() : to.close(code, reason));
+  remote.on('close', pass(page));
+  page.on('close', pass(remote));
 }
 
 export class WebDevServer extends EventEmitter<WebDevServerEvents> {

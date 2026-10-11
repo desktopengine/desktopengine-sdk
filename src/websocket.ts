@@ -97,19 +97,31 @@ export class WebSocketConnection extends EventEmitter<WebSocketConnectionEvents>
     this.writeFrame(OPCODE.text, Buffer.from(text, 'utf8'));
   }
 
-  /** A code that can't be sent (1005, 1006, 1015, out of range) is sent as 1000 */
+  /**
+   * 1005 sends a close frame without a code (the other side reads 1005); another code that can't be sent (1006, 1015,
+   * out of range) is sent as 1000. For a connection that ended abnormally, destroy() instead
+   */
   close(code = 1000, reason = ''): void {
     if (this.closed) return;
-    const sent = (code >= 1000 && code < 1005) || (code > 1006 && code < 1015) || (code >= 3000 && code < 5000) ? code : 1000;
-    // at most 123 bytes, not cut inside a character
-    let reasonData = Buffer.from(reason, 'utf8');
-    while (reasonData.length > 123) reasonData = Buffer.from(reasonData.subarray(0, 123).toString('utf8').replace(/.$/su, ''), 'utf8');
-    const body = Buffer.alloc(2 + reasonData.length);
-    body.writeUInt16BE(sent, 0);
-    reasonData.copy(body, 2);
+    let body = Buffer.alloc(0);
+    if (code !== 1005) {
+      const sent = (code >= 1000 && code < 1005) || (code > 1006 && code < 1015) || (code >= 3000 && code < 5000) ? code : 1000;
+      // at most 123 bytes, not cut inside a character
+      let reasonData = Buffer.from(reason, 'utf8');
+      while (reasonData.length > 123) reasonData = Buffer.from(reasonData.subarray(0, 123).toString('utf8').replace(/.$/su, ''), 'utf8');
+      body = Buffer.alloc(2 + reasonData.length);
+      body.writeUInt16BE(sent, 0);
+      reasonData.copy(body, 2);
+    }
     this.writeFrame(OPCODE.close, body);
     this.socket.end();
     this.finish(code, reason);
+  }
+
+  /** Ends the connection without a close frame: the other side reads 1006, an abnormal closure */
+  destroy(): void {
+    this.socket.destroy();
+    this.finish(1006, '');
   }
 
   private finish(code: number, reason: string): void {
@@ -228,7 +240,8 @@ export class WebSocketConnection extends EventEmitter<WebSocketConnectionEvents>
         }
         return;
       case OPCODE.close:
-        this.close(payload.length >= 2 ? payload.readUInt16BE(0) : 1000, payload.subarray(2).toString('utf8'));
+        // a close frame without a code is 1005, as a browser reads it
+        this.close(payload.length >= 2 ? payload.readUInt16BE(0) : 1005, payload.subarray(2).toString('utf8'));
         return;
       case OPCODE.ping:
         this.writeFrame(OPCODE.pong, payload);
