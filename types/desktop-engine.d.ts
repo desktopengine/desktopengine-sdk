@@ -3918,11 +3918,16 @@ declare namespace DesktopEngine {
     stopImmediatePropagation(): void;
   }
 
-  /** A WebSocket message: a string for text messages, a Blob or an ArrayBuffer (see binaryType) for binary ones */
+  /**
+   * A message. From a WebSocket: a string for text messages, a Blob or an ArrayBuffer (see binaryType) for binary ones.
+   * From a MessagePort: a copy of what was posted (see structuredClone)
+   */
   interface MessageEvent extends Event {
     readonly data: any;
-    /** ws(s)://host[:port] of the connection */
+    /** ws(s)://host[:port] of a WebSocket connection, "" for a MessagePort */
     readonly origin: string;
+    /** The MessagePorts transferred with a message, empty for a WebSocket */
+    readonly ports: readonly MessagePort[];
   }
 
   /** The WebSocket connection closed */
@@ -4128,8 +4133,76 @@ interface Crypto {
 /** `getRandomValues` and `randomUUID`; there's no `crypto.subtle` */
 declare var crypto: Crypto;
 
+/** What libraries read about the device; there's no browser behind it */
+interface Navigator {
+  /** "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) DesktopEngine": a Mac, without Safari or WebKit */
+  readonly userAgent: string;
+  /** userAgent without "Mozilla/" */
+  readonly appVersion: string;
+  /** "MacIntel", as Safari says on every Mac */
+  readonly platform: string;
+  /** The user's preferred language, such as "zh-Hans-CN": DesktopEngine.launchOptions.locale */
+  readonly language: string;
+  /** The user's preferred languages, the first one first */
+  readonly languages: readonly string[];
+  /** The number of the Mac's processor cores */
+  readonly hardwareConcurrency: number;
+  /** Always 0: there's no touch screen */
+  readonly maxTouchPoints: number;
+}
+/** What libraries read about the device (API 5) */
+declare var navigator: Navigator;
+
+interface StructuredSerializeOptions {
+  /**
+   * ArrayBuffers and MessagePorts to move rather than copy. A transferred ArrayBuffer is detached on macOS 14.4 and
+   * later (as in browsers), still usable before; a transferred MessagePort is the same object on the other side
+   */
+  transfer?: Iterable<ArrayBuffer | MessagePort>;
+}
+
+/**
+ * A deep copy, as in browsers: objects and arrays (own enumerable properties; an instance of a class becomes a plain
+ * object), Date, RegExp, Map, Set, ArrayBuffer and its views, Blob, File, ImageData, errors, DOMException and boxed
+ * primitives, keeping cycles and shared references. Functions, symbols, promises, WeakMap and WeakSet, and the engine's
+ * objects (canvases, windows, URL, Headers, streams, audio nodes…) throw a "DataCloneError" DOMException (API 5)
+ */
+declare function structuredClone<T = any>(value: T, options?: StructuredSerializeOptions): T;
+
+/**
+ * One end of a MessageChannel. Messages are copies (see structuredClone) delivered in tasks of their own, once the
+ * port is started: setting onmessage starts it, with addEventListener call start()
+ */
+interface MessagePort extends EventTarget {
+  /** Starts the port */
+  onmessage: ((this: MessagePort, event: DesktopEngine.MessageEvent) => void) | null;
+  /** Never fires: every message can be copied on this side */
+  onmessageerror: ((this: MessagePort, event: DesktopEngine.MessageEvent) => void) | null;
+  /** Throws a "DataCloneError" DOMException when the message can't be copied; a closed port drops it */
+  postMessage(message: any, transfer: Iterable<ArrayBuffer | MessagePort>): void;
+  postMessage(message: any, options?: StructuredSerializeOptions): void;
+  /** Delivers the messages that came and come */
+  start(): void;
+  /** Stops both ends: the messages not yet delivered here are dropped */
+  close(): void;
+}
+/** Made by MessageChannel only: `new MessagePort()` throws */
+declare var MessagePort: {
+  prototype: MessagePort;
+};
+
+/** Two ports whose messages go to each other, within the content (there are no workers) (API 5) */
+interface MessageChannel {
+  readonly port1: MessagePort;
+  readonly port2: MessagePort;
+}
+declare var MessageChannel: {
+  prototype: MessageChannel;
+  new (): MessageChannel;
+};
+
 // -----------------------------------------------------------------------------
-// Events and errors: DOMException, Event and EventTarget, shared by fetch, WebSocket and audio
+// Events and errors: DOMException, Event, CustomEvent and EventTarget, shared by fetch, WebSocket and audio
 // -----------------------------------------------------------------------------
 
 /** Errors such as "AbortError", "TimeoutError", "SyntaxError" or "SecurityError", told apart by name */
@@ -4153,6 +4226,20 @@ interface Event extends DesktopEngine.Event {}
 declare var Event: {
   prototype: Event;
   new (type: string, eventInitDict?: EventInit): Event;
+};
+
+interface CustomEventInit<T = any> extends EventInit {
+  detail?: T;
+}
+
+/** An event carrying data of the content's own (API 5) */
+interface CustomEvent<T = any> extends Event {
+  /** The init's detail, null by default */
+  readonly detail: T;
+}
+declare var CustomEvent: {
+  prototype: CustomEvent;
+  new <T>(type: string, eventInitDict?: CustomEventInit<T>): CustomEvent<T>;
 };
 
 /**
@@ -4331,7 +4418,7 @@ declare var AbortController: {
 /** More event classes, e.g. to dispatch events or to check instanceof */
 declare var MessageEvent: {
   prototype: DesktopEngine.MessageEvent;
-  new (type: string, init?: EventInit & { data?: unknown; origin?: string }): DesktopEngine.MessageEvent;
+  new (type: string, init?: EventInit & { data?: unknown; origin?: string; ports?: MessagePort[] }): DesktopEngine.MessageEvent;
 };
 declare var CloseEvent: {
   prototype: DesktopEngine.CloseEvent;
@@ -4503,6 +4590,47 @@ interface File extends Blob {
 declare var File: {
   prototype: File;
   new (fileBits: Iterable<BlobPart>, fileName: string, options?: FilePropertyBag): File;
+};
+
+/**
+ * Reads a Blob with events, as in browsers (API 5): loadstart, progress, then load or error, then loadend, each in a
+ * task of its own. Blobs' own text(), arrayBuffer() and bytes() are simpler
+ */
+interface FileReader extends EventTarget {
+  /** EMPTY (0), LOADING (1) or DONE (2) */
+  readonly readyState: 0 | 1 | 2;
+  /** What the last read gave, null until it's done or when it was aborted */
+  readonly result: string | ArrayBuffer | null;
+  readonly error: DOMException | null;
+  readonly EMPTY: 0;
+  readonly LOADING: 1;
+  readonly DONE: 2;
+  onloadstart: ((this: FileReader, event: DesktopEngine.ProgressEvent) => void) | null;
+  onprogress: ((this: FileReader, event: DesktopEngine.ProgressEvent) => void) | null;
+  onload: ((this: FileReader, event: DesktopEngine.ProgressEvent) => void) | null;
+  onabort: ((this: FileReader, event: DesktopEngine.ProgressEvent) => void) | null;
+  onerror: ((this: FileReader, event: DesktopEngine.ProgressEvent) => void) | null;
+  onloadend: ((this: FileReader, event: DesktopEngine.ProgressEvent) => void) | null;
+  /** Each read throws an "InvalidStateError" DOMException while another is in progress */
+  readAsArrayBuffer(blob: Blob): void;
+  /** Characters 0 to 255, one per byte */
+  readAsBinaryString(blob: Blob): void;
+  /**
+   * Decoded with a byte order mark's encoding, else the label's (see TextDecoder), else the charset of the blob's type,
+   * else UTF-8
+   */
+  readAsText(blob: Blob, encoding?: string): void;
+  /** `data:<type>;base64,…`, application/octet-stream for a blob without a type */
+  readAsDataURL(blob: Blob): void;
+  /** Stops the read in progress: abort, then loadend */
+  abort(): void;
+}
+declare var FileReader: {
+  prototype: FileReader;
+  new (): FileReader;
+  readonly EMPTY: 0;
+  readonly LOADING: 1;
+  readonly DONE: 2;
 };
 
 type FormDataEntryValue = File | string;

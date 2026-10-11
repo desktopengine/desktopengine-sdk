@@ -33,6 +33,7 @@ export class MouseEvent {
   stopPropagation(): void {}
 }
 
+// the app has its own navigator since API 5
 global.navigator ??= { userAgent: 'DesktopEngine' };
 global.document ??= {
   ...eventTarget,

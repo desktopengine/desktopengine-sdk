@@ -4,7 +4,7 @@
 // This source code is licensed under the Apache Licence 2.0.
 
 // The content's globals. The frame is a browser document, DesktopEngine has no DOM: the content sees the language's
-// globals and the engine's, not window, document, navigator or the DOM classes, so libraries that look for a browser
+// globals and the engine's, not window, document or the DOM classes (and its own navigator, not the browser's), so libraries that look for a browser
 // (PixiJS checks `instanceof HTMLCanvasElement`, others `typeof document`) take the same paths as in the app, and the
 // stand-ins a project installs for them (`globalThis.document ??= …`) are used.
 //
@@ -28,8 +28,9 @@ const LANGUAGE = [
 const ENGINE = [
   'DesktopEngine', 'DesktopEngineCore', 'DesktopEngineRuntime', 'console', 'performance', 'setTimeout', 'clearTimeout',
   'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'queueMicrotask', 'atob', 'btoa',
-  'crypto', 'require', 'module', 'exports', 'postMessage', 'WebGLRenderingContext', 'WebGL2RenderingContext',
-  'DOMException', 'Event', 'EventTarget', 'MessageEvent', 'CloseEvent', 'ProgressEvent', 'AbortController', 'AbortSignal',
+  'crypto', 'navigator', 'require', 'module', 'exports', 'postMessage', 'WebGLRenderingContext', 'WebGL2RenderingContext',
+  'structuredClone', 'DOMException', 'Event', 'CustomEvent', 'EventTarget', 'MessageEvent', 'MessageChannel', 'MessagePort',
+  'FileReader', 'CloseEvent', 'ProgressEvent', 'AbortController', 'AbortSignal',
   'fetch', 'Headers', 'Request', 'Response', 'WebSocket', 'XMLHttpRequest', 'XMLHttpRequestEventTarget',
   'XMLHttpRequestUpload', 'Blob', 'File', 'FormData', 'URL', 'URLSearchParams', 'TextEncoder', 'TextDecoder',
   'TextEncoderStream', 'TextDecoderStream', 'ByteLengthQueuingStrategy', 'CountQueuingStrategy', 'ReadableStream',
@@ -46,7 +47,7 @@ const ENGINE = [
 
 const VISIBLE = new Set([...LANGUAGE, ...ENGINE]);
 /** Browser functions that throw unless `this` is the real global object */
-const BOUND = new Set(['queueMicrotask', 'atob', 'btoa', 'postMessage']);
+const BOUND = new Set(['queueMicrotask', 'atob', 'btoa', 'postMessage', 'structuredClone']);
 
 const realGlobal = globalThis as unknown as Record<PropertyKey, unknown>;
 /** The content's own globals: the hidden names it assigned, and the globals it created */

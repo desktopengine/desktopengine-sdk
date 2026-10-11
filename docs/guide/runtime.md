@@ -14,8 +14,9 @@ Besides the language's own (`Promise`, `Intl`, `WebAssembly`…), content has th
 - `console`, `globalThis` and `self`, and `require()` for CommonJS modules.
 - `atob` and `btoa`; `crypto.getRandomValues()` and `crypto.randomUUID()`, with the system's cryptographically strong random numbers (API 4).
 - `fetch`, `Headers`, `Request`, `Response`, `AbortController`, `WebSocket` and `XMLHttpRequest`, see [Network](./network).
-- `URL`, `URLSearchParams`, `TextEncoder`, `TextDecoder`, `Blob`, `File`, `FormData` and streams, see [Data](./data).
-- `DOMException`, `Event` and `EventTarget`.
+- `URL`, `URLSearchParams`, `TextEncoder`, `TextDecoder`, `Blob`, `File`, `FileReader`, `FormData` and streams, `structuredClone`, `MessageChannel`, see [Data](./data).
+- `DOMException`, `Event`, `CustomEvent` and `EventTarget`.
+- `navigator`: `userAgent` (a Mac, without Safari or WebKit), `platform`, `language` and `languages` (the user's preferred languages), `hardwareConcurrency` and `maxTouchPoints` (0). Nothing else of a browser's navigator.
 - `localStorage` and `sessionStorage`, see [Storage and Files](./storage).
 - `Audio`, `AudioContext` and the other Web Audio classes, see [Audio](./audio).
 
@@ -32,7 +33,7 @@ Besides the language's own (`Promise`, `Intl`, `WebAssembly`…), content has th
 
 ## Not there yet
 
-- `structuredClone`, `crypto.subtle`, `FileReader`, `CustomEvent`, `MessageChannel`, `BroadcastChannel`, Workers, `OffscreenCanvas`, `createImageBitmap` and `Path2D`; `navigator` and `location`.
+- `crypto.subtle`, `BroadcastChannel`, Workers, `OffscreenCanvas` (a `DesktopEngine.Canvas` that isn't in a window works off screen), `createImageBitmap` and `Path2D`; `location`.
 - Reading the system's audio output (music visualizers), IndexedDB.
 - Native ES modules in the runtime (bundling `src/` covers them for now).
 

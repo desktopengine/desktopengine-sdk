@@ -350,6 +350,26 @@ function installCrypto(): void {
   Object.defineProperty(scope, 'crypto', { value: crypto, writable: true, configurable: true, enumerable: true });
 }
 
+/** The engine's navigator: what libraries read about the device, nothing of a browser's */
+function installNavigator(locale: unknown): void {
+  const browser = scope.navigator;
+  const userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) DesktopEngine';
+  const first = typeof locale === 'string' && locale ? locale : browser.language;
+  const languages = Object.freeze([first, ...browser.languages.filter((language) => language !== first)]);
+  const hardwareConcurrency = browser.hardwareConcurrency || 1;
+  class Navigator {
+    get userAgent() { return userAgent; }
+    get appVersion() { return userAgent.slice(8); }
+    get platform() { return 'MacIntel'; }
+    get language() { return languages[0]; }
+    get languages() { return languages; }
+    get hardwareConcurrency() { return hardwareConcurrency; }
+    get maxTouchPoints() { return 0; }
+  }
+  Object.defineProperty(Navigator.prototype, Symbol.toStringTag, { value: 'Navigator', configurable: true });
+  Object.defineProperty(scope, 'navigator', { value: new Navigator(), writable: true, configurable: true, enumerable: true });
+}
+
 function installConsole(): void {
   const original = scope.console;
   const forward = (level: 'log' | 'info' | 'warn' | 'error' | 'debug') => (...values: unknown[]) => {
@@ -463,6 +483,7 @@ function launch(message: LaunchMessage): void {
   installAudio();
   if (hasPermission('audio')) installPointerInput();
   installCrypto();
+  installNavigator(message.options.locale);
   installConsole();
 
   const desktopEngine = createGlobal(message);
