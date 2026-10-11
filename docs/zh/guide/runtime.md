@@ -19,7 +19,6 @@
 
 ## 还没有的
 
-- 签名、上传审核和在线内容库：目前通过导入 .zip 或文件夹分发。
 - `files`、`now-playing`、`window-positions` 权限对应的 API。
 - 读取系统的音频输出（音乐可视化）、IndexedDB。
 - 运行时原生支持 ES 模块（目前通过 `src/` 打包解决）。

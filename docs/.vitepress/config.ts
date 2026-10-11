@@ -74,6 +74,7 @@ function guideSidebar(): DefaultTheme.SidebarItem[] {
         { text: 'Getting Started', link: '/guide/getting-started' },
         { text: 'Projects and Builds', link: '/guide/project' },
         { text: 'Design Guidelines', link: '/guide/design' },
+        { text: 'Publishing', link: '/guide/publishing' },
       ],
     },
     {
@@ -120,6 +121,7 @@ const chineseGuide: DefaultTheme.SidebarItem[] = [
       { text: '快速开始', link: '/zh/guide/getting-started' },
       { text: '项目和构建', link: '/zh/guide/project' },
       { text: '设计规则', link: '/zh/guide/design' },
+      { text: '发布到商店', link: '/zh/guide/publishing' },
     ],
   },
   {

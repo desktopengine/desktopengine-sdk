@@ -1,10 +1,10 @@
 # Getting Started
 
-The DesktopEngine app only provides the core services: it runs mini programs, manages the library and playlists, and assigns displays. Dynamic wallpapers, widgets and desktop companions are made by developers and creators with this SDK, and users import them into the app.
+The DesktopEngine app only provides the core services: it runs mini programs, manages the library and playlists, and assigns displays. Dynamic wallpapers, widgets and desktop companions are made by developers and creators with this SDK and published to the [DesktopEngine store](https://store.desktopengine.app), where users install them into the app.
 
 The SDK includes:
 
-- The `desktopengine` command line tool: create, run and debug, build, validate and pack projects
+- The `desktopengine` command line tool: create, run and debug, build, validate and pack projects, and publish them to the store
 - Project templates for wallpapers, widgets and desktop companions, plus WebGL, three.js and PixiJS versions for wallpapers
 - Type declarations of the runtime API, which editors use for completion and type checking (see the [API reference](/api/))
 - A [JSON Schema](/reference/manifest#json-schema) for `manifest.json`
@@ -60,7 +60,17 @@ desktopengine pack ~/Projects/day-progress
 
 `pack` writes `<id>-<version>.zip` into the project's `dist/`. To import it, click the import button in the toolbar of All Wallpapers, Widgets or Companions in DesktopEngine, or choose File › Import…. Import what `pack` makes: the app takes a folder too, but as it is, so a project folder would bring its other files along (`.env`, `node_modules`…) and a symbolic link in it is refused. What you import shows up by type: wallpapers in the wallpaper grid (filter the toolbar by Dynamic), widgets and companions on their own pages. Importing the same `id` again replaces the old version, and instances running on the desktop restart with the new one.
 
-For now content is shared as a .zip or a folder: there is no signing, review or online library yet.
+## Publish
+
+Importing is how you try a package before anyone else gets it. To share it, publish it to the store:
+
+```bash
+desktopengine login
+desktopengine publish ~/Projects/day-progress --test-link
+desktopengine publish ~/Projects/day-progress --submit --copyright original
+```
+
+`login` signs in with your creator account. `publish --test-link` uploads the version and prints a link that installs it in DesktopEngine, so you can test it the way users will get it. `publish --submit` then submits it for review; it's published once it's approved, and installed copies update themselves. Publishing is by invitation for now, and your content's `id` must start with your namespace: see [Publishing](./publishing).
 
 ## Next
 
@@ -68,3 +78,4 @@ For now content is shared as a .zip or a folder: there is no signing, review or 
 - [Manifest](/reference/manifest): name, type, permissions and the options users can change
 - [Wallpapers](./wallpaper), or [Launch Options](./launch-options) and [Windows](./windows) for widgets and desktop companions
 - [Design Guidelines](./design): how content fits in with macOS
+- [Publishing](./publishing): the store's review, age ratings and updates

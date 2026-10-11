@@ -28,4 +28,8 @@ features:
     details: desktopengine dev runs your project in the app, reloads it when you save, prints its console and exceptions in the terminal, and Safari's Web Inspector sets breakpoints.
   - title: The app does the rest
     details: Option forms, permission prompts, multiple displays, light and dark, pausing and saving power are handled by the app. Your content just draws.
+  - title: Try it in the browser
+    details: desktopengine dev --web runs your content on a page that looks like a Mac desktop, in the web runtime the store uses to let people try content before they install it.
+  - title: Publish to the store
+    details: desktopengine publish sends your content to the DesktopEngine store. Every version is reviewed; users install it from the store and get your updates automatically.
 ---

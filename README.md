@@ -24,13 +24,21 @@ desktopengine create widget ~/Projects/day-progress --id com.example.day-progres
 desktopengine dev ~/Projects/day-progress
 ```
 
-`dev` opens DesktopEngine and runs the mini program in it. Saving a file rebuilds and reloads it, and `console.log` and uncaught exceptions are printed in the terminal. When it's done, pack it:
+`dev` opens DesktopEngine and runs the mini program in it. Saving a file rebuilds and reloads it, and `console.log` and uncaught exceptions are printed in the terminal. When it's done, pack it and import the .zip in DesktopEngine with File › Import… to try it yourself:
 
 ```bash
 desktopengine pack ~/Projects/day-progress
 ```
 
-Then import the .zip in DesktopEngine with File › Import…. See the [documentation](https://desktopengine.app/desktopengine-sdk/guide/getting-started) for more.
+To share it, publish it to the [DesktopEngine store](https://store.desktopengine.app) (by invitation for now): sign in with your creator account, test the version with a link that installs it before review, then submit it for review.
+
+```bash
+desktopengine login
+desktopengine publish ~/Projects/day-progress --test-link
+desktopengine publish ~/Projects/day-progress --submit --copyright original
+```
+
+See the [documentation](https://desktopengine.app/desktopengine-sdk/guide/getting-started) for more, and [Publishing](https://desktopengine.app/desktopengine-sdk/guide/publishing) for the store's review.
 
 ## Contributing
 

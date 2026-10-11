@@ -1,10 +1,10 @@
 # 快速开始
 
-DesktopEngine 应用只做核心服务：运行小程序、管理资源库和播放列表、分配显示器。动态壁纸、小组件和桌面伙伴由开发者和创作者用这个 SDK 制作，用户在应用里导入后使用。
+DesktopEngine 应用只做核心服务：运行小程序、管理资源库和播放列表、分配显示器。动态壁纸、小组件和桌面伙伴由开发者和创作者用这个 SDK 制作，发布到 [DesktopEngine 商店](https://store.desktopengine.app)，用户从商店安装到应用里。
 
 SDK 包含：
 
-- `desktopengine` 命令行：新建、运行调试、构建、检查和打包项目
+- `desktopengine` 命令行：新建、运行调试、构建、检查和打包项目，以及发布到商店
 - 壁纸、小组件、桌面伙伴三种项目模板，壁纸另有 WebGL、three.js 和 PixiJS 版本
 - 运行时 API 的类型声明，编辑器可据此补全和检查类型（见 [API 参考](/zh/reference/api)）
 - `manifest.json` 的 [JSON Schema](/zh/reference/manifest#json-schema)
@@ -60,7 +60,17 @@ desktopengine pack ~/Projects/day-progress
 
 `pack` 在项目的 `dist/` 下生成 `<id>-<version>.zip`。在 DesktopEngine 的「全部壁纸」「小组件」或「伙伴」页点工具栏里的导入按钮，或选择「文件 › 导入…」，就可以导入它。请导入 `pack` 生成的包：应用也能导入文件夹，但会原样导入，项目文件夹里的其他文件（`.env`、`node_modules`…）会一起进去，里面有符号链接时会被拒绝。导入后按类型出现在对应的地方：壁纸出现在壁纸网格里（工具栏筛选「动态」），小组件和桌面伙伴出现在各自的页面。导入同一个 `id` 会替换旧版本，桌面上正在运行的实例会用新版本重新启动。
 
-目前通过 .zip 或文件夹分发内容，还没有签名、上传审核和在线内容库。
+## 发布
+
+导入是在别人拿到之前自己试用一个包。要分享给别人，把它发布到商店：
+
+```bash
+desktopengine login
+desktopengine publish ~/Projects/day-progress --test-link
+desktopengine publish ~/Projects/day-progress --submit --copyright original
+```
+
+`login` 用你的创作者账号登录。`publish --test-link` 上传这个版本，并给出一个把它装进 DesktopEngine 的链接，你可以按用户拿到的方式测试它。然后用 `publish --submit` 提交审核，通过后发布，已安装的副本会自动更新。商店目前需要邀请才能发布，内容的 `id` 必须以你的命名空间开头，见[发布到商店](./publishing)。
 
 ## 接下来
 
@@ -68,3 +78,4 @@ desktopengine pack ~/Projects/day-progress
 - [清单](/zh/reference/manifest)：名称、类型、权限和用户可调的选项
 - [壁纸](./wallpaper)，或者看[启动参数](./launch-options)和[窗口](./windows)来做小组件和桌面伙伴
 - [设计规则](./design)：怎样让内容和 macOS 融为一体
+- [发布到商店](./publishing)：商店的审核、年龄分级和更新

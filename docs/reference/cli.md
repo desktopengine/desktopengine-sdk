@@ -97,9 +97,9 @@ Signs in to the DesktopEngine store: it shows a short code and opens the browser
 desktopengine publish [folder] [options]
 ```
 
-Packs the project like `pack` and uploads it as a new version of its item in the store. The first time, it claims the item for the `id` in `manifest.json` (the id must start with `app.desktopengine.<your namespace>.`) and fills the store listing from the manifest's `name` and `description`; edit the listing in the creator console afterwards. `version` must be higher than the published one; a version that is still a draft, or was rejected, is uploaded again.
+Packs the project like `pack` and uploads it as a new version of its item in the store. The first time, it claims the item for the `id` in `manifest.json` (the id must start with `app.desktopengine.<your namespace>.`) and fills the store listing from the manifest's `name` and `description`; edit the listing in the Creator Studio on the store afterwards. `version` must be higher than the published one; a version that is still a draft, or was rejected, is uploaded again.
 
-The upload is checked right away (the same rules as `validate`, plus the store's: size, files, id and namespace). Problems are printed and the command exits with status 1. A submitted version is run on a review Mac and looked at by a reviewer before it's published.
+The upload is checked right away (the same rules as `validate`, plus the store's: size, files, id and namespace). Problems are printed and the command exits with status 1. A submitted version is run on a review Mac and looked at by a reviewer before it's published, see [Publishing](/guide/publishing).
 
 | Option | Description |
 | --- | --- |
