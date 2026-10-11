@@ -71,9 +71,8 @@ function engineColor(value: string): string {
   return formatColor([r, g, b, Math.round(a * 255)]);
 }
 
-/** The browser's gradient or pattern of one given to content, and the other way round */
+/** The browser's gradient or pattern of one given to content */
 const natives = new WeakMap<object, CanvasGradient | CanvasPattern>();
-const styles = new WeakMap<CanvasGradient | CanvasPattern, object>();
 
 const GRADIENT = Object.create(Object.prototype, {
   [Symbol.toStringTag]: { value: 'CanvasGradient' },
@@ -95,7 +94,6 @@ const PATTERN = Object.create(Object.prototype, { [Symbol.toStringTag]: { value:
 function style(native: CanvasGradient | CanvasPattern, prototype: object): object {
   const value = Object.create(prototype) as object;
   natives.set(value, native);
-  styles.set(native, value);
   return value;
 }
 
@@ -118,8 +116,13 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
   let smoothing = true;
   /** Whether the clip of the current state is on a save of its own, which resetClip restores */
   let clipped = false;
+  /**
+   * The gradients or patterns content set as the styles, which the getters give back: the browser's own objects
+   * can't tell them (WebKit makes new ones once nothing else refers to them)
+   */
+  const objects: { fillStyle: object | null; strokeStyle: object | null } = { fillStyle: null, strokeStyle: null };
   /** What restore brings back that the browser's state doesn't have */
-  const stack: { composite: string; clipped: boolean }[] = [];
+  const stack: { composite: string; clipped: boolean; fillStyle: object | null; strokeStyle: object | null }[] = [];
   let warnedClip = false;
 
   const restoreNative = (): void => {
@@ -164,15 +167,21 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
   const setStyle = (key: 'fillStyle' | 'strokeStyle', value: unknown): void => {
     if ((typeof value === 'object' && value !== null) || typeof value === 'function') {
       const gradientOrPattern = natives.get(value);
-      if (gradientOrPattern) native[key] = gradientOrPattern;
+      if (gradientOrPattern) {
+        native[key] = gradientOrPattern;
+        objects[key] = value;
+      }
       return;
     }
     const css = browserColor(value);
-    if (css) native[key] = css;
+    if (css) {
+      native[key] = css;
+      objects[key] = null;
+    }
   };
   const getStyle = (key: 'fillStyle' | 'strokeStyle'): unknown => {
     const value = native[key];
-    return typeof value === 'string' ? engineColor(value) : styles.get(value);
+    return typeof value === 'string' ? engineColor(value) : objects[key];
   };
   /** The engine's gradients take any numbers; the browser's throw for some (negative radii), and paint nothing then */
   const gradient = (make: () => CanvasGradient): object => {
@@ -195,7 +204,7 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
         return;
       }
       native.save();
-      stack.push({ composite, clipped });
+      stack.push({ composite, clipped, ...objects });
       clipped = false;
     },
     restore() {
@@ -204,10 +213,14 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
       if (clipped) native.restore();
       restoreNative();
       ({ composite, clipped } = saved);
+      objects.fillStyle = saved.fillStyle;
+      objects.strokeStyle = saved.strokeStyle;
     },
     resetCurrentState() {
       unclip(false);
       composite = 'source-over';
+      objects.fillStyle = null;
+      objects.strokeStyle = null;
       Object.assign(native, {
         globalAlpha: 1, globalCompositeOperation: 'source-over', lineWidth: 1, lineCap: 'butt', lineJoin: 'miter',
         miterLimit: 10, textBaseline: 'alphabetic', textAlign: 'start', font: DEFAULT_FONT, fillStyle: '#000',
