@@ -89,7 +89,7 @@ Builds, validates and zips the package into `<id>-<version>.zip` (in the project
 desktopengine login [--api <url>]
 ```
 
-Signs in to the DesktopEngine store: it shows a short code and opens the browser, where you confirm the code with your creator account. The token is kept in `~/.config/desktopengine/credentials.json` (in `$XDG_CONFIG_HOME` when it's set), readable only by you. Publishing needs a creator account, which is by invitation for now.
+Signs in to the DesktopEngine store: it shows a short code and opens the browser, where you confirm the code with your creator account. The token is kept in `~/.config/desktopengine/credentials.json` (in `$XDG_CONFIG_HOME` when it's set), readable only by you. Publishing needs a creator account, which is by invitation for now, see [Becoming a creator](/guide/publishing#becoming-a-creator).
 
 `desktopengine logout [--api <url>]` signs out and forgets the token.
 

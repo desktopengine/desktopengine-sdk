@@ -30,7 +30,7 @@ desktopengine dev ~/Projects/day-progress
 desktopengine pack ~/Projects/day-progress
 ```
 
-To share it, publish it to the [DesktopEngine store](https://store.desktopengine.app) (by invitation for now): sign in with your creator account, test the version with a link that installs it before review, then submit it for review.
+To share it, publish it to the [DesktopEngine store](https://store.desktopengine.app) (by invitation for now: ask for one at creators@desktopengine.app with links to your work): sign in with your creator account, test the version with a link that installs it before review, then submit it for review.
 
 ```bash
 desktopengine login

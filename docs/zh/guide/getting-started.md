@@ -70,7 +70,7 @@ desktopengine publish ~/Projects/day-progress --test-link
 desktopengine publish ~/Projects/day-progress --submit --copyright original
 ```
 
-`login` 用你的创作者账号登录。`publish --test-link` 上传这个版本，并给出一个把它装进 DesktopEngine 的链接，你可以按用户拿到的方式测试它。然后用 `publish --submit` 提交审核，通过后发布，已安装的副本会自动更新。商店目前需要邀请才能发布，内容的 `id` 必须以你的命名空间开头，见[发布到商店](./publishing)。
+`login` 用你的创作者账号登录。`publish --test-link` 上传这个版本，并给出一个把它装进 DesktopEngine 的链接，你可以按用户拿到的方式测试它。然后用 `publish --submit` 提交审核，通过后发布，已安装的副本会自动更新。商店目前需要邀请才能发布（发邮件到 [creators@desktopengine.app](mailto:creators@desktopengine.app) 申请），内容的 `id` 必须以你的命名空间开头，见[发布到商店](./publishing)。
 
 ## 接下来
 

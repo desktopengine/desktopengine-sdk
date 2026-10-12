@@ -2,11 +2,21 @@
 
 人们在 [DesktopEngine 商店](https://store.desktopengine.app)里找内容、在浏览器里的桌面上试用，再装进应用。每个版本发布前都要经过自动检查和审核员查看；商店给发布的内容签名，应用安装时核对签名，之后自动更新它。
 
-目前发布需要邀请。你发布的内容要遵守[内容政策](https://desktopengine.app/content-policy/?lang=zh)和[创作者协议](https://desktopengine.app/creator-agreement/?lang=zh)，开始之前请先读一读。
+我们正在逐步向创作者开放商店，目前发布需要邀请。你发布的内容要遵守[内容政策](https://desktopengine.app/content-policy/?lang=zh)和[创作者协议](https://desktopengine.app/creator-agreement/?lang=zh)，开始之前请先读一读。
+
+## 成为创作者
+
+发邮件到 [creators@desktopengine.app](mailto:creators@desktopengine.app) 申请邀请，邮件里请写上：
+
+- 你的作品的链接（必填）。
+- 你想发布哪类条目：壁纸、小组件、桌面伙伴……
+- 你想要的[命名空间](#命名空间和-id)。
+
+回信里会有一个邀请码。在 [store.desktopengine.app/account](https://store.desktopengine.app/account) 登录，在「创作」一栏里填上邀请码、选好命名空间、接受协议和政策（「成为创作者」）。
 
 ## 命名空间和 id
 
-要发布，先在商店登录，在账号窗口里选择「成为创作者」：填上邀请码，选一个**命名空间**（3 到 32 个小写字母、数字和连字符），接受协议和政策。命名空间会和你的作品一起显示，发布之后就不能再改，请慎重选择。
+**命名空间**由 3 到 32 个小写字母、数字和连字符组成。它会和你的作品一起显示，发布之后就不能再改，请慎重选择。
 
 你发布的所有内容的 `id` 都以 `app.desktopengine.<命名空间>.` 开头：
 

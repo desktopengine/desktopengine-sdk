@@ -2,11 +2,21 @@
 
 The [DesktopEngine store](https://store.desktopengine.app) is where people find content, try it on a desktop in the browser and install it into the app. Every version is checked automatically and looked at by a reviewer before it's published; the store signs what it publishes, and the app checks that signature when it installs your content and updates it by itself.
 
-Publishing is by invitation for now. What you publish follows the [Content Policy](https://desktopengine.app/content-policy/) and the [Creator Agreement](https://desktopengine.app/creator-agreement/): read them before you start.
+Publishing is by invitation while the store opens to creators step by step. What you publish follows the [Content Policy](https://desktopengine.app/content-policy/) and the [Creator Agreement](https://desktopengine.app/creator-agreement/): read them before you start.
+
+## Becoming a creator
+
+Ask for an invitation at [creators@desktopengine.app](mailto:creators@desktopengine.app). In the email, include:
+
+- Links to your work (needed).
+- The kinds of items you'd like to publish: wallpapers, widgets, companions…
+- The [namespace](#namespace-and-id) you'd like.
+
+The answer comes with an invitation code. Sign in at [store.desktopengine.app/account](https://store.desktopengine.app/account), and in the Creating section enter the code, choose your namespace and accept the agreement and the policy (Become a Creator).
 
 ## Namespace and id
 
-To publish, sign in on the store and choose Become a Creator in the account window. With an invitation code, you choose a **namespace** (3 to 32 lowercase letters, digits and hyphens) and accept the agreement and the policy. The namespace is shown with your items and can't change once you've published, so choose it with care.
+Your **namespace** is 3 to 32 lowercase letters, digits and hyphens. It's shown with your items and can't change once you've published, so choose it with care.
 
 The `id` of everything you publish starts with `app.desktopengine.<namespace>.`:
 

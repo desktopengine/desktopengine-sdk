@@ -70,7 +70,7 @@ desktopengine publish ~/Projects/day-progress --test-link
 desktopengine publish ~/Projects/day-progress --submit --copyright original
 ```
 
-`login` signs in with your creator account. `publish --test-link` uploads the version and prints a link that installs it in DesktopEngine, so you can test it the way users will get it. `publish --submit` then submits it for review; it's published once it's approved, and installed copies update themselves. Publishing is by invitation for now, and your content's `id` must start with your namespace: see [Publishing](./publishing).
+`login` signs in with your creator account. `publish --test-link` uploads the version and prints a link that installs it in DesktopEngine, so you can test it the way users will get it. `publish --submit` then submits it for review; it's published once it's approved, and installed copies update themselves. Publishing is by invitation for now (ask for one at [creators@desktopengine.app](mailto:creators@desktopengine.app)), and your content's `id` must start with your namespace: see [Publishing](./publishing).
 
 ## Next
 

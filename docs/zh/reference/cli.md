@@ -89,7 +89,7 @@ desktopengine pack [folder] [--out <folder>] [--minify]
 desktopengine login [--api <url>]
 ```
 
-登录 DesktopEngine 商店：显示一个短码并打开浏览器，在浏览器里用创作者账号确认这个短码。令牌保存在 `~/.config/desktopengine/credentials.json`（设置了 `$XDG_CONFIG_HOME` 时在它下面），只有你自己能读。发布需要创作者账号，目前需要邀请。
+登录 DesktopEngine 商店：显示一个短码并打开浏览器，在浏览器里用创作者账号确认这个短码。令牌保存在 `~/.config/desktopengine/credentials.json`（设置了 `$XDG_CONFIG_HOME` 时在它下面），只有你自己能读。发布需要创作者账号，目前需要邀请，见[成为创作者](/zh/guide/publishing#成为创作者)。
 
 `desktopengine logout [--api <url>]` 退出登录并删除令牌。
 
