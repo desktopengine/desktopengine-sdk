@@ -46,7 +46,7 @@ declare namespace DesktopEngine {
   type ContentType = 'wallpaper' | 'widget' | 'companion' | 'pet';
 
   /** A permission declared in manifest.json */
-  type Permission = 'network' | 'audio' | 'system-info' | 'mouse' | 'key-activity' | 'window-positions';
+  type Permission = 'network' | 'audio' | 'system-info' | 'mouse' | 'key-activity' | 'system-audio' | 'window-positions';
 
   /** The value of a parameter: a `toggle` is a boolean, a `number` a number, a `choice`, `color` or `text` a string */
   type ParameterValue = boolean | number | string | null;

@@ -11,7 +11,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { validateManifest, validatePackage, englishText, isValidNetworkDomain, TYPES } from '../src/manifest.ts';
+import { validateManifest, validatePackage, englishText, isValidNetworkDomain, PERMISSIONS, TYPES } from '../src/manifest.ts';
 import { createZip, readZip, crc32 } from '../src/zip.ts';
 import { createProject, packProject, listPackageFiles, defaultId, RENDERERS } from '../src/project.ts';
 import { buildProject } from '../src/build.ts';
@@ -130,6 +130,12 @@ test('the mouse permission asks for the API that has DesktopEngine.input', () =>
   assert.deepEqual(errors, []);
   assert.ok(warnings.some((message) => message.includes('"apiVersion": 3')));
   assert.deepEqual(validateManifest({ ...minimal, permissions: ['mouse'], apiVersion: 3 }), { errors: [], warnings: [] });
+});
+
+test('the permissions are the ones the type declarations give launchOptions', () => {
+  const declarations = fs.readFileSync(path.join(import.meta.dirname, '..', 'types', 'desktop-engine.d.ts'), 'utf8');
+  const union = /\n\s*type Permission =([^;]*);/.exec(declarations)?.[1] ?? '';
+  assert.deepEqual([...PERMISSIONS].sort(), [...union.matchAll(/'([^']+)'/g)].map((match) => match[1]).sort());
 });
 
 test('the window-positions permission asks for the API that has DesktopEngine.windows', () => {
