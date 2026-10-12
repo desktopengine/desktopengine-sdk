@@ -15,6 +15,7 @@ import { Evented, defineEvents } from './events.ts';
 import { createFileSystem, loadPackage, requireFrom } from './files.ts';
 import { installNetwork } from './network.ts';
 import { createImageBitmapFunction } from './bitmap.ts';
+import { createChannels } from './channels.ts';
 import { createPath2D } from './path2d.ts';
 import { cancelAnimationFrame, clearTimer, hostFrame, requestAnimationFrame, setInterval, setTimeout, startStats } from './scheduler.ts';
 import { guard, hasPermission, report, send, state } from './state.ts';
@@ -488,6 +489,8 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
 
 // MARK: Launch
 
+const channels = createChannels({ send, namespaceChannels: () => state.launch?.namespaceChannels === true });
+
 function launch(message: LaunchMessage): void {
   if (state.launch) return;
   state.launch = message;
@@ -507,6 +510,8 @@ function launch(message: LaunchMessage): void {
     value: createImageBitmapFunction(scope.createImageBitmap.bind(scope), unwrap),
     writable: true, configurable: true, enumerable: true,
   });
+  // the engine's BroadcastChannel, through the host (the browser's reaches nothing from an opaque origin)
+  Object.defineProperty(scope, 'BroadcastChannel', { value: channels.BroadcastChannel, writable: true, configurable: true, enumerable: true });
   // the engine's Path2D, around the browser's (which the 2D contexts draw)
   Object.defineProperty(scope, 'Path2D', { value: createPath2D(scope.Path2D), writable: true, configurable: true, enumerable: true });
   installConsole();
@@ -683,6 +688,9 @@ scope.addEventListener('message', (event: MessageEvent) => {
       applyAudio();
       break;
     }
+    case 'broadcast':
+      if (state.launch) channels.receive(message);
+      break;
     case 'stop':
       for (const win of allWindows()) win.destroy();
       for (const entry of audioContexts) entry.context.close().catch(() => undefined);

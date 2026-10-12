@@ -122,7 +122,7 @@ The runtime enforces `network` (no network without it, and only the listed domai
 
 ## API versions
 
-The runtime has an integer API version that goes up when APIs are added: `DesktopEngine.apiVersion` in JavaScript. This SDK describes version 5 (the first line of `desktopengine --help` shows it too). When you use an API added later, put its version in `"apiVersion"` and apps with an older API refuse to import the package and ask users to update; or leave it out and check `DesktopEngine.apiVersion` at run time to fall back.
+The runtime has an integer API version that goes up when APIs are added: `DesktopEngine.apiVersion` in JavaScript. This SDK describes version 6 (the first line of `desktopengine --help` shows it too). When you use an API added later, put its version in `"apiVersion"` and apps with an older API refuse to import the package and ask users to update; or leave it out and check `DesktopEngine.apiVersion` at run time to fall back.
 
 | Version | Added |
 | --- | --- |
@@ -131,5 +131,6 @@ The runtime has an integer API version that goes up when APIs are added: `Deskto
 | 3 | `DesktopEngine.input`, the `mouse` and `key-activity` permissions, see [Mouse and Typing](/guide/input) |
 | 4 | `Image`'s `size` `fill` (stretched) and `none` (its own size), `Video`'s `objectFit` `none`; every mouse button's `mousedown` and `mouseup`, with `button` and `buttons` in the mouse events' payload, see [Mouse](/guide/windows#mouse); `queueMicrotask`, `atob`, `btoa` and `crypto` (`getRandomValues`, `randomUUID`), see [Globals](/guide/runtime#globals); `currentTime`, `duration` and `paused` of `Video` |
 | 5 | `ellipse()`, `roundRect()`, `getTransform()`, `createConicGradient()`, `letterSpacing` and `wordSpacing` of 2D canvases, `setTransform()` taking a matrix, the blend modes (`multiply`…`luminosity`), the rest of `TextMetrics`, `Path2D`, `isPointInPath` and `isPointInStroke`; `createImageBitmap` and `new ImageData()`; `structuredClone`, `MessageChannel`, `FileReader`, `CustomEvent` and `navigator`, see [Globals](/guide/runtime#globals) |
+| 6 | `BroadcastChannel`, with the scopes `package` and `namespace`, see [Messages Between Content](/guide/messaging) |
 
 Version 4 also changed APIs as in browsers: the double click event is `dblclick` (it was `dbclick`), and `click` and `dblclick` get the mouse events' payload, `{ x, y, … }` (it was `{ position: { x, y } }`). It removed `wxBindCanvasTexture` and `blBindCanvasTexture` of WebGL contexts, the global `mixin` and `promisify`, and the `files`, `now-playing` and `window-positions` permissions, which had no API. Content that used them needs `"apiVersion": 4` once it's changed.

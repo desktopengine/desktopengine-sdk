@@ -15,6 +15,7 @@
 - `atob` 和 `btoa`；`crypto.getRandomValues()` 和 `crypto.randomUUID()`，用系统的密码学安全随机数（API 4）。
 - `fetch`、`Headers`、`Request`、`Response`、`AbortController`、`WebSocket` 和 `XMLHttpRequest`，见[网络](./network)。
 - `URL`、`URLSearchParams`、`TextEncoder`、`TextDecoder`、`Blob`、`File`、`FileReader`、`FormData` 和流，`structuredClone`、`MessageChannel`，见[数据](./data)。
+- `BroadcastChannel`，发给其他正在运行的内容（API 6），见[内容之间的消息](./messaging)。
 - `DOMException`、`Event`、`CustomEvent` 和 `EventTarget`。
 - `navigator`：`userAgent`（一台 Mac，不带 Safari 和 WebKit）、`platform`、`language` 和 `languages`（用户的首选语言，按浏览器的写法：`zh-CN`，不是系统的 `zh-Hans-CN`）、`hardwareConcurrency` 和 `maxTouchPoints`（0），没有浏览器 navigator 的其他内容。
 - `localStorage` 和 `sessionStorage`，见[存储和文件](./storage)。
@@ -35,7 +36,7 @@
 
 ## 还没有的
 
-- `crypto.subtle`、`BroadcastChannel`、Worker 和 `OffscreenCanvas`（不放进窗口的 `DesktopEngine.Canvas` 就能离屏使用）；`location`。
+- `crypto.subtle`、Worker 和 `OffscreenCanvas`（不放进窗口的 `DesktopEngine.Canvas` 就能离屏使用）；`location`。
 - 读取系统的音频输出（音乐可视化）、IndexedDB。
 - 运行时原生支持 ES 模块（目前通过 `src/` 打包解决）。
 

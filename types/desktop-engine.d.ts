@@ -4027,13 +4027,13 @@ declare namespace DesktopEngine {
 
   /**
    * A message. From a WebSocket: a string for text messages, a Blob or an ArrayBuffer (see binaryType) for binary ones.
-   * From a MessagePort: a copy of what was posted (see structuredClone)
+   * From a MessagePort or a BroadcastChannel: a copy of what was posted (see structuredClone)
    */
   interface MessageEvent extends Event {
     readonly data: any;
-    /** ws(s)://host[:port] of a WebSocket connection, "" for a MessagePort */
+    /** ws(s)://host[:port] of a WebSocket connection, "" for a MessagePort or a BroadcastChannel */
     readonly origin: string;
-    /** The MessagePorts transferred with a message, empty for a WebSocket */
+    /** The MessagePorts transferred with a message, empty for a WebSocket or a BroadcastChannel */
     readonly ports: readonly MessagePort[];
   }
 
@@ -4340,6 +4340,68 @@ interface MessageChannel {
 declare var MessageChannel: {
   prototype: MessageChannel;
   new (): MessageChannel;
+};
+
+/**
+ * Who a BroadcastChannel reaches, besides the content's own channels of the same name:
+ * - `"package"`: every running instance of the same package, e.g. the copies of a wallpaper on each display.
+ * - `"namespace"`: every package whose id has the same namespace, `app.desktopengine.<namespace>.<name>`: one creator's
+ *   content, e.g. a widget and a companion made to work together. Only for content installed from the store (or built
+ *   into the app); a package imported from a file throws a "SecurityError" DOMException, its id isn't checked.
+ *
+ * Content run by `desktopengine dev` shares `"package"` and `"namespace"` channels only with other content run by it;
+ * its `"namespace"` channels need an id of the store's form, `app.desktopengine.<namespace>.<name>`.
+ * Live previews in the app (a wallpaper's details, the widget gallery) take part in no messaging.
+ */
+type BroadcastChannelScope = 'package' | 'namespace';
+
+interface BroadcastChannelOptions {
+  /** `"package"` by default */
+  scope?: BroadcastChannelScope;
+}
+
+/**
+ * Messages to other content running at the same time, by channel name (API 6). As on the web, a message goes to every
+ * other open channel of the same name and scope, in this content and in the others the scope reaches, never back to
+ * the channel that posted it (nor to one this content opens after posting it); it's a copy (see structuredClone, without transferring), delivered in a task of its own.
+ * Nothing is kept: content that isn't running or has no channel open doesn't get it. Messages from one channel arrive
+ * in the order they were posted. Content that's paused (e.g. while a full screen app covers its wallpaper) still gets
+ * them.
+ *
+ *   const channel = new BroadcastChannel('scene');                            // the instances of this package
+ *   channel.onmessage = (event) => applyScene(event.data);
+ *   channel.postMessage({ scene: 'night' });
+ *   const focus = new BroadcastChannel('focus', { scope: 'namespace' });      // the creator's other packages
+ *
+ * Limits: a message takes at most 1 MB (2 bytes for each character of its strings and keys, plus its ArrayBuffers),
+ * and content posts at most 240 messages and 16 MB a second over all its channels; postMessage throws past them. When
+ * a content can't keep up with what it's sent (its thread is busy for long), the messages after its 1024 waiting ones
+ * are dropped.
+ */
+interface BroadcastChannel extends EventTarget {
+  /** The name it was made with */
+  readonly name: string;
+  /** Who it reaches (browsers' BroadcastChannel has no scope: it reaches the same origin) */
+  readonly scope: BroadcastChannelScope;
+  onmessage: ((this: BroadcastChannel, event: DesktopEngine.MessageEvent) => void) | null;
+  /** A message came that can't be copied here */
+  onmessageerror: ((this: BroadcastChannel, event: DesktopEngine.MessageEvent) => void) | null;
+  /**
+   * Sends a copy of the message. Throws a "DataCloneError" DOMException when it can't be copied (see structuredClone)
+   * or is bigger than 1 MB, a "QuotaExceededError" one when the content posts too many, and an "InvalidStateError"
+   * one once the channel is closed
+   */
+  postMessage(message: any): void;
+  /** Stops receiving; posting throws afterwards. A channel that isn't closed keeps receiving as long as the content runs */
+  close(): void;
+}
+declare var BroadcastChannel: {
+  prototype: BroadcastChannel;
+  /**
+   * Throws a "SecurityError" DOMException for `scope: "namespace"` in content whose id isn't checked (imported from a
+   * file), a TypeError for an unknown scope
+   */
+  new (name: string, options?: BroadcastChannelOptions): BroadcastChannel;
 };
 
 // -----------------------------------------------------------------------------

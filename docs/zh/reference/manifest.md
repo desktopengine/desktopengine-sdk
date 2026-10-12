@@ -122,7 +122,7 @@ if (permissions.includes('network')) {
 
 ## API 版本
 
-运行时有一个整数的 API 版本，新增 API 时递增，JavaScript 里是 `DesktopEngine.apiVersion`，当前的 SDK 对应的版本是 5（`desktopengine --help` 的第一行也会显示）。用到之后新增的 API 时，在清单的 `"apiVersion"` 写上它的版本，API 版本更低的应用会拒绝导入并提示用户更新；也可以不写，在运行时判断 `DesktopEngine.apiVersion` 后降级。
+运行时有一个整数的 API 版本，新增 API 时递增，JavaScript 里是 `DesktopEngine.apiVersion`，当前的 SDK 对应的版本是 6（`desktopengine --help` 的第一行也会显示）。用到之后新增的 API 时，在清单的 `"apiVersion"` 写上它的版本，API 版本更低的应用会拒绝导入并提示用户更新；也可以不写，在运行时判断 `DesktopEngine.apiVersion` 后降级。
 
 | 版本 | 新增 |
 | --- | --- |
@@ -131,5 +131,6 @@ if (permissions.includes('network')) {
 | 3 | `DesktopEngine.input`，`mouse` 和 `key-activity` 权限，见[鼠标和打字](/zh/guide/input) |
 | 4 | `Image` 的 `size` 可以是 `fill`（拉伸）和 `none`（原始尺寸），`Video` 的 `objectFit` 可以是 `none`；每个鼠标键的 `mousedown` 和 `mouseup`，鼠标事件的参数里有 `button` 和 `buttons`，见[鼠标](/zh/guide/windows#鼠标)；`queueMicrotask`、`atob`、`btoa` 和 `crypto`（`getRandomValues`、`randomUUID`），见[全局对象](/zh/guide/runtime#全局对象)；`Video` 的 `currentTime`、`duration` 和 `paused` |
 | 5 | 2D 画布的 `ellipse()`、`roundRect()`、`getTransform()`、`createConicGradient()`、`letterSpacing` 和 `wordSpacing`，`setTransform()` 可以传矩阵，混合模式（`multiply`…`luminosity`）、`TextMetrics` 的其余字段、`Path2D`、`isPointInPath` 和 `isPointInStroke`；`createImageBitmap` 和 `new ImageData()`；`structuredClone`、`MessageChannel`、`FileReader`、`CustomEvent` 和 `navigator`，见[全局对象](/zh/guide/runtime#全局对象) |
+| 6 | `BroadcastChannel`，范围有 `package` 和 `namespace`，见[内容之间的消息](/zh/guide/messaging) |
 
 版本 4 还按浏览器的样子改了一些 API：双击事件是 `dblclick`（原来是 `dbclick`），`click` 和 `dblclick` 的参数和鼠标事件一样是 `{ x, y, … }`（原来是 `{ position: { x, y } }`）。去掉了 WebGL 上下文的 `wxBindCanvasTexture` 和 `blBindCanvasTexture`、全局的 `mixin` 和 `promisify`，以及没有对应 API 的 `files`、`now-playing`、`window-positions` 权限。用到它们的内容改好后要写上 `"apiVersion": 4`。

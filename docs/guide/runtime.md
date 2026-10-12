@@ -15,6 +15,7 @@ Besides the language's own (`Promise`, `Intl`, `WebAssembly`…), content has th
 - `atob` and `btoa`; `crypto.getRandomValues()` and `crypto.randomUUID()`, with the system's cryptographically strong random numbers (API 4).
 - `fetch`, `Headers`, `Request`, `Response`, `AbortController`, `WebSocket` and `XMLHttpRequest`, see [Network](./network).
 - `URL`, `URLSearchParams`, `TextEncoder`, `TextDecoder`, `Blob`, `File`, `FileReader`, `FormData` and streams, `structuredClone`, `MessageChannel`, see [Data](./data).
+- `BroadcastChannel`, to other running content (API 6), see [Messages Between Content](./messaging).
 - `DOMException`, `Event`, `CustomEvent` and `EventTarget`.
 - `navigator`: `userAgent` (a Mac, without Safari or WebKit), `platform`, `language` and `languages` (the user's preferred languages, as browsers write them: `zh-CN`, not the system's `zh-Hans-CN`), `hardwareConcurrency` and `maxTouchPoints` (0). Nothing else of a browser's navigator.
 - `localStorage` and `sessionStorage`, see [Storage and Files](./storage).
@@ -35,7 +36,7 @@ Besides the language's own (`Promise`, `Intl`, `WebAssembly`…), content has th
 
 ## Not there yet
 
-- `crypto.subtle`, `BroadcastChannel`, Workers and `OffscreenCanvas` (a `DesktopEngine.Canvas` that isn't in a window works off screen); `location`.
+- `crypto.subtle`, Workers and `OffscreenCanvas` (a `DesktopEngine.Canvas` that isn't in a window works off screen); `location`.
 - Reading the system's audio output (music visualizers), IndexedDB.
 - Native ES modules in the runtime (bundling `src/` covers them for now).
 

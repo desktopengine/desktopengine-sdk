@@ -12,7 +12,7 @@
 //   const content = desktop.launch({ name: 'Clock', code, manifest, files });
 //   content.on('console', ({ level, message }) => …);
 
-import { API_VERSION, frameDocument, type FrameMessage, type HostMessage, type ParameterValue, type Rect, type WebScreen, type WindowState } from '../protocol.ts';
+import { API_VERSION, frameDocument, type ChannelScope, type FrameMessage, type HostMessage, type ParameterValue, type Rect, type WebScreen, type WindowState } from '../protocol.ts';
 
 declare const __FRAME_RUNTIME__: string;
 
@@ -111,6 +111,12 @@ export interface ContentSpec {
   instanceId?: string;
   /** Its own preview proxy instead of the desktop's, e.g. a link that lets it reach its network.domains only */
   proxy?: string;
+  /**
+   * Whether it may use BroadcastChannels of scope "namespace": shared with the contents whose manifest id has the same
+   * namespace, `app.desktopengine.<namespace>.<name>`. On by default, for contents whose id is checked (from the store,
+   * or all run by one developer); turn it off for packages anyone could have made, as the app does for imported ones.
+   */
+  namespaceChannels?: boolean;
 }
 
 type ContentEvents = {
@@ -130,6 +136,9 @@ const WIDGET_SIZES: Record<string, { width: number; height: number }> = {
 
 const inside = (rect: Rect, x: number, y: number): boolean => x >= rect.x && y >= rect.y && x < rect.x + rect.width && y < rect.y + rect.height;
 
+/** BroadcastChannel messages a content may post a second: the engine's 240, with room for timing differences */
+const BROADCASTS_PER_SECOND = 300;
+
 /** keyactivity is sent on this grid, in milliseconds, as the app does */
 const KEY_GRID = 100;
 
@@ -148,18 +157,26 @@ export class WebContent {
   wantsMouse = false;
   /** It listens to keyactivity, and the desktop gives it */
   wantsKeys = false;
+  /** The BroadcastChannels its frame has open, by scope and name ("<scope>\n<name>") */
+  readonly channels = new Set<string>();
   private listeners = new Map<string, Set<(value: never) => void>>();
   private ready = false;
   private stopped = false;
   /** New parameters were sent and their answer hasn't come */
   private awaitingParameters = false;
   private parameterValues: Record<string, ParameterValue>;
+  /** Tells contents apart */
+  private readonly serial: number;
+  /** BroadcastChannel messages it may still post now, see spendBroadcast */
+  private broadcastAllowance = BROADCASTS_PER_SECOND;
+  private broadcastTime = 0;
 
   constructor(
     readonly desktop: WebDesktop,
     public spec: ContentSpec,
   ) {
     instances += 1;
+    this.serial = instances;
     this.parameterValues = { ...defaultParameters(spec.manifest), ...spec.parameters };
     this.iframe = document.createElement('iframe');
     this.iframe.className = 'de-content';
@@ -219,6 +236,31 @@ export class WebContent {
   get getsKeyActivity(): boolean {
     const permissions = this.spec.permissions ?? this.spec.manifest?.permissions ?? [];
     return permissions.includes('key-activity') && this.desktop.options.keyActivity?.(this.spec) === true;
+  }
+
+  /** Who its BroadcastChannels of the scope reach: contents with the same string; null when it can't use the scope */
+  channelGroup(scope: ChannelScope): string | null {
+    const id = this.spec.manifest?.id;
+    switch (scope) {
+      case 'package':
+        // without an id, its instance is a package of its own
+        return id ?? `instance:${this.serial}`;
+      case 'namespace': {
+        const namespace = id ? /^app\.desktopengine\.([^.]+)\./.exec(id)?.[1] : undefined;
+        return this.spec.namespaceChannels !== false && namespace ? namespace : null;
+      }
+    }
+    return null;
+  }
+
+  /** @internal: whether it may post one more BroadcastChannel message: its frame keeps it to the engine's rate, this only stops a frame that doesn't */
+  spendBroadcast(): boolean {
+    const now = performance.now() / 1000;
+    this.broadcastAllowance = Math.min(BROADCASTS_PER_SECOND, this.broadcastAllowance + (this.broadcastTime ? now - this.broadcastTime : 0) * BROADCASTS_PER_SECOND);
+    this.broadcastTime = now;
+    if (this.broadcastAllowance < 1) return false;
+    this.broadcastAllowance -= 1;
+    return true;
   }
 
   /** Where its requests go */
@@ -297,6 +339,15 @@ export class WebContent {
       case 'input':
         this.desktop.frameInput(this, message);
         break;
+      case 'channel': {
+        const key = `${message.scope}\n${message.name}`;
+        if (message.open !== true) this.channels.delete(key);
+        else if (this.channelGroup(message.scope) !== null) this.channels.add(key);
+        break;
+      }
+      case 'broadcast':
+        this.desktop.broadcast(this, message);
+        break;
     }
   }
 
@@ -328,6 +379,7 @@ export class WebContent {
     this.wantsFrames = false;
     this.wantsMouse = false;
     this.wantsKeys = false;
+    this.channels.clear();
     this.desktop.updateInputWatching();
     this.windows = [];
     this.emit('windows', this.windows);
@@ -741,7 +793,26 @@ export class WebDesktop {
       maxFramesPerSecond: this.options.maxFramesPerSecond ?? 0,
       muted: this.options.muted ?? true,
       keyActivity: content.getsKeyActivity,
+      namespaceChannels: content.channelGroup('namespace') !== null,
     };
+  }
+
+  /**
+   * @internal: a message a content posted on a BroadcastChannel, to every content (the sender too, for its other
+   * channels) that has a channel of the scope and name open and shares the scope with it. Copied by the browser, in the
+   * order they're posted; the frame keeps to the engine's limits, the desktop drops what goes past them anyway.
+   */
+  broadcast(sender: WebContent, message: Extract<FrameMessage, { type: 'broadcast' }>): void {
+    const scope = message.scope;
+    const group = sender.channelGroup(scope);
+    if (group === null || !sender.spendBroadcast()) return;
+    const name = String(message.name);
+    const key = `${scope}\n${name}`;
+    for (const content of this.contents) {
+      if (!content.channels.has(key) || content.channelGroup(scope) !== group) continue;
+      const own = content === sender;
+      content.post({ type: 'broadcast', scope, name, data: message.data, source: own ? Number(message.source) : -1, newest: own ? Number(message.newest) : -1 });
+    }
   }
 
   /** DesktopEngine.launchOptions as the app makes them */

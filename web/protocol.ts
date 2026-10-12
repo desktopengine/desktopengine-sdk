@@ -10,7 +10,7 @@
 // Coordinates are global points, as DesktopEngine.Window uses them: origin at the top left of the main screen, y down.
 
 /** `DesktopEngine.apiVersion` on the web, the same as the SDK's `API_VERSION` (a test checks) */
-export const API_VERSION = 5;
+export const API_VERSION = 6;
 
 export interface Rect {
   x: number;
@@ -64,7 +64,11 @@ export interface LaunchMessage {
   muted: boolean;
   /** Whether it gets keyactivity (DesktopOptions.keyActivity) */
   keyActivity: boolean;
+  /** Whether it may open BroadcastChannels of scope "namespace" (ContentSpec.namespaceChannels) */
+  namespaceChannels: boolean;
 }
+
+export type ChannelScope = 'package' | 'namespace';
 
 export type PointerKind = 'move' | 'down' | 'up' | 'leave' | 'click' | 'wheel';
 
@@ -107,6 +111,11 @@ export type HostMessage =
   | { type: 'frame' }
   /** The pointer's look while the frame takes the pointer (see `input`): the host's grab and grabbing */
   | { type: 'cursor'; cursor: string }
+  /**
+   * A message on a BroadcastChannel the frame has open. Of the frame's own: `source` is the id of the channel that
+   * posted it and `newest` of the newest channel it had then; -1 for another content's
+   */
+  | { type: 'broadcast'; scope: ChannelScope; name: string; data: unknown; source: number; newest: number }
   | { type: 'stop' };
 
 /** A window as the host sees it: where it is and which parts take the mouse */
@@ -137,6 +146,10 @@ export type FrameMessage =
   | { type: 'frames'; wanted: boolean }
   /** What of DesktopEngine.input it listens to: the host sends `global-mouse` and `key-activity` only then */
   | { type: 'input-wanted'; mouse: boolean; keys: boolean }
+  /** The frame has a BroadcastChannel of the scope and name open (or no longer): the host sends it their messages */
+  | { type: 'channel'; scope: ChannelScope; name: string; open: boolean }
+  /** postMessage on a BroadcastChannel, from the channel with the id `source` when `newest` was the newest */
+  | { type: 'broadcast'; scope: ChannelScope; name: string; data: unknown; source: number; newest: number }
   /** Whether the content applied new parameters itself (it listens to parameterschange); the host restarts it otherwise */
   | { type: 'parameters-result'; handled: boolean }
   /**
