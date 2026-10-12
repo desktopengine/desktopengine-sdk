@@ -20,6 +20,7 @@ import { createPath2D } from './path2d.ts';
 import { cancelAnimationFrame, clearTimer, hostFrame, requestAnimationFrame, setInterval, setTimeout, startStats } from './scheduler.ts';
 import { guard, hasPermission, report, send, state } from './state.ts';
 import { installStorage } from './storage.ts';
+import { RESTRICTED_BAND_COUNT, RESTRICTED_INTERVAL, RESTRICTED_QUANTUM, FINE_BAND_COUNT, emptySnapshot, isAudible, mergeBands, normalizedLevel, syntheticSnapshot, type Snapshot } from '../system-audio.ts';
 
 const scope = globalThis as unknown as Record<string, unknown> & typeof globalThis;
 
@@ -130,6 +131,110 @@ function globalMouse(message: Extract<HostMessage, { type: 'global-mouse' }>): v
       input.emit('wheel', { x, y, deltaX: Number(message.deltaX) || 0, deltaY: Number(message.deltaY) || 0 });
       break;
   }
+}
+
+// MARK: System audio
+
+/** What the page plays (`system-audio` messages), or null for the made-up signal */
+let pageAudio: Snapshot | null = null;
+/** When the page's sound was last audible (performance.now()) */
+let pageAudibleAt = -Infinity;
+const systemAudioStart = performance.now();
+const systemAudioInstances = new Set<SystemAudioImpl>();
+
+function systemAudioActive(): boolean {
+  return pageAudio === null || performance.now() - pageAudibleAt < 1000;
+}
+
+/**
+ * DesktopEngine.systemAudio: a browser can't hear the Mac, so a made-up signal like music, or the page's analysis of an
+ * element it plays (WebDesktop.setSystemAudioSource)
+ */
+class SystemAudioImpl extends Evented {
+  #bandCount = RESTRICTED_BAND_COUNT;
+  #snapshot = emptySnapshot();
+  #snapshotTime = -Infinity;
+  #active = systemAudioActive();
+
+  constructor() {
+    if (!state.launch || state.launch.systemAudio === 'none') {
+      throw new Error('This content can\'t hear what the Mac plays: it needs the "system-audio" permission, without "network"');
+    }
+    super();
+    systemAudioInstances.add(this);
+  }
+
+  get #detailed(): boolean {
+    return state.launch?.systemAudio === 'detailed';
+  }
+
+  #current(): Snapshot {
+    const now = performance.now();
+    if (!this.#detailed && now - this.#snapshotTime < RESTRICTED_INTERVAL) return this.#snapshot;
+    this.#snapshotTime = now;
+    if (pageAudio) {
+      this.#snapshot.bands.set(pageAudio.bands);
+      this.#snapshot.level = pageAudio.level;
+    } else {
+      syntheticSnapshot((now - systemAudioStart) / 1000, this.#snapshot);
+    }
+    return this.#snapshot;
+  }
+
+  get supported(): boolean {
+    return true;
+  }
+
+  get active(): boolean {
+    return systemAudioActive();
+  }
+
+  get level(): number {
+    const level = normalizedLevel(this.#current().level);
+    return this.#detailed ? level : Math.round(level / RESTRICTED_QUANTUM) * RESTRICTED_QUANTUM;
+  }
+
+  get bandCount(): number {
+    return this.#bandCount;
+  }
+
+  set bandCount(value: unknown) {
+    // as the engine reads numbers: anything but a number is 0
+    const count = typeof value === 'number' ? value : 0;
+    if (Number.isNaN(count)) return;
+    this.#bandCount = Math.min(Math.max(Math.floor(count), 1), this.maxBandCount);
+  }
+
+  get maxBandCount(): number {
+    return this.#detailed ? FINE_BAND_COUNT : RESTRICTED_BAND_COUNT;
+  }
+
+  getBands(array: unknown): void {
+    if (!(array instanceof Float32Array)) throw new TypeError('getBands: the argument must be a Float32Array');
+    mergeBands(this.#current(), array, this.#bandCount, this.#detailed ? 0 : RESTRICTED_QUANTUM);
+  }
+
+  /** @internal: the page's sound started or stopped */
+  activeChanged(): void {
+    const active = systemAudioActive();
+    if (active === this.#active) return;
+    this.#active = active;
+    this.emit('activechange');
+  }
+}
+defineEvents(SystemAudioImpl.prototype, ['activechange']);
+
+function pageSystemAudio(message: Extract<HostMessage, { type: 'system-audio' }>): void {
+  if (!state.launch || state.launch.systemAudio === 'none') return;
+  if (message.bands instanceof Float32Array && message.bands.length === FINE_BAND_COUNT) {
+    // the page's sound starting counts as audible: its first moments may be quiet
+    if (!pageAudio) pageAudibleAt = performance.now();
+    pageAudio = { bands: message.bands, level: Number(message.level) || 0 };
+    if (isAudible(pageAudio.level)) pageAudibleAt = performance.now();
+  } else {
+    pageAudio = null;
+  }
+  for (const instance of systemAudioInstances) instance.activeChanged();
 }
 
 const system = new SystemImpl();
@@ -469,6 +574,7 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
     ScreenManager: screenManager,
     system,
     input,
+    systemAudio: launch.systemAudio === 'none' ? null : new SystemAudioImpl(),
     fs,
     launchOptions: options,
     apiVersion: launch.apiVersion,
@@ -481,7 +587,7 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
     },
     enumerable: true,
   });
-  for (const key of ['fs', 'launchOptions', 'apiVersion']) {
+  for (const key of ['systemAudio', 'fs', 'launchOptions', 'apiVersion']) {
     Object.defineProperty(desktopEngine, key, { value: desktopEngine[key], writable: false, enumerable: true });
   }
   return desktopEngine;
@@ -520,7 +626,7 @@ function launch(message: LaunchMessage): void {
   const runtimeScope: Record<string, unknown> = {};
   for (const [name, value] of Object.entries({
     Window: WindowImpl, Component: ComponentImpl, Video: VideoImpl, Image: ImageImpl, Canvas: CanvasImpl, CanvasImage: CanvasImageImpl,
-    ScreenManager: ScreenManagerImpl, System: SystemImpl, Input: InputImpl,
+    ScreenManager: ScreenManagerImpl, System: SystemImpl, Input: InputImpl, SystemAudio: SystemAudioImpl,
   })) {
     Object.defineProperty(runtimeScope, name, { get: () => value, enumerable: true });
   }
@@ -652,6 +758,9 @@ scope.addEventListener('message', (event: MessageEvent) => {
       break;
     case 'key-activity':
       if (state.launch?.keyActivity) input.emit('keyactivity', { count: Math.max(1, Math.floor(Number(message.count) || 0)) });
+      break;
+    case 'system-audio':
+      pageSystemAudio(message);
       break;
     case 'cursor':
       document.documentElement.style.cursor = String(message.cursor);

@@ -39,4 +39,27 @@ There is no `AudioWorklet`, `ScriptProcessorNode`, `MediaElementAudioSourceNode`
 - Sound plays on the system's current output device and follows it when it changes; the default sample rate of `AudioContext` is the device's.
 - Users can set the volume of each item of content in the app, or mute all content. It multiplies the volume the content sets, and the `volume` JavaScript reads doesn't change.
 - When content is removed or stopped, all its sound stops at once.
-- Reading the system's audio output (for music visualizers, say) isn't possible yet.
+
+## What the Mac plays
+
+`DesktopEngine.systemAudio` follows what the Mac plays (music, videos, other apps; never your content's own sound), for music visualizers. It's an analysis, never the sound itself: how loud it is overall (`level`) and in bands from low to high (`getBands`), each 0...1. It needs the `system-audio` permission and `"apiVersion": 6`; content with it can't have `network` too, so that what's heard stays on the Mac. Without the permission `DesktopEngine.systemAudio` is `null`.
+
+```js
+const audio = DesktopEngine.systemAudio;
+const bands = new Float32Array(audio?.bandCount ?? 0); // 32 by default
+
+requestAnimationFrame(function draw() {
+  if (audio) {
+    audio.getBands(bands); // low to high, 0...1
+    for (let i = 0; i < bands.length; i++) {
+      // draw a bar bands[i] tall
+    }
+  }
+  requestAnimationFrame(draw);
+});
+```
+
+- Read it at your own pace, e.g. every frame: the values change up to 30 times a second, smoothed (they rise fast and fall within about half a second). The bands cover 30 Hz to 16 kHz, spaced evenly in octaves; set `bandCount` (1...`maxBandCount`, which is 32) for fewer, wider ones. `level` is the overall loudness, `active` says whether anything audible plays.
+- The app listens only while content reads it (or listens to `activechange`) and another app plays sound, and stops 2 seconds after the last read and while the app pauses the content. Meanwhile macOS shows its recording indicator in the menu bar. To stop listening while the content is idle, stop reading and wait for `activechange`.
+- The first time, macOS asks the user to allow DesktopEngine to record system audio. A user who doesn't allow it, or a Mac before macOS 14.2 (`supported` is false), gets silence: every band and `level` 0, and `active` false. Draw something calm for silence rather than an error.
+- In the web preview (`desktopengine dev --web` and the store) it's a made-up signal like music. Press ♫ in `dev --web`'s menu bar to choose an audio file to hear instead.

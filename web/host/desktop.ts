@@ -13,6 +13,10 @@
 //   content.on('console', ({ level, message }) => …);
 
 import { API_VERSION, frameDocument, type ChannelScope, type FrameMessage, type HostMessage, type ParameterValue, type Rect, type WebScreen, type WindowState } from '../protocol.ts';
+import { ANALYSIS_RATE, analyseSpectrum, emptySnapshot } from '../system-audio.ts';
+
+/** The ids of the content that comes with DesktopEngine */
+const OFFICIAL_ID_PREFIX = 'app.desktopengine.official.';
 
 declare const __FRAME_RUNTIME__: string;
 
@@ -261,6 +265,14 @@ export class WebContent {
     if (this.broadcastAllowance < 1) return false;
     this.broadcastAllowance -= 1;
     return true;
+  }
+
+  /** What DesktopEngine.systemAudio gives it: it declares system-audio, and network too only if it comes with DesktopEngine */
+  get systemAudio(): 'none' | 'restricted' | 'detailed' {
+    const permissions = this.spec.permissions ?? this.spec.manifest?.permissions ?? [];
+    const official = (this.spec.manifest?.id ?? '').startsWith(OFFICIAL_ID_PREFIX);
+    if (!permissions.includes('system-audio') || (permissions.includes('network') && !official)) return 'none';
+    return official ? 'detailed' : 'restricted';
   }
 
   /** Where its requests go */
@@ -525,6 +537,9 @@ export class WebDesktop {
   private scaleFactor = 1;
   private resizeTimer = 0;
   private frameRequest = 0;
+  private audioContext: AudioContext | null = null;
+  private readonly mediaSources = new WeakMap<HTMLMediaElement, MediaElementAudioSourceNode>();
+  private systemAudio: { element: HTMLMediaElement; source: AudioNode; analyser: AnalyserNode; timer: number } | null = null;
   private readonly resizeObserver: ResizeObserver;
   private readonly intersectionObserver: IntersectionObserver;
   private readonly onMessage = (event: MessageEvent) => {
@@ -737,6 +752,54 @@ export class WebDesktop {
     this.updateAllPlayback();
   }
 
+  /**
+   * What contents with the system-audio permission hear instead of a made-up signal like music: an audio or video
+   * element on the page, analysed while it plays (the page plays it, so it's heard too); null goes back to the made-up
+   * signal. Call it from a click or a key press: the page's audio starts only after one.
+   */
+  setSystemAudioSource(element: HTMLMediaElement | null): void {
+    if (this.systemAudio?.element === element) return;
+    if (this.systemAudio) {
+      clearInterval(this.systemAudio.timer);
+      this.systemAudio.source.disconnect(this.systemAudio.analyser);
+      this.systemAudio = null;
+    }
+    if (!element) {
+      for (const content of this.contents) {
+        if (content.systemAudio !== 'none') content.post({ type: 'system-audio', bands: null, level: 0 });
+      }
+      return;
+    }
+    const context = (this.audioContext ??= new AudioContext());
+    context.resume().catch(() => undefined);
+    // an element gets one source node for good
+    let source = this.mediaSources.get(element);
+    if (!source) {
+      source = context.createMediaElementSource(element);
+      this.mediaSources.set(element, source);
+    }
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 4096;
+    analyser.smoothingTimeConstant = 0;
+    source.disconnect();
+    source.connect(analyser);
+    source.connect(context.destination);
+    const spectrum = new Float32Array(analyser.frequencyBinCount);
+    const samples = new Float32Array(analyser.fftSize);
+    const snapshot = emptySnapshot();
+    const timer = window.setInterval(() => {
+      analyser.getFloatFrequencyData(spectrum);
+      analyser.getFloatTimeDomainData(samples);
+      let sum = 0;
+      for (const sample of samples) sum += sample * sample;
+      analyseSpectrum(spectrum, context.sampleRate, analyser.fftSize, sum / samples.length, snapshot);
+      for (const content of this.contents) {
+        if (content.systemAudio !== 'none') content.post({ type: 'system-audio', bands: snapshot.bands.slice(), level: snapshot.level });
+      }
+    }, 1000 / ANALYSIS_RATE);
+    this.systemAudio = { element, source, analyser, timer };
+  }
+
   /** Pauses every content, like the app does when the desktop can't be seen */
   setPaused(paused: boolean): void {
     this.paused = paused;
@@ -754,6 +817,8 @@ export class WebDesktop {
   }
 
   destroy(): void {
+    this.setSystemAudioSource(null);
+    this.audioContext?.close().catch(() => undefined);
     cancelAnimationFrame(this.frameRequest);
     this.frameRequest = 0;
     clearTimeout(this.keyTimer);
@@ -794,6 +859,7 @@ export class WebDesktop {
       muted: this.options.muted ?? true,
       keyActivity: content.getsKeyActivity,
       namespaceChannels: content.channelGroup('namespace') !== null,
+      systemAudio: content.systemAudio,
     };
   }
 

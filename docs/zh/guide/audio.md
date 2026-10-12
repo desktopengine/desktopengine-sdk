@@ -39,4 +39,27 @@ requestAnimationFrame(function draw() {
 - 声音从系统当前的输出设备播放，跟随系统切换设备；`AudioContext` 的默认采样率是设备的采样率。
 - 用户可以在应用里调节每个内容的音量，或者把所有内容静音。它乘在内容自己设置的音量之上，JavaScript 读到的 `volume` 不受影响。
 - 内容被移除或停止时，所有声音立即停止。
-- 还不能读取系统的音频输出（例如做音乐可视化）。
+
+## Mac 正在播放的声音
+
+`DesktopEngine.systemAudio` 跟随 Mac 正在播放的声音（音乐、视频、其它应用；不包括内容自己发出的声音），用来做音乐可视化。它给的是分析结果，从不给声音本身：整体有多响（`level`），以及从低到高各个频带有多响（`getBands`），都是 0...1。需要 `system-audio` 权限和 `"apiVersion": 6`；有它的内容不能同时有 `network`，这样听到的东西留在 Mac 上。没有这个权限时 `DesktopEngine.systemAudio` 是 `null`。
+
+```js
+const audio = DesktopEngine.systemAudio;
+const bands = new Float32Array(audio?.bandCount ?? 0); // 默认 32 个
+
+requestAnimationFrame(function draw() {
+  if (audio) {
+    audio.getBands(bands); // 从低到高，0...1
+    for (let i = 0; i < bands.length; i++) {
+      // 画一根 bands[i] 高的柱子
+    }
+  }
+  requestAnimationFrame(draw);
+});
+```
+
+- 按自己的节奏读，比如每帧读一次：数值每秒最多变 30 次，经过平滑（上升快，大约半秒内落下）。频带覆盖 30 Hz 到 16 kHz，按八度均匀分布；设置 `bandCount`（1...`maxBandCount`，即 32）可以得到更少、更宽的频带。`level` 是整体响度，`active` 表示有没有听得见的声音在播放。
+- 应用只在内容读取它（或监听 `activechange`）并且有其它应用在出声时才去听，最后一次读取 2 秒后、以及应用暂停内容时停止。听的期间 macOS 会在菜单栏显示录音指示器。内容闲着时想停止收听，就停止读取，等 `activechange`。
+- 第一次使用时，macOS 会请用户允许 DesktopEngine 录制系统音频。用户不允许，或者 Mac 的系统早于 macOS 14.2（`supported` 为 false）时，听到的是静音：所有频带和 `level` 都是 0，`active` 为 false。静音时画一些安静的东西，不要当成错误。
+- 网页预览（`desktopengine dev --web` 和商店）里是一段像音乐的合成信号。在 `dev --web` 的菜单栏按 ♫ 可以选一个音频文件来代替。

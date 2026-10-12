@@ -617,6 +617,12 @@ declare namespace DesktopEngine {
     keyactivity: KeyActivityPayload;
   }
 
+  /** `DesktopEngine.systemAudio` event map */
+  interface SystemAudioEventMap {
+    /** `active` changed: sound started or stopped playing. Listening keeps the app listening to the Mac, like reading */
+    activechange: void;
+  }
+
   /** ScreenManager event map */
   interface ScreenManagerEventMap {
     /** The screen configuration changed: displays connected, disconnected or arranged, a resolution, or the menu bar or the Dock moved, resized or hid */
@@ -3716,6 +3722,50 @@ declare namespace DesktopEngine {
   }
 
   // ---------------------------------------------------------------------------
+  // System audio
+  // ---------------------------------------------------------------------------
+
+  /**
+   * What the Mac plays (music, videos, other apps; never this content's own sound), as an analysis: how loud it is and
+   * how it spreads from low to high, never the sound itself. For music visualizers. Needs the "system-audio" permission
+   * (and `"apiVersion": 6`), which content can't have together with "network"; `DesktopEngine.systemAudio` is null
+   * without it.
+   *
+   * The app listens only while the content reads it (or listens to `activechange`) and another app plays sound; it
+   * stops 2 seconds after the last read, and while the app pauses the content. Meanwhile macOS shows its recording
+   * indicator in the menu bar, and the first time it asks the user to allow DesktopEngine to record system audio. A
+   * user who doesn't allow it, or a Mac before macOS 14.2, gets silence: every band and `level` 0, `active` false.
+   *
+   * Read it at your own pace, e.g. in requestAnimationFrame: the values change up to 30 times a second, smoothed:
+   * they rise fast and fall about 1.8 per second.
+   */
+  interface SystemAudio extends EventedObject<SystemAudioEventMap> {
+    /** Whether this Mac can hear what it plays: false before macOS 14.2 */
+    readonly supported: boolean;
+    /** Whether something audible plays (louder than -60 dB in the last second) */
+    readonly active: boolean;
+    /** How loud it plays overall, 0...1 (-60 dB...0 dB) */
+    readonly level: number;
+    /**
+     * How many bands `getBands` fills: 1...`maxBandCount`, default 32. Values out of range are clamped, fractions dropped.
+     * The bands always cover 30 Hz...16 kHz, spaced evenly in octaves
+     */
+    bandCount: number;
+    /** The most bands the content may ask for: 32 */
+    readonly maxBandCount: number;
+    /**
+     * Fills `array`'s first `bandCount` items (fewer when it's shorter) with the latest level of each band, low to high,
+     * 0...1 (-80 dB...-12 dB per octave, tilted +3 dB per octave so that music is about flat), in steps of 1/255.
+     * Throws a TypeError when `array` isn't a Float32Array
+     */
+    getBands(array: Float32Array): void;
+    /** activechange callback */
+    onactivechange: EventHandler<this, SystemAudioEventMap['activechange']> | null | undefined;
+    /** Removes the onactivechange callback */
+    offactivechange(): void;
+  }
+
+  // ---------------------------------------------------------------------------
   // File system (DesktopEngine.fs)
   // ---------------------------------------------------------------------------
 
@@ -3941,6 +3991,8 @@ declare namespace DesktopEngine {
     system: System;
     /** The mouse anywhere on screen and typing in any app; the mouse needs the "mouse" permission */
     input: Input;
+    /** What the Mac plays, as an analysis for music visualizers; null without the "system-audio" permission */
+    readonly systemAudio: SystemAudio | null;
     /** The file system: package files, and the content's own files that are kept between launches */
     readonly fs: FileSystem;
     /**
@@ -3994,6 +4046,8 @@ declare namespace DesktopEngine {
     readonly System: PlainConstructor<System>;
     /** Input constructor (use DesktopEngine.input) */
     readonly Input: PlainConstructor<Input>;
+    /** SystemAudio constructor (use DesktopEngine.systemAudio; throws without the "system-audio" permission) */
+    readonly SystemAudio: PlainConstructor<SystemAudio>;
     /** Native side of `DesktopEngine.fs` and `require` (internal: use `DesktopEngine.fs`) */
     readonly FileSystem: PlainConstructor<unknown>;
     /** Native side of `localStorage` (a singleton, internal: use the global) */

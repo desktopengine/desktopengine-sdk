@@ -13,9 +13,9 @@ export const TYPE_ALIASES: Readonly<Record<string, ContentType>> = { pet: 'compa
 /** The API version that introduced each type's current name, for types newer than API 1 */
 export const TYPE_API_VERSIONS: Readonly<Partial<Record<ContentType, number>>> = { companion: 2 };
 export const WIDGET_SIZES = ['small', 'medium', 'large'] as const;
-export const PERMISSIONS = ['network', 'audio', 'system-info', 'mouse', 'key-activity'] as const;
+export const PERMISSIONS = ['network', 'audio', 'system-info', 'mouse', 'key-activity', 'system-audio'] as const;
 /** The API version that introduced each permission's API, for permissions newer than API 1 */
-export const PERMISSION_API_VERSIONS: Readonly<Partial<Record<Permission, number>>> = { mouse: 3, 'key-activity': 3 };
+export const PERMISSION_API_VERSIONS: Readonly<Partial<Record<Permission, number>>> = { mouse: 3, 'key-activity': 3, 'system-audio': 6 };
 /** Permissions only content that comes with the app gets: others that declare them never get them */
 export const BUILTIN_ONLY_PERMISSIONS: readonly Permission[] = ['key-activity'];
 /** The ids of the content that comes with the app; the store doesn't take others' packages in it */
@@ -344,6 +344,10 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
   }
   if (declaresNetwork && domains.length === 0) {
     errors.push('The "network" permission needs "network.domains": the domains it connects to, e.g. { "domains": ["api.example.com"] }. It can reach no others');
+  }
+  // what the Mac plays could be sent anywhere
+  if (declaresNetwork && permissions.includes('system-audio') && !String(manifest.id ?? '').startsWith(OFFICIAL_ID_PREFIX)) {
+    errors.push('Content with the "system-audio" permission can\'t have "network" too: what the Mac plays stays on the Mac');
   }
 
   const { parameters } = manifest;

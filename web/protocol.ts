@@ -66,6 +66,11 @@ export interface LaunchMessage {
   keyActivity: boolean;
   /** Whether it may open BroadcastChannels of scope "namespace" (ContentSpec.namespaceChannels) */
   namespaceChannels: boolean;
+  /**
+   * DesktopEngine.systemAudio: none without the system-audio permission (or with network, unless it comes with
+   * DesktopEngine), detailed for content that comes with DesktopEngine (128 bands, 60 times a second, not rounded)
+   */
+  systemAudio: 'none' | 'restricted' | 'detailed';
 }
 
 export type ChannelScope = 'package' | 'namespace';
@@ -97,6 +102,11 @@ export type HostMessage =
   | { type: 'global-mouse'; kind: 'move' | 'down' | 'up' | 'wheel'; x: number; y: number; button: number; deltaX: number; deltaY: number }
   /** DesktopEngine.input's keyactivity: keys pressed on the page, on a 100 ms grid */
   | { type: 'key-activity'; count: number }
+  /**
+   * DesktopEngine.systemAudio's analysis of what the page plays (`WebDesktop.setSystemAudioSource`), 60 times a second
+   * to contents that hear it: the fine bands' powers and the mean square; null bands go back to the made-up signal
+   */
+  | { type: 'system-audio'; bands: Float32Array | null; level: number }
   | { type: 'move-window'; window: string; x: number; y: number }
   | { type: 'appearance'; appearance: 'light' | 'dark' }
   | { type: 'parameters'; parameters: Record<string, ParameterValue>; changed: string[] }

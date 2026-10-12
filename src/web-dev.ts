@@ -669,6 +669,8 @@ function desktopPage(token: string, proxyToken: string): string {
   <select id="size" title="Widget size" hidden></select>
   <button id="appearance" title="Light or dark">◐</button>
   <button id="sound" title="Sound">🔇</button>
+  <button id="music" title="What systemAudio hears: a made-up signal, or an audio file you choose" hidden>♫</button>
+  <input id="music-file" type="file" accept="audio/*,video/*" hidden>
   <button id="restart" title="Start again">↻</button>
 </div>
 <div id="dock"></div>
@@ -713,6 +715,7 @@ async function run() {
   select.innerHTML = sizes.map((value) => '<option>' + value + '</option>').join('');
   size = size ?? build.launch?.size ?? sizes[0];
   select.value = size;
+  document.getElementById('music').hidden = !(build.manifest.permissions ?? []).includes('system-audio');
   const spec = {
     name, code: build.code, files, manifest: build.manifest,
     parameters: build.launch?.parameters, size, level: build.launch?.level, position: build.launch?.position,
@@ -744,6 +747,41 @@ document.getElementById('sound').onclick = (event) => {
   desktop.setMuted(muted);
 };
 document.getElementById('restart').onclick = () => content?.restart();
+// DesktopEngine.systemAudio hears a made-up signal like music, or a file chosen here, played on the page
+const music = document.getElementById('music');
+const musicFile = document.getElementById('music-file');
+const player = new Audio();
+player.loop = true;
+const showMusic = () => {
+  music.textContent = player.src ? (player.paused ? '♫ ▶' : '♫ ❚❚') : '♫';
+  music.title = player.src ? (player.paused ? 'Play the file systemAudio hears' : 'Back to the made-up signal') : 'Choose an audio file for systemAudio to hear (it hears a made-up signal like music now)';
+};
+showMusic();
+music.onclick = () => {
+  if (!player.src) { musicFile.click(); return; }
+  if (player.paused) {
+    // in the click: browsers start the page's sound only after one
+    desktop.setSystemAudioSource(player);
+    player.play().catch(() => {}).finally(showMusic);
+  } else {
+    player.pause();
+    desktop.setSystemAudioSource(null);
+    URL.revokeObjectURL(player.src);
+    player.removeAttribute('src');
+    player.load();
+    showMusic();
+  }
+};
+musicFile.onchange = () => {
+  const file = musicFile.files?.[0];
+  musicFile.value = '';
+  if (!file) return;
+  player.src = URL.createObjectURL(file);
+  // started at once when the browser still counts the click that opened the chooser, otherwise with the next click
+  desktop.setSystemAudioSource(player);
+  player.play().catch(() => desktop.setSystemAudioSource(null)).finally(showMusic);
+};
+player.onplay = player.onpause = showMusic;
 let revision = 0;
 new EventSource(api('/events')).addEventListener('revision', (event) => {
   const next = Number(event.data);

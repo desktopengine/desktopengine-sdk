@@ -97,6 +97,7 @@
 | `system-info` | CPU 和内存用量 |
 | `mouse` | 指针的位置和点击，在任何应用里（需要 `"apiVersion": 3`），见[鼠标和打字](/zh/guide/input) |
 | `key-activity` | 在任何应用里按了几下键，从不知道是哪些键；只有 DesktopEngine 自带的内容能得到，见[打字](/zh/guide/input#打字) |
+| `system-audio` | Mac 正在播放的声音有多响、高低音怎么分布，不包括录音（需要 `"apiVersion": 6`）；有它的内容不能同时有 `network`，见[Mac 正在播放的声音](/zh/guide/audio#mac-正在播放的声音) |
 
 写其他权限会报错：应用不认识的权限不列出、不询问，内容也得不到。应用在详情栏列出这些权限。`audio` 不询问：声明了就能发出声音，用户用音量和「所有内容静音」控制。其余权限在用户第一次把内容添加到桌面时逐项询问，用户可以只允许一部分，之后也能在详情栏里随时更改（内容会重新启动）；内置内容不询问。没有声明权限的内容不会弹出询问。
 
@@ -118,7 +119,7 @@ if (permissions.includes('network')) {
 "network": { "domains": ["api.example.com", "*.tile.example.org"] }
 ```
 
-由运行时强制执行的权限：`network`（没有它不能联网，有它也只能连列出的域名，见[网络](/zh/guide/network#域名)）、`audio`（没有它不能发出声音，见[音频](/zh/guide/audio)）、`system-info`（没有它 `cpuUsage()` / `memoryUsage()` 抛出错误）、`mouse`（没有它收不到 `DesktopEngine.input` 的鼠标事件）、`key-activity`（只给自带内容，见[打字](/zh/guide/input#打字)）。`desktopengine dev` 和「开发」菜单载入的内容由开发者自己运行，不询问，得到声明的全部权限；没有声明的同样用不了。
+由运行时强制执行的权限：`network`（没有它不能联网，有它也只能连列出的域名，见[网络](/zh/guide/network#域名)）、`audio`（没有它不能发出声音，见[音频](/zh/guide/audio)）、`system-info`（没有它 `cpuUsage()` / `memoryUsage()` 抛出错误）、`mouse`（没有它收不到 `DesktopEngine.input` 的鼠标事件）、`key-activity`（只给自带内容，见[打字](/zh/guide/input#打字)）、`system-audio`（没有它，或同时有 `network` 时，`DesktopEngine.systemAudio` 是 `null`）。`desktopengine dev` 和「开发」菜单载入的内容由开发者自己运行，不询问，得到声明的全部权限；没有声明的同样用不了。
 
 ## API 版本
 
@@ -131,6 +132,6 @@ if (permissions.includes('network')) {
 | 3 | `DesktopEngine.input`，`mouse` 和 `key-activity` 权限，见[鼠标和打字](/zh/guide/input) |
 | 4 | `Image` 的 `size` 可以是 `fill`（拉伸）和 `none`（原始尺寸），`Video` 的 `objectFit` 可以是 `none`；每个鼠标键的 `mousedown` 和 `mouseup`，鼠标事件的参数里有 `button` 和 `buttons`，见[鼠标](/zh/guide/windows#鼠标)；`queueMicrotask`、`atob`、`btoa` 和 `crypto`（`getRandomValues`、`randomUUID`），见[全局对象](/zh/guide/runtime#全局对象)；`Video` 的 `currentTime`、`duration` 和 `paused` |
 | 5 | 2D 画布的 `ellipse()`、`roundRect()`、`getTransform()`、`createConicGradient()`、`letterSpacing` 和 `wordSpacing`，`setTransform()` 可以传矩阵，混合模式（`multiply`…`luminosity`）、`TextMetrics` 的其余字段、`Path2D`、`isPointInPath` 和 `isPointInStroke`；`createImageBitmap` 和 `new ImageData()`；`structuredClone`、`MessageChannel`、`FileReader`、`CustomEvent` 和 `navigator`，见[全局对象](/zh/guide/runtime#全局对象) |
-| 6 | `BroadcastChannel`，范围有 `package` 和 `namespace`，见[内容之间的消息](/zh/guide/messaging) |
+| 6 | `BroadcastChannel`，范围有 `package` 和 `namespace`，见[内容之间的消息](/zh/guide/messaging)；`DesktopEngine.systemAudio` 和 `system-audio` 权限，见[Mac 正在播放的声音](/zh/guide/audio#mac-正在播放的声音) |
 
 版本 4 还按浏览器的样子改了一些 API：双击事件是 `dblclick`（原来是 `dbclick`），`click` 和 `dblclick` 的参数和鼠标事件一样是 `{ x, y, … }`（原来是 `{ position: { x, y } }`）。去掉了 WebGL 上下文的 `wxBindCanvasTexture` 和 `blBindCanvasTexture`、全局的 `mixin` 和 `promisify`，以及没有对应 API 的 `files`、`now-playing`、`window-positions` 权限。用到它们的内容改好后要写上 `"apiVersion": 4`。
