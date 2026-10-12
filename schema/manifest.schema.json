@@ -56,7 +56,7 @@
     "permissions": {
       "description": "The permissions it needs, which the app lists in the details pane and asks for the first time it runs",
       "type": "array",
-      "items": { "enum": ["network", "audio", "system-info", "mouse", "key-activity", "system-audio"] },
+      "items": { "enum": ["network", "audio", "system-info", "mouse", "key-activity", "system-audio", "window-positions"] },
       "uniqueItems": true
     },
     "network": {

@@ -119,7 +119,7 @@ test('unknown fields are warnings, unknown permissions errors', () => {
   assert.ok(fields.warnings.some((message) => message.includes('extra')));
 
   // the app never asks about them nor gives them: a misspelled permission would silently be off
-  for (const permission of ['camera', 'files', 'now-playing', 'window-positions']) {
+  for (const permission of ['camera', 'files', 'now-playing', 'windows']) {
     const { errors } = validateManifest({ ...minimal, permissions: [permission] });
     assert.ok(errors.some((message) => message.includes(`Unknown permission "${permission}"`)), errors.join('\n'));
   }
@@ -130,6 +130,13 @@ test('the mouse permission asks for the API that has DesktopEngine.input', () =>
   assert.deepEqual(errors, []);
   assert.ok(warnings.some((message) => message.includes('"apiVersion": 3')));
   assert.deepEqual(validateManifest({ ...minimal, permissions: ['mouse'], apiVersion: 3 }), { errors: [], warnings: [] });
+});
+
+test('the window-positions permission asks for the API that has DesktopEngine.windows', () => {
+  const { errors, warnings } = validateManifest({ ...minimal, permissions: ['window-positions'] });
+  assert.deepEqual(errors, []);
+  assert.ok(warnings.some((message) => message.includes('"apiVersion": 6')));
+  assert.deepEqual(validateManifest({ ...minimal, permissions: ['window-positions'], apiVersion: 6 }), { errors: [], warnings: [] });
 });
 
 test('key-activity is listed but only built-in content gets it', () => {

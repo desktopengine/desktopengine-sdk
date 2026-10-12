@@ -58,6 +58,7 @@ desktopengine dev [folder] [options]
 - 内容收不到滚轮事件，键盘事件也收不到（和 App 一样）。
 - 一个组件或它的上层（包括窗口）监听了 `click` 时，App 对一次单击不发主按键的 `mousedown` 和 `mouseup`，只发 `click`；网页运行时三个都发。
 - `DesktopEngine.system.cpuUsage()` 和 `memoryUsage()` 返回缓慢变化的模拟值：网页看不到电脑的数据。
+- `DesktopEngine.windows` 列出的是页面上假的应用窗口：`dev --web` 给有 `window-positions` 权限的内容开一个，菜单栏的 New Window 可以再开（见[其它应用的窗口](/zh/guide/app-windows#在网页上)）；商店的预览里没有。
 
 ## build
 

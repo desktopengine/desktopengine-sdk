@@ -13,9 +13,9 @@ export const TYPE_ALIASES: Readonly<Record<string, ContentType>> = { pet: 'compa
 /** The API version that introduced each type's current name, for types newer than API 1 */
 export const TYPE_API_VERSIONS: Readonly<Partial<Record<ContentType, number>>> = { companion: 2 };
 export const WIDGET_SIZES = ['small', 'medium', 'large'] as const;
-export const PERMISSIONS = ['network', 'audio', 'system-info', 'mouse', 'key-activity', 'system-audio'] as const;
+export const PERMISSIONS = ['network', 'audio', 'system-info', 'mouse', 'key-activity', 'system-audio', 'window-positions'] as const;
 /** The API version that introduced each permission's API, for permissions newer than API 1 */
-export const PERMISSION_API_VERSIONS: Readonly<Partial<Record<Permission, number>>> = { mouse: 3, 'key-activity': 3, 'system-audio': 6 };
+export const PERMISSION_API_VERSIONS: Readonly<Partial<Record<Permission, number>>> = { mouse: 3, 'key-activity': 3, 'system-audio': 6, 'window-positions': 6 };
 /** Permissions only content that comes with the app gets: others that declare them never get them */
 export const BUILTIN_ONLY_PERMISSIONS: readonly Permission[] = ['key-activity'];
 /** The ids of the content that comes with the app; the store doesn't take others' packages in it */

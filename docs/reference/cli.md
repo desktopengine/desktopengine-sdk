@@ -58,6 +58,7 @@ The web runtime implements the same JavaScript API on top of the browser: window
 - The scroll wheel doesn't reach the content, and keyboard events never do (as in the app).
 - When a component listens to `click`, or one of its parents (the window too) does, the app holds back the primary button's `mousedown` and `mouseup` of a click and only fires `click`; the web runtime fires all three.
 - `DesktopEngine.system.cpuUsage()` and `memoryUsage()` return made-up values that change slowly: a web page can't see the computer's.
+- `DesktopEngine.windows` lists the page's pretend app windows: `dev --web` opens one for content with the `window-positions` permission, and New Window in the menu bar opens more (see [Other Apps' Windows](/guide/app-windows#on-the-web)); the store's preview has none.
 
 ## build
 

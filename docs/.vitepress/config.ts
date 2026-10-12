@@ -94,6 +94,7 @@ function guideSidebar(): DefaultTheme.SidebarItem[] {
         { text: 'Messages Between Content', link: '/guide/messaging' },
         { text: 'Audio', link: '/guide/audio' },
         { text: 'Mouse and Typing', link: '/guide/input' },
+        { text: "Other Apps' Windows", link: '/guide/app-windows' },
       ],
     },
     {
@@ -142,6 +143,7 @@ const chineseGuide: DefaultTheme.SidebarItem[] = [
       { text: '内容之间的消息', link: '/zh/guide/messaging' },
       { text: '音频', link: '/zh/guide/audio' },
       { text: '鼠标和打字', link: '/zh/guide/input' },
+      { text: '其它应用的窗口', link: '/zh/guide/app-windows' },
     ],
   },
   {

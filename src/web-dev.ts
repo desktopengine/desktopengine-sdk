@@ -666,6 +666,7 @@ function desktopPage(token: string, proxyToken: string): string {
 <div id="menubar">
   <b id="name">DesktopEngine</b><span id="status" style="opacity:.6"></span>
   <span class="spacer"></span>
+  <button id="new-window" title="Open a pretend app window, for DesktopEngine.windows" hidden>New Window</button>
   <select id="size" title="Widget size" hidden></select>
   <button id="appearance" title="Light or dark">◐</button>
   <button id="sound" title="Sound">🔇</button>
@@ -689,6 +690,8 @@ const desktop = new WebDesktop(document.getElementById('desktop'), {
   proxySendsAnyMethod: true,
   appearance,
   muted: true,
+  // pretend app windows for DesktopEngine.windows: one opens for content with the window-positions permission
+  appWindows: [],
 });
 // for the browser's console
 window.desktop = desktop;
@@ -696,6 +699,7 @@ const log = (entry) => fetch(api('/log'), { method: 'POST', body: JSON.stringify
 const banner = document.getElementById('banner');
 let content = null;
 let size;
+let openedWindow = false;
 
 async function run() {
   const response = await fetch(api('/package'));
@@ -716,6 +720,12 @@ async function run() {
   size = size ?? build.launch?.size ?? sizes[0];
   select.value = size;
   document.getElementById('music').hidden = !(build.manifest.permissions ?? []).includes('system-audio');
+  const seesWindows = (build.manifest.permissions ?? []).includes('window-positions');
+  document.getElementById('new-window').hidden = !seesWindows;
+  if (seesWindows && !openedWindow) {
+    openedWindow = true;
+    desktop.addAppWindow();
+  }
   const spec = {
     name, code: build.code, files, manifest: build.manifest,
     parameters: build.launch?.parameters, size, level: build.launch?.level, position: build.launch?.position,
@@ -734,6 +744,7 @@ async function run() {
   content.on('stats', ({ framesPerSecond }) => { document.getElementById('status').textContent = framesPerSecond + ' fps'; });
 }
 
+document.getElementById('new-window').onclick = () => desktop.addAppWindow();
 document.getElementById('size').onchange = (event) => { size = event.target.value; run(); };
 document.getElementById('appearance').onclick = () => {
   appearance = appearance === 'light' ? 'dark' : 'light';

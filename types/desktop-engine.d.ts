@@ -46,7 +46,7 @@ declare namespace DesktopEngine {
   type ContentType = 'wallpaper' | 'widget' | 'companion' | 'pet';
 
   /** A permission declared in manifest.json */
-  type Permission = 'network' | 'audio' | 'system-info' | 'mouse' | 'key-activity';
+  type Permission = 'network' | 'audio' | 'system-info' | 'mouse' | 'key-activity' | 'window-positions';
 
   /** The value of a parameter: a `toggle` is a boolean, a `number` a number, a `choice`, `color` or `text` a string */
   type ParameterValue = boolean | number | string | null;
@@ -626,6 +626,16 @@ declare namespace DesktopEngine {
   /** ScreenManager event map */
   interface ScreenManagerEventMap {
     /** The screen configuration changed: displays connected, disconnected or arranged, a resolution, or the menu bar or the Dock moved, resized or hid */
+    change: void;
+  }
+
+  /** `DesktopEngine.windows` event map */
+  interface WindowsEventMap {
+    /**
+     * Other apps' windows changed: one moved, resized, opened, closed, was minimized or came to the front, another app
+     * became the active one, or another Space is shown. No payload: read `list()`. Changes that come faster than the
+     * content takes them are merged into one
+     */
     change: void;
   }
 
@@ -3766,6 +3776,71 @@ declare namespace DesktopEngine {
   }
 
   // ---------------------------------------------------------------------------
+  // Other apps' windows (DesktopEngine.windows)
+  // ---------------------------------------------------------------------------
+
+  /** Another app's window, in `DesktopEngine.windows.list()` */
+  interface WindowInfo {
+    /** The same while the window exists (it keeps it when it moves or comes to the front), not across launches */
+    readonly id: number;
+    /** Where it is, in global coordinates (like Window and Screen); the title bar is at its top */
+    readonly frame: Readonly<Rect>;
+    /** It belongs to the app you're using (the frontmost one), e.g. to prefer the window that has the user's attention */
+    readonly isActiveApp: boolean;
+    /** It fills its display in a full screen Space */
+    readonly isFullScreen: boolean;
+    /**
+     * It floats above normal windows: a panel or a window its app keeps on top (picture in picture, a floating
+     * palette). Floating windows come before the normal ones in `list()`
+     */
+    readonly isFloating: boolean;
+  }
+
+  /** A part of a window's top edge that no window in front covers, in `DesktopEngine.windows.visibleTopEdges()` */
+  interface TopEdge {
+    /** The window's `id`, as in `list()` */
+    readonly id: number;
+    /** Where the part starts, global points */
+    readonly x: number;
+    /** The top of the window, global points */
+    readonly y: number;
+    /** How long the part is, in points */
+    readonly width: number;
+  }
+
+  /**
+   * Where other apps' windows are (DesktopEngine.windows), e.g. for a companion that walks on their title bars. Needs
+   * the "window-positions" permission in manifest.json (and `"apiVersion": 6`); `DesktopEngine.windows` is null without
+   * it, or when the user didn't allow it.
+   *
+   * Only the windows on the Spaces shown now (on every display), at least 40 points each way. Never the content's own
+   * windows (nor any of DesktopEngine's), the menu bar, the Dock or desktop icons, and never what a window shows, its
+   * title or its app. Minimized and hidden windows aren't listed, a closing one leaves half way through its fade-out; while
+   * Mission Control is open the list stays as it was.
+   *
+   * The app watches the windows only while the content listens to `change`: about 10 times a second, and up to 60
+   * times a second while the mouse button is down on a window (it may be dragged or resized).
+   */
+  interface Windows extends EventedObject<WindowsEventMap> {
+    /**
+     * The windows now, front to back: the first one is in front of all the others. A window behind others can be
+     * covered by them, see the guide for the parts of a title bar nothing covers
+     */
+    list(): ReadonlyArray<WindowInfo>;
+    /**
+     * Where a companion can stand: the parts of the windows' top edges that no window in front covers (your windows
+     * are above all others, so one standing on a covered edge would look like it stands on the window in front). Front
+     * to back, a window's parts from left to right; a window that a window in front cuts in two has two. Full screen
+     * windows have none, their top is the display's. Parts can reach past the displays' edges, as windows do
+     */
+    visibleTopEdges(): ReadonlyArray<TopEdge>;
+    /** change callback */
+    onchange: EventHandler<this, WindowsEventMap['change']> | null | undefined;
+    /** Removes the onchange callback */
+    offchange(): void;
+  }
+
+  // ---------------------------------------------------------------------------
   // File system (DesktopEngine.fs)
   // ---------------------------------------------------------------------------
 
@@ -3993,6 +4068,8 @@ declare namespace DesktopEngine {
     input: Input;
     /** What the Mac plays, as an analysis for music visualizers; null without the "system-audio" permission */
     readonly systemAudio: SystemAudio | null;
+    /** Where other apps' windows are; null without the "window-positions" permission (API 6) */
+    readonly windows: Windows | null;
     /** The file system: package files, and the content's own files that are kept between launches */
     readonly fs: FileSystem;
     /**
@@ -4048,6 +4125,8 @@ declare namespace DesktopEngine {
     readonly Input: PlainConstructor<Input>;
     /** SystemAudio constructor (use DesktopEngine.systemAudio; throws without the "system-audio" permission) */
     readonly SystemAudio: PlainConstructor<SystemAudio>;
+    /** Windows constructor (use DesktopEngine.windows): throws without the "window-positions" permission */
+    readonly Windows: PlainConstructor<Windows>;
     /** Native side of `DesktopEngine.fs` and `require` (internal: use `DesktopEngine.fs`) */
     readonly FileSystem: PlainConstructor<unknown>;
     /** Native side of `localStorage` (a singleton, internal: use the global) */

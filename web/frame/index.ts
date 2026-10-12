@@ -9,7 +9,7 @@
 // the pointer, and tells the host where its windows are.
 
 import { contentFunction } from './realm.ts';
-import type { FrameMessage, HostMessage, LaunchMessage, ParameterValue, WebScreen } from '../protocol.ts';
+import type { AppWindowInfo, FrameMessage, HostMessage, LaunchMessage, ParameterValue, Rect, WebScreen } from '../protocol.ts';
 import { CanvasImageImpl, CanvasImpl, ComponentImpl, componentOf, ImageImpl, VideoImpl, WindowImpl, allVideos, allWindows, reportWindows, unwrap, windowById } from './components.ts';
 import { Evented, defineEvents } from './events.ts';
 import { createFileSystem, loadPackage, requireFrom } from './files.ts';
@@ -237,9 +237,71 @@ function pageSystemAudio(message: Extract<HostMessage, { type: 'system-audio' }>
   for (const instance of systemAudioInstances) instance.activeChanged();
 }
 
+// MARK: Other apps' windows
+
+/** The page's pretend app windows, front to back, as the host last sent them */
+let appWindows: AppWindowInfo[] = [];
+
+/** DesktopEngine.windows: the host sends its pretend app windows when they change, only with the permission */
+class WindowsImpl extends Evented {
+  constructor() {
+    super();
+    if (!hasPermission('window-positions')) throw new Error('DesktopEngine.windows needs the "window-positions" permission in manifest.json, and the user\'s consent');
+  }
+
+  list(): AppWindowInfo[] {
+    return appWindows.map((win) => ({ ...win, frame: { ...win.frame } }));
+  }
+
+  /** The parts of the windows' top edges that no window in front covers, front to back, as the engine finds them */
+  visibleTopEdges(): { id: number; x: number; y: number; width: number }[] {
+    const edges: { id: number; x: number; y: number; width: number }[] = [];
+    appWindows.forEach((win, index) => {
+      if (win.isFullScreen) return;
+      const top = win.frame.y;
+      let parts: [number, number][] = [[win.frame.x, win.frame.x + win.frame.width]];
+      for (const front of appWindows.slice(0, index)) {
+        // a window in front covers the edge where it spans its height
+        if (front.frame.y > top || front.frame.y + front.frame.height <= top) continue;
+        const left = front.frame.x;
+        const right = front.frame.x + front.frame.width;
+        parts = parts.flatMap(([start, end]): [number, number][] => [[start, Math.min(end, left)], [Math.max(start, right), end]]).filter(([start, end]) => end - start > 1);
+      }
+      for (const [start, end] of parts) edges.push({ id: win.id, x: start, y: top, width: end - start });
+    });
+    return edges;
+  }
+}
+defineEvents(WindowsImpl.prototype, ['change']);
+
+/** The windows a host message lists, as the app gives them: finite frames and booleans */
+function readAppWindows(value: unknown): AppWindowInfo[] {
+  if (!Array.isArray(value)) return [];
+  const finite = (number: unknown) => (typeof number === 'number' && Number.isFinite(number) ? number : 0);
+  return value.map((raw: Partial<AppWindowInfo> | null) => {
+    const frame = (raw?.frame ?? {}) as Partial<Rect>;
+    return {
+      id: finite(raw?.id),
+      frame: { x: finite(frame.x), y: finite(frame.y), width: finite(frame.width), height: finite(frame.height) },
+      isActiveApp: raw?.isActiveApp === true,
+      isFullScreen: raw?.isFullScreen === true,
+      isFloating: raw?.isFloating === true,
+    };
+  });
+}
+
+function updateAppWindows(value: unknown): void {
+  if (!hasPermission('window-positions')) return;
+  const next = readAppWindows(value);
+  if (JSON.stringify(next) === JSON.stringify(appWindows)) return;
+  appWindows = next;
+  windows?.emit('change');
+}
+
 const system = new SystemImpl();
 const screenManager = new ScreenManagerImpl();
 const input = new InputImpl();
+let windows: WindowsImpl | null = null;
 
 // MARK: Audio
 
@@ -587,7 +649,9 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
     },
     enumerable: true,
   });
-  for (const key of ['systemAudio', 'fs', 'launchOptions', 'apiVersion']) {
+  windows = hasPermission('window-positions') ? new WindowsImpl() : null;
+  desktopEngine.windows = windows;
+  for (const key of ['systemAudio', 'fs', 'launchOptions', 'apiVersion', 'windows']) {
     Object.defineProperty(desktopEngine, key, { value: desktopEngine[key], writable: false, enumerable: true });
   }
   return desktopEngine;
@@ -604,6 +668,7 @@ function launch(message: LaunchMessage): void {
   state.appearance = message.appearance;
   state.muted = message.muted;
   state.hostMaxFramesPerSecond = message.maxFramesPerSecond;
+  if (hasPermission('window-positions')) appWindows = readAppWindows(message.appWindows);
   loadPackage(message.files, message.code);
   installNetwork(scope);
   installStorage(scope);
@@ -626,7 +691,7 @@ function launch(message: LaunchMessage): void {
   const runtimeScope: Record<string, unknown> = {};
   for (const [name, value] of Object.entries({
     Window: WindowImpl, Component: ComponentImpl, Video: VideoImpl, Image: ImageImpl, Canvas: CanvasImpl, CanvasImage: CanvasImageImpl,
-    ScreenManager: ScreenManagerImpl, System: SystemImpl, Input: InputImpl, SystemAudio: SystemAudioImpl,
+    ScreenManager: ScreenManagerImpl, System: SystemImpl, Input: InputImpl, SystemAudio: SystemAudioImpl, Windows: WindowsImpl,
   })) {
     Object.defineProperty(runtimeScope, name, { get: () => value, enumerable: true });
   }
@@ -761,6 +826,9 @@ scope.addEventListener('message', (event: MessageEvent) => {
       break;
     case 'system-audio':
       pageSystemAudio(message);
+      break;
+    case 'app-windows':
+      if (state.launch) updateAppWindows(message.windows);
       break;
     case 'cursor':
       document.documentElement.style.cursor = String(message.cursor);

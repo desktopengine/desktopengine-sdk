@@ -12,7 +12,7 @@
 //   const content = desktop.launch({ name: 'Clock', code, manifest, files });
 //   content.on('console', ({ level, message }) => …);
 
-import { API_VERSION, frameDocument, type ChannelScope, type FrameMessage, type HostMessage, type ParameterValue, type Rect, type WebScreen, type WindowState } from '../protocol.ts';
+import { API_VERSION, frameDocument, type AppWindowInfo, type ChannelScope, type FrameMessage, type HostMessage, type ParameterValue, type Rect, type WebScreen, type WindowState } from '../protocol.ts';
 import { ANALYSIS_RATE, analyseSpectrum, emptySnapshot } from '../system-audio.ts';
 
 /** The ids of the content that comes with DesktopEngine */
@@ -20,7 +20,7 @@ const OFFICIAL_ID_PREFIX = 'app.desktopengine.official.';
 
 declare const __FRAME_RUNTIME__: string;
 
-export type { Rect, WebScreen, WindowState, ParameterValue };
+export type { AppWindowInfo, Rect, WebScreen, WindowState, ParameterValue };
 
 /**
  * The page to serve at `DesktopOptions.frameURL`, on a site of its own: the frame runtime with a Content Security Policy
@@ -76,6 +76,14 @@ export interface DesktopOptions {
    * its own content.
    */
   keyActivity?: (content: ContentSpec) => boolean;
+  /**
+   * Pretend windows of other apps, global points, front to back: what DesktopEngine.windows lists to contents with the
+   * window-positions permission. Drawn over wallpapers and widgets on the desktop, under widgets and companions above
+   * all windows; the visitor drags them by their title bar, resizes them from their bottom right corner and closes them
+   * (see `addAppWindow`). Undefined (the default, as in the store's preview): there are none and none can be added, the
+   * list is empty.
+   */
+  appWindows?: Rect[];
 }
 
 /** What the desktop needs to know of manifest.json */
@@ -234,6 +242,11 @@ export class WebContent {
   /** It may follow the pointer anywhere on the desktop: DesktopEngine.input's mouse events */
   get mayFollowMouse(): boolean {
     return (this.spec.permissions ?? this.spec.manifest?.permissions ?? []).includes('mouse');
+  }
+
+  /** It's told where the pretend app windows are: DesktopEngine.windows */
+  get seesAppWindows(): boolean {
+    return (this.spec.permissions ?? this.spec.manifest?.permissions ?? []).includes('window-positions');
   }
 
   /** It's told how many keys are pressed on the page: it declares key-activity and DesktopOptions.keyActivity gives it */
@@ -512,6 +525,31 @@ interface Press {
   moved: boolean;
 }
 
+/** A pretend app window (`DesktopOptions.appWindows`) and its element */
+interface AppWindow {
+  id: number;
+  frame: Rect;
+  element: HTMLDivElement;
+  title: HTMLDivElement;
+}
+
+/** A press on a pretend app window: it moves by its title bar and resizes from its bottom right corner */
+interface AppWindowPress {
+  window: AppWindow;
+  pointerId: number;
+  start: { x: number; y: number };
+  origin: Rect;
+  action: 'move' | 'resize' | null;
+}
+
+/** The pretend app windows' title bar, resize corner and smallest size, in points */
+const APP_TITLE_HEIGHT = 28;
+const APP_CORNER = 14;
+const APP_MIN_SIZE = { width: 160, height: 100 };
+/** Stacking of the pretend app windows: above contents on the desktop, below those above all windows */
+const APP_WINDOW_Z = 50_000;
+const FLOATING_Z = 100_000;
+
 /** What the desktop reads of a pointer event, from the page or passed back by a frame */
 interface PointerInput {
   pointerId: number;
@@ -540,6 +578,11 @@ export class WebDesktop {
   private audioContext: AudioContext | null = null;
   private readonly mediaSources = new WeakMap<HTMLMediaElement, MediaElementAudioSourceNode>();
   private systemAudio: { element: HTMLMediaElement; source: AudioNode; analyser: AnalyserNode; timer: number } | null = null;
+  /** The pretend app windows, front to back, the one the visitor last pressed (the active app's) and the press on one */
+  private appWindowList: AppWindow[] = [];
+  private activeAppWindow: number | null = null;
+  private appPress: AppWindowPress | null = null;
+  private nextAppWindowId = 1;
   private readonly resizeObserver: ResizeObserver;
   private readonly intersectionObserver: IntersectionObserver;
   private readonly onMessage = (event: MessageEvent) => {
@@ -611,18 +654,39 @@ export class WebDesktop {
       this.updateAllPlayback();
     }, { rootMargin: '120px' });
     this.intersectionObserver.observe(container);
-    this.element.addEventListener('pointermove', (event) => this.pointerMove(this.point(event), event));
+    for (const frame of options.appWindows ?? []) this.addAppWindow(frame, false);
+    this.appWindowList.reverse();
+    this.stackAppWindows();
+    this.activeAppWindow = this.appWindowList[0]?.id ?? null;
+    this.element.addEventListener('pointermove', (event) => {
+      if (this.appPress?.pointerId === event.pointerId) this.appWindowDrag(this.appPress, this.point(event));
+      else this.pointerMove(this.point(event), event);
+    });
     this.element.addEventListener('pointerdown', (event) => {
-      const hit = this.pointerDown(this.point(event), event);
+      const point = this.point(event);
+      if (this.appWindowDown(point, event)) {
+        event.preventDefault();
+        this.element.setPointerCapture(event.pointerId);
+        return;
+      }
+      const hit = this.pointerDown(point, event);
       if (!hit) return;
       if (hit.type !== 'desktop') event.preventDefault();
       this.element.setPointerCapture(event.pointerId);
     });
     this.element.addEventListener('pointerup', (event) => {
       if (this.element.hasPointerCapture(event.pointerId)) this.element.releasePointerCapture(event.pointerId);
+      if (this.appPress?.pointerId === event.pointerId) {
+        this.appPress = null;
+        this.pointerMove(this.point(event), event);
+        return;
+      }
       this.pointerUp(this.point(event), event);
     });
-    this.element.addEventListener('pointercancel', (event) => this.pointerCancel(event));
+    this.element.addEventListener('pointercancel', (event) => {
+      if (this.appPress?.pointerId === event.pointerId) this.appPress = null;
+      else this.pointerCancel(event);
+    });
     // the secondary button goes to the window, as in the app, which has no menu there
     this.element.addEventListener('contextmenu', (event) => {
       const point = this.point(event);
@@ -744,6 +808,7 @@ export class WebDesktop {
   setAppearance(appearance: 'light' | 'dark'): void {
     this.options.appearance = appearance;
     for (const content of this.contents) content.post({ type: 'appearance', appearance });
+    for (const win of this.appWindowList) this.styleAppWindow(win);
   }
 
   setMuted(muted: boolean): void {
@@ -860,6 +925,7 @@ export class WebDesktop {
       keyActivity: content.getsKeyActivity,
       namespaceChannels: content.channelGroup('namespace') !== null,
       systemAudio: content.systemAudio,
+      appWindows: content.seesAppWindows ? this.appWindows : [],
     };
   }
 
@@ -919,9 +985,15 @@ export class WebDesktop {
     return options;
   }
 
-  /** Wallpapers at the bottom, then widgets and companions in the order they were last pressed */
+  /**
+   * Wallpapers at the bottom, then widgets on the desktop, the pretend app windows, and widgets and companions above
+   * all windows; among them in the order they were last pressed
+   */
   private stack(): void {
-    for (const content of this.contents) content.iframe.style.zIndex = String(content.type === 'wallpaper' ? content.order : 1000 + content.order);
+    for (const content of this.contents) {
+      const z = content.type === 'wallpaper' ? content.order : content.level === 'floating' ? FLOATING_Z + content.order : 1000 + content.order;
+      content.iframe.style.zIndex = String(z);
+    }
   }
 
   private bringToFront(content: WebContent): void {
@@ -1012,7 +1084,139 @@ export class WebDesktop {
       const rank = Number(content.iframe.style.zIndex || 0) * 100000 + win.z;
       if (!best || rank > best.rank) best = { content, window: win, rank };
     }
+    // a pretend app window in front of it takes the point
+    const app = this.appWindowAt(x, y);
+    if (best && app && Number(app.element.style.zIndex) * 100000 > best.rank) return null;
     return best ? { content: best.content, window: best.window } : null;
+  }
+
+  // MARK: Pretend app windows
+
+  /** The pretend app windows, front to back, as DesktopEngine.windows lists them */
+  get appWindows(): AppWindowInfo[] {
+    return this.appWindowList.map((win) => ({
+      id: win.id,
+      frame: { ...win.frame },
+      isActiveApp: win.id === this.activeAppWindow,
+      isFullScreen: false,
+      isFloating: false,
+    }));
+  }
+
+  /**
+   * Opens a pretend app window in front of the others and makes it the active app's, at `frame` (global points) or a bit
+   * below and right of the last one; returns its id. Only with `DesktopOptions.appWindows`, -1 without.
+   */
+  addAppWindow(frame?: Rect, notify = true): number {
+    if (!this.options.appWindows) return -1;
+    const area = this.screens[0].visibleFrame;
+    const offset = 30 * (this.appWindowList.length % 8);
+    const rect = frame ?? { x: area.x + 80 + offset, y: area.y + 50 + offset, width: 480, height: 300 };
+    const element = document.createElement('div');
+    element.className = 'de-app-window';
+    const title = document.createElement('div');
+    const dots = ['#ff5f57', '#febc2e', '#28c840'].map((color) => `<span style="width:12px;height:12px;border-radius:50%;background:${color};display:inline-block"></span>`).join('');
+    title.innerHTML = `<span style="display:flex;gap:8px">${dots}</span><span class="de-app-window-title" style="flex:1;text-align:center;margin-right:52px"></span>`;
+    Object.assign(title.style, { height: `${APP_TITLE_HEIGHT}px`, display: 'flex', alignItems: 'center', padding: '0 10px', font: '600 13px -apple-system, BlinkMacSystemFont, sans-serif' });
+    element.appendChild(title);
+    Object.assign(element.style, { position: 'absolute', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.35), 0 0 0 0.5px rgba(0,0,0,0.3)' });
+    const win: AppWindow = { id: this.nextAppWindowId++, frame: { ...rect }, element, title };
+    (title.querySelector('.de-app-window-title') as HTMLElement).textContent = `Window ${win.id}`;
+    this.appWindowList.unshift(win);
+    this.styleAppWindow(win);
+    this.element.appendChild(element);
+    if (notify) {
+      this.activeAppWindow = win.id;
+      this.stackAppWindows();
+      this.sendAppWindows();
+    }
+    return win.id;
+  }
+
+  /** Closes a pretend app window */
+  removeAppWindow(id: number): void {
+    const index = this.appWindowList.findIndex((win) => win.id === id);
+    if (index < 0) return;
+    const [win] = this.appWindowList.splice(index, 1);
+    win.element.remove();
+    if (this.appPress?.window === win) this.appPress = null;
+    if (this.activeAppWindow === id) this.activeAppWindow = this.appWindowList[0]?.id ?? null;
+    this.stackAppWindows();
+    this.sendAppWindows();
+  }
+
+  private styleAppWindow(win: AppWindow): void {
+    const dark = (this.options.appearance ?? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')) === 'dark';
+    Object.assign(win.element.style, {
+      left: `${win.frame.x}px`, top: `${win.frame.y}px`, width: `${win.frame.width}px`, height: `${win.frame.height}px`,
+      background: dark ? '#26262a' : '#ffffff', color: dark ? '#e8e8ea' : '#2b2b2e',
+    });
+    win.title.style.background = dark ? '#36363b' : '#ebebed';
+    win.title.style.borderBottom = dark ? '1px solid #111' : '1px solid #d4d4d8';
+  }
+
+  private stackAppWindows(): void {
+    const count = this.appWindowList.length;
+    this.appWindowList.forEach((win, index) => { win.element.style.zIndex = String(APP_WINDOW_Z + count - index); });
+  }
+
+  /** The frontmost pretend app window at a global point */
+  private appWindowAt(x: number, y: number): AppWindow | undefined {
+    return this.appWindowList.find((win) => inside(win.frame, x, y));
+  }
+
+  /** @internal: tells the contents that may see them where the pretend app windows are */
+  sendAppWindows(): void {
+    const windows = this.appWindows;
+    for (const content of this.contents) if (content.seesAppWindows) content.post({ type: 'app-windows', windows });
+  }
+
+  /** A press on the pretend app window in front at the point, if there's one in front of every content's window there */
+  private appWindowDown(point: { x: number; y: number }, event: PointerInput): boolean {
+    if (this.press || this.appPress || event.button !== 0) return false;
+    const win = this.appWindowAt(point.x, point.y);
+    if (!win) return false;
+    const hit = this.windowAt(point.x, point.y);
+    if (hit) return false;
+    const local = { x: point.x - win.frame.x, y: point.y - win.frame.y };
+    // the red dot closes it
+    if (local.y < APP_TITLE_HEIGHT && Math.hypot(local.x - 16, local.y - APP_TITLE_HEIGHT / 2) <= 7) {
+      this.removeAppWindow(win.id);
+      return true;
+    }
+    this.appWindowList = [win, ...this.appWindowList.filter((other) => other !== win)];
+    this.activeAppWindow = win.id;
+    this.stackAppWindows();
+    const resize = local.x >= win.frame.width - APP_CORNER && local.y >= win.frame.height - APP_CORNER;
+    this.appPress = {
+      window: win,
+      pointerId: event.pointerId,
+      start: point,
+      origin: { ...win.frame },
+      action: resize ? 'resize' : local.y < APP_TITLE_HEIGHT ? 'move' : null,
+    };
+    this.setHovered(null, point, event);
+    this.sendAppWindows();
+    return true;
+  }
+
+  private appWindowDrag(press: AppWindowPress, point: { x: number; y: number }): void {
+    const dx = point.x - press.start.x;
+    const dy = point.y - press.start.y;
+    const win = press.window;
+    if (press.action === 'move') {
+      const union = this.bounds;
+      const top = Math.min(...this.screens.map((screen) => screen.visibleFrame.y));
+      win.frame.x = Math.round(Math.min(Math.max(press.origin.x + dx, 40 - win.frame.width), union.width - 40));
+      win.frame.y = Math.round(Math.min(Math.max(press.origin.y + dy, top), union.height - APP_TITLE_HEIGHT));
+    } else if (press.action === 'resize') {
+      win.frame.width = Math.round(Math.max(press.origin.width + dx, APP_MIN_SIZE.width));
+      win.frame.height = Math.round(Math.max(press.origin.height + dy, APP_MIN_SIZE.height));
+    } else {
+      return;
+    }
+    this.styleAppWindow(win);
+    this.sendAppWindows();
   }
 
   /** `button` is the one that went down or up, for down and up */
@@ -1056,13 +1260,20 @@ export class WebDesktop {
     this.setHovered(hit, point, event);
     if (hit) this.pointer(hit.content, 'move', hit.window.id, point, event);
     this.takePointer(hit && hit.content.mayPlaySound && !(this.options.muted ?? true) ? hit.content : null);
-    this.setCursor(hit && this.movesAt(hit.window, point.x, point.y) ? 'grab' : '');
+    const app = hit ? undefined : this.appWindowAt(point.x, point.y);
+    const corner = app && point.x >= app.frame.x + app.frame.width - APP_CORNER && point.y >= app.frame.y + app.frame.height - APP_CORNER;
+    this.setCursor(hit && this.movesAt(hit.window, point.x, point.y) ? 'grab' : corner ? 'nwse-resize' : '');
   }
 
   /** The window pressed, if the press is on one. Another button pressed during a press isn't a press of its own */
   private pointerDown(point: { x: number; y: number }, event: PointerInput): WindowState | null {
     if (event.button < 0 || this.press) return null;
     const hit = this.windowAt(point.x, point.y);
+    // pressing the desktop makes the Finder the active app: none of the pretend app windows is its
+    if (event.button === 0 && (!hit || hit.window.type === 'desktop') && this.activeAppWindow !== null && !this.appWindowAt(point.x, point.y)) {
+      this.activeAppWindow = null;
+      this.sendAppWindows();
+    }
     // the app passes only the primary button's presses on the desktop to wallpapers
     if (!hit || (event.button !== 0 && hit.window.type === 'desktop')) return null;
     if (event.button === 0) this.bringToFront(hit.content);

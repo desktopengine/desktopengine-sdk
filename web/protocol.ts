@@ -71,6 +71,17 @@ export interface LaunchMessage {
    * DesktopEngine), detailed for content that comes with DesktopEngine (128 bands, 60 times a second, not rounded)
    */
   systemAudio: 'none' | 'restricted' | 'detailed';
+  /** DesktopEngine.windows.list() at launch: the page's pretend app windows, only with the window-positions permission */
+  appWindows: AppWindowInfo[];
+}
+
+/** Another app's window, as DesktopEngine.windows lists it: on the web, one of the page's pretend app windows */
+export interface AppWindowInfo {
+  id: number;
+  frame: Rect;
+  isActiveApp: boolean;
+  isFullScreen: boolean;
+  isFloating: boolean;
 }
 
 export type ChannelScope = 'package' | 'namespace';
@@ -107,6 +118,8 @@ export type HostMessage =
    * to contents that hear it: the fine bands' powers and the mean square; null bands go back to the made-up signal
    */
   | { type: 'system-audio'; bands: Float32Array | null; level: number }
+  /** DesktopEngine.windows: the pretend app windows changed, front to back; only to content with the window-positions permission */
+  | { type: 'app-windows'; windows: AppWindowInfo[] }
   | { type: 'move-window'; window: string; x: number; y: number }
   | { type: 'appearance'; appearance: 'light' | 'dark' }
   | { type: 'parameters'; parameters: Record<string, ParameterValue>; changed: string[] }
