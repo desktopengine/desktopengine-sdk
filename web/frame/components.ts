@@ -48,8 +48,21 @@ export class ComponentImpl extends Evented {
 
   set style(value: Record<string, unknown>) {
     for (const key of [...this.styleValues.keys()]) this.setStyle(key, null);
-    if (value && typeof value === 'object') {
-      for (const [key, item] of Object.entries(value)) this.setStyle(key, item);
+    if (!value || typeof value !== 'object') return;
+    // what can't be read or converted (a getter or a Proxy that throws, a value without a string form) is left out
+    // instead of throwing, the rest applies
+    let keys: string[];
+    try {
+      keys = Object.keys(value);
+    } catch {
+      return;
+    }
+    for (const key of keys) {
+      try {
+        this.setStyle(key, value[key]);
+      } catch {
+        // left out
+      }
     }
   }
 
@@ -169,6 +182,8 @@ defineEvents(ComponentImpl.prototype, COMPONENT_EVENTS);
 
 const LAYERS: Record<string, number> = { desktop: 0, widget: 2, overlay: 3, panel: 4, normal: 4 };
 const windows = new Set<WindowImpl>();
+/** Every window made here, by identity: a Proxy of one, or another object, is never a parent (no traps run) */
+const madeWindows = new WeakSet<object>();
 let windowOrder = 0;
 
 function allowedTypes(): string[] | null {
@@ -205,11 +220,15 @@ export class WindowImpl extends ComponentImpl {
   private drag: Rect[] | null = null;
   private frameRect: Rect = { x: 0, y: 0, width: 400, height: 300 };
   private parentRef: WindowImpl | null = null;
-  readonly childWindowList: WindowImpl[] = [];
+  /** Private: content can't redefine it on a window it passes as a parent */
+  readonly #childWindows: WindowImpl[] = [];
 
   constructor(options?: Record<string, unknown>) {
     // each option read once, as in the app: a getter can't answer one type to the check and another to the window
     const givenType = options?.type;
+    const style = options?.style;
+    const parent = options?.parent;
+    const parentWindow = isWindow(parent) ? parent : null;
     const type = typeof givenType === 'string' && givenType ? givenType : 'normal';
     const allowed = allowedTypes();
     if (allowed && !allowed.includes(type)) {
@@ -219,16 +238,28 @@ export class WindowImpl extends ComponentImpl {
       throw new Error(`content can have at most ${MAX_WINDOWS} windows: destroy() the ones it no longer needs`);
     }
     super(undefined);
-    this.type = type in LAYERS ? type : 'normal';
+    madeWindows.add(this);
+    this.type = isKey(LAYERS, type) ? type : 'normal';
     this.element.style.position = 'absolute';
     this.element.style.zIndex = String(LAYERS[this.type] * 1000 + (this.order % 1000));
     this.element.hidden = true;
     windows.add(this);
-    const style = options?.style;
-    if (style && typeof style === 'object') this.style = style as Record<string, unknown>;
-    const parent = options?.parent;
-    if (parent instanceof WindowImpl) this.parentWindow = parent;
-    this.place();
+    try {
+      if (style && typeof style === 'object') this.style = style as Record<string, unknown>;
+      if (parentWindow) this.parentWindow = parentWindow;
+      this.place();
+    } catch (error) {
+      // whatever threw (e.g. a property content redefined on the parent), the window that isn't made isn't counted
+      windows.delete(this);
+      this.parentWindow = null;
+      this.element.remove();
+      try {
+        reportWindows();
+      } catch {
+        // reported with the next change
+      }
+      throw error;
+    }
   }
 
   override setStyle(key: string, value: unknown): void {
@@ -256,15 +287,15 @@ export class WindowImpl extends ComponentImpl {
 
   set parentWindow(value: unknown) {
     if (this.parentRef) {
-      const list = this.parentRef.childWindowList;
+      const list = this.parentRef.#childWindows;
       list.splice(list.indexOf(this), 1);
     }
-    this.parentRef = value instanceof WindowImpl && value !== this ? value : null;
-    this.parentRef?.childWindowList.push(this);
+    this.parentRef = isWindow(value) && value !== this ? value : null;
+    if (this.parentRef) this.parentRef.#childWindows.push(this);
   }
 
   get childWindows(): WindowImpl[] {
-    return [...this.childWindowList];
+    return [...this.#childWindows];
   }
 
   get hitRegion(): Rect[] | null {
@@ -586,8 +617,12 @@ const POSITIONS: Record<string, string> = {
   'top-left': 'left top', 'top-right': 'right top', 'bottom-left': 'left bottom', 'bottom-right': 'right bottom',
 };
 
+function isWindow(value: unknown): value is WindowImpl {
+  return typeof value === 'object' && value !== null && madeWindows.has(value);
+}
+
 /** One of the table's own keys (not e.g. 'constructor'), as a string only, as in the app */
-function isKey(table: Record<string, string>, value: unknown): value is string {
+function isKey(table: Record<string, unknown>, value: unknown): value is string {
   return typeof value === 'string' && Object.prototype.hasOwnProperty.call(table, value);
 }
 
@@ -695,6 +730,12 @@ export class VideoImpl extends ComponentImpl {
   constructor(options?: Record<string, unknown>) {
     const video = document.createElement('video');
     super(options, video);
+    // as in the app: options that aren't an object are none (defaults), each is read once, and a getter that throws
+    // does before the video is counted; they're assigned to their properties at the end, whose setters take or ignore
+    // them the same as later on
+    const given = options !== null && (typeof options === 'object' || typeof options === 'function') ? options : undefined;
+    const keys = ['objectFit', 'initialTime', 'playbackRate', 'autoplay', 'loop', 'muted', 'volume', 'src'] as const;
+    const values = keys.map((key) => given?.[key]);
     this.video = video;
     video.playsInline = true;
     video.style.objectFit = 'contain';
@@ -725,11 +766,6 @@ export class VideoImpl extends ComponentImpl {
     video.addEventListener('durationchange', () => {
       if (Number.isFinite(video.duration) && video.duration > 0) this.knownDuration = video.duration;
     });
-    // as in the app: options that aren't an object are none (defaults), each is read once, then assigned to its
-    // property, whose setter takes or ignores it the same as later on
-    const given = options !== null && (typeof options === 'object' || typeof options === 'function') ? options : undefined;
-    const keys = ['objectFit', 'initialTime', 'playbackRate', 'autoplay', 'loop', 'muted', 'volume', 'src'] as const;
-    const values = keys.map((key) => given?.[key]);
     keys.forEach((key, index) => {
       if (values[index] !== undefined) (this as Record<typeof key, unknown>)[key] = values[index];
     });
