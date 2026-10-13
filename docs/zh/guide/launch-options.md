@@ -12,14 +12,13 @@ options.display;      // { id, name, frame, visibleFrame, scale }
 options.displays;     // 壁纸跨显示器时代替 display，列出跨的那几块显示器，见壁纸
 options.parameters;   // 选项的取值
 options.locale;       // 用户的首选语言，例如 'zh-Hans-CN'
-options.permissions;  // 用户允许的权限，例如 ['audio', 'network']；被拒绝的不在其中
-options.screenSaver;  // 作为屏幕保护程序运行时为 { preview }，否则没有
+options.permissions;  // 内容得到的权限，例如 ['audio', 'network']；被拒绝的不在其中
 ```
 
 坐标与 `DesktopEngine.Window` 的样式一致：以主显示器左上角为原点，y 向下。完整的字段见 [`LaunchOptions`](/api/interfaces/DesktopEngine.LaunchOptions)。
 
 - `parameters` 是[选项](/zh/reference/manifest#选项-parameters)的取值，见[选项改变时](#选项改变时)。
-- `permissions` 见[权限](/zh/reference/manifest#权限-permissions)，`displays` 见[跨显示器](./wallpaper#跨显示器)，`screenSaver` 见[屏幕保护程序](./wallpaper#屏幕保护程序)。
+- `permissions` 见[权限](/zh/reference/manifest#权限-permissions)，`displays` 见[跨显示器](./wallpaper#跨显示器)。
 - 在开发时用 `desktopengine dev --size / --level / --display / --span / --param / --position` 模拟这些值，见[命令行](/zh/reference/cli#dev)。
 
 ## 选项改变时

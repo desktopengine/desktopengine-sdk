@@ -27,7 +27,7 @@ Content can have at most 16 windows at once; after that `new DesktopEngine.Windo
 
 ## Keyboard
 
-Content doesn't get the keyboard: typing always goes to the app the user is in, and `keydown` / `keyup` never fire. Only the content that comes with DesktopEngine gets them. Design for the mouse, and use [options](/reference/manifest#options-parameters) for text the user enters.
+Content doesn't get the keyboard: typing always goes to the app the user is in. Design for the mouse, and use [options](/reference/manifest#options-parameters) for text the user enters.
 
 ## Displays and scale
 

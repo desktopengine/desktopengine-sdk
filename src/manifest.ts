@@ -16,9 +16,9 @@ export const WIDGET_SIZES = ['small', 'medium', 'large'] as const;
 export const PERMISSIONS = ['network', 'audio', 'system-info', 'mouse', 'key-activity', 'system-audio', 'window-positions'] as const;
 /** The API version that introduced each permission's API, for permissions newer than API 1 */
 export const PERMISSION_API_VERSIONS: Readonly<Partial<Record<Permission, number>>> = { mouse: 3, 'key-activity': 3, 'system-audio': 6, 'window-positions': 6 };
-/** Permissions only content that comes with the app gets: others that declare them never get them */
+/** Permissions content can't get: declaring one is a warning */
 export const BUILTIN_ONLY_PERMISSIONS: readonly Permission[] = ['key-activity'];
-/** The ids of the content that comes with the app; the store doesn't take others' packages in it */
+/** The id prefix the store reserves */
 const OFFICIAL_ID_PREFIX = 'app.desktopengine.official.';
 export const PARAMETER_TYPES = ['toggle', 'number', 'text', 'color', 'choice'] as const;
 export const MANIFEST_FILE = 'manifest.json';
@@ -302,13 +302,17 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
         if (typeof permission !== 'string') {
           errors.push(`"permissions[${index}]" must be a string`);
         } else if (!isOneOf(PERMISSIONS, permission)) {
-          errors.push(`Unknown permission "${permission}", the known ones are ${PERMISSIONS.join(', ')}`);
+          // the permissions content can get: one it never gets isn't suggested
+          const known = PERMISSIONS.filter((name) => !BUILTIN_ONLY_PERMISSIONS.includes(name));
+          errors.push(`Unknown permission "${permission}", the known ones are ${known.join(', ')}`);
         } else {
-          if (BUILTIN_ONLY_PERMISSIONS.includes(permission) && !String(manifest.id ?? '').startsWith(OFFICIAL_ID_PREFIX)) {
-            warnings.push(`Only content that comes with DesktopEngine gets the "${permission}" permission: the app lists it but never gives it to other content`);
+          const neverGiven = BUILTIN_ONLY_PERMISSIONS.includes(permission) && !String(manifest.id ?? '').startsWith(OFFICIAL_ID_PREFIX);
+          if (neverGiven) {
+            warnings.push(`Content doesn't get the "${permission}" permission: remove it from "permissions", the store doesn't take packages that declare it`);
           }
           const needed = PERMISSION_API_VERSIONS[permission];
-          if (needed !== undefined && !(typeof apiVersion === 'number' && apiVersion >= needed)) {
+          // no API version to add for a permission that's never given
+          if (needed !== undefined && !neverGiven && !(typeof apiVersion === 'number' && apiVersion >= needed)) {
             warnings.push(`The "${permission}" permission's API is in API ${needed}: add "apiVersion": ${needed}, or check DesktopEngine.apiVersion before using it, apps with an older API don't have it`);
           }
         }
@@ -347,7 +351,7 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
   }
   // what the Mac plays could be sent anywhere
   if (declaresNetwork && permissions.includes('system-audio') && !String(manifest.id ?? '').startsWith(OFFICIAL_ID_PREFIX)) {
-    errors.push('Content with the "system-audio" permission can\'t have "network" too: what the Mac plays stays on the Mac');
+    errors.push('Content with the "system-audio" permission can\'t have "network" too: remove one of them');
   }
 
   const { parameters } = manifest;

@@ -69,16 +69,4 @@ for (const display of displays) {
 - All the windows draw in the same `requestAnimationFrame`, at the refresh rate of one display. A window covered by a full screen app gets `hide`: skip drawing it until `show`.
 - The app pauses the wallpaper only when every display pauses wallpapers (a full screen app on each of them, for example), and mutes it when any display mutes them.
 - When a display is connected, disconnected or arranged differently, the app restarts the wallpaper with the new `displays`. A display connected later joins when the wallpaper spans all of them; a display it spans comes back into it when it's connected again.
-- `desktopengine dev --span` runs it across all displays while developing. As the screen saver it runs on each display on its own, with `display`.
-
-## Screen saver
-
-In a wallpaper's details pane, users can choose Use as Screen Saver to run it as the macOS screen saver (on the lock screen too), with the same options as the wallpaper; image and video wallpapers can too. `launchOptions.screenSaver` is then present, and the content can adapt:
-
-- The screen saver is loaded by the system's `legacyScreenSaver` process, where JavaScriptCore has **no JIT**: plain JavaScript runs about ten times slower or more. Do as much of each frame as you can on the GPU (in shaders); the built-in Horizon and Nebula spend only 1–3 ms of JavaScript per frame.
-- The window fills `launchOptions.display.frame` with `type: 'desktop'` as usual; the app embeds it in the screen saver, scaled to fill.
-- There are no mouse or keyboard events: any input ends the screen saver.
-- When `launchOptions.screenSaver.preview` is `true`, it's the small preview in System Settings › Screen Saver: `win.devicePixelRatio` is lowered to 0.25 and the frame rate is limited to 30. Content that sizes its canvas by `devicePixelRatio` gets cheaper by itself; turn off expensive effects.
-- The network still needs the `network` permission.
-
-The Mac App Store version of DesktopEngine has no screen saver.
+- `desktopengine dev --span` runs it across all displays while developing.

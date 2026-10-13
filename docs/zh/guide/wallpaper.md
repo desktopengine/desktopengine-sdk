@@ -69,16 +69,4 @@ for (const display of displays) {
 - 所有窗口在同一个 `requestAnimationFrame` 里绘制，帧率跟随其中一块显示器。被全屏应用挡住的窗口会收到 `hide`，在 `show` 之前可以不画它。
 - 只有每块显示器都要暂停壁纸时（例如每块上都有全屏应用），应用才暂停它；任何一块要静音时就静音。
 - 接上、拔掉显示器或改变排列时，应用会用新的 `displays` 重启壁纸。跨所有显示器时，后接上的显示器也会加进来；跨的某块显示器拔掉后再接上，会回到这组里。
-- 开发时用 `desktopengine dev --span` 跨所有显示器运行。作为屏幕保护程序时，它在每块显示器上各自运行，拿到的是 `display`。
-
-## 屏幕保护程序
-
-用户可以在壁纸详情栏选「设为屏幕保护程序」，让壁纸作为 macOS 的屏幕保护程序运行（包括锁定屏幕），选项与壁纸共用；图片、视频壁纸也可以。这时 `launchOptions.screenSaver` 存在，内容可以据此调整：
-
-- 屏幕保护程序由系统的 `legacyScreenSaver` 进程加载，那里 JavaScriptCore **没有 JIT**，纯 JavaScript 运算大约慢十几倍。每帧的工作尽量放在 GPU（着色器）里，内置的「地平线」「星云」每帧 JavaScript 只要 1～3 毫秒。
-- 窗口和平时一样用 `type: 'desktop'` 铺满 `launchOptions.display.frame`，应用把它嵌进屏幕保护程序，按比例缩放铺满。
-- 收不到鼠标和键盘事件：任何输入都会结束屏幕保护程序。
-- `launchOptions.screenSaver.preview` 为 `true` 时是「系统设置 › 屏幕保护程序」里的小预览：`win.devicePixelRatio` 被降到 0.25、帧率限制为 30，按 `devicePixelRatio` 决定画布大小的内容自动变便宜，开销大的效果可以关掉。
-- 联网同样需要声明 `network` 权限。
-
-Mac App Store 版的 DesktopEngine 不提供屏幕保护程序。
+- 开发时用 `desktopengine dev --span` 跨所有显示器运行。

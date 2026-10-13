@@ -4,8 +4,9 @@
 
 - 没有 DOM 和 Node.js：没有 `document`、`window`，网络见[网络](./network)，`localStorage` 和文件见[存储和文件](./storage)，声音见[音频](./audio)。运行时的模块是 CommonJS 的 `require()`；要用 `import` 请放进 `src/` 由 SDK 打包（见[项目和构建](./project)）。
 - `DesktopEngine.system.cpuUsage()` / `memoryUsage()` 提供 CPU 和内存用量，需要 `system-info` 权限，没有时抛出错误。
-- `DesktopEngine.input` 在整个屏幕上跟随鼠标，需要 `mouse` 权限，见[鼠标和打字](./input)。
-- `DesktopEngine.windows` 告诉内容其它应用的窗口在哪里，需要 `window-positions` 权限，见[其它应用的窗口](./app-windows)。
+- `DesktopEngine.input` 在整个屏幕上跟随鼠标，需要 `mouse` 权限，见[跟随鼠标](./input)。
+- `DesktopEngine.windows` 告诉内容其他应用的窗口在哪里，需要 `window-positions` 权限，见[其他应用的窗口](./app-windows)。
+- `DesktopEngine.systemAudio` 分析其他应用在 Mac 上播放的声音：整体和从低到高各个频带有多响，用来做音乐可视化，需要 `system-audio` 权限，见[Mac 正在播放的声音](./audio#mac-正在播放的声音)。
 
 ## 全局对象
 
@@ -38,7 +39,7 @@
 ## 还没有的
 
 - `crypto.subtle`、Worker 和 `OffscreenCanvas`（不放进窗口的 `DesktopEngine.Canvas` 就能离屏使用）；`location`。
-- 读取系统的音频输出（音乐可视化）、IndexedDB。
+- IndexedDB。
 - 运行时原生支持 ES 模块（目前通过 `src/` 打包解决）。
 
 需要的功能可以在 [GitHub](https://github.com/desktopengine/desktopengine-sdk/issues) 上提出。

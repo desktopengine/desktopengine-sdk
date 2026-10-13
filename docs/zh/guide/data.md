@@ -7,7 +7,7 @@
 - `URL`、`URLSearchParams`：按 WHATWG URL 标准解析。国际化域名转换成 Punycode，但没有完整的 UTS #46 映射表，个别特殊字符的域名结果可能和浏览器不同。
 - `TextEncoder`、`TextDecoder`：UTF-8 和 UTF-16 与浏览器完全一致；`TextDecoder` 也支持编码标准里的旧编码（GBK、gb18030、Big5、Shift_JIS、EUC-JP、EUC-KR、windows-125x、ISO-8859-x、KOI8 等），由系统解码，个别字符和坏字节的替换方式可能和浏览器略有不同。`TextEncoderStream`、`TextDecoderStream` 用在流上。
 - `FileReader`（API 5）：把 Blob 读成 ArrayBuffer、文本、data URL 或二进制字符串，带事件，给为它写的库用；`blob.text()`、`arrayBuffer()`、`bytes()` 更简单。
-- `structuredClone()`（API 5）：和浏览器一样深拷贝数据，包括 Map、Set、日期、类型化数组、Blob、`ImageData` 和循环引用。函数、Promise 和引擎的对象（画布、窗口、`URL`、流等）抛出 `DataCloneError` DOMException。转移（transfer）的 `ArrayBuffer` 在 macOS 14.4 及以后会被分离，更早的系统上原来的仍然可用。
+- `structuredClone()`（API 5）：和浏览器一样深拷贝数据，包括 Map、Set、日期、类型化数组、Blob、`ImageData` 和循环引用。函数、Promise 和引擎的对象（画布、窗口、`URL`、流等）抛出 `DataCloneError` DOMException。转移（transfer）的 `ArrayBuffer` 在 macOS 14.4 及以后会被分离，在更早的系统上仍然可用。引擎已经读过的缓冲区（交给过 WebGL、画布、`crypto`、文件系统、音频或 `systemAudio.getBands()`、`WebSocket` 或 `BroadcastChannel` 的，以及 `ImageData` 的像素）在 macOS 14.4 及以后转移后也仍然可用，网页预览里则会被分离。所以转移以后不要再用原来的缓冲区。
 - `MessageChannel` 和 `MessagePort`（API 5）：两个端口都在内容里（没有 Worker），消息是 `structuredClone` 的副本，各自在单独的任务里送达，React 的调度器这类库就是这样用的。要发给其他内容，用 `BroadcastChannel`，见[内容之间的消息](./messaging)。
 - 流：`ReadableStream`（包括字节流和 BYOB 读取、`for await` 遍历、`ReadableStream.from()`）、`WritableStream`、`TransformStream` 和两种排队策略，来自 [web-streams-polyfill](https://github.com/MattiasBuelens/web-streams-polyfill)。
 - `MessageEvent`、`CloseEvent`、`ProgressEvent` 也是全局的，`Event`、`CustomEvent`、`EventTarget` 也是，全局对象还可以通过 `self` 访问（three.js 等库会用 `self.URL`）。

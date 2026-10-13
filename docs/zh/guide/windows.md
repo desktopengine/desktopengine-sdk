@@ -27,7 +27,7 @@
 
 ## 键盘
 
-内容拿不到键盘：打字总是交给用户正在用的应用，`keydown` / `keyup` 不会触发，只有 DesktopEngine 自带的内容能收到。请按鼠标操作来设计，需要用户输入文字的，用[选项](/zh/reference/manifest#选项-parameters)。
+内容收不到键盘输入：打字总是交给用户正在用的应用。请按鼠标操作来设计；需要用户输入文字时，用[选项](/zh/reference/manifest#选项-parameters)。
 
 ## 显示器和缩放
 

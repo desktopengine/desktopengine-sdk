@@ -49,7 +49,7 @@ The app works out `DesktopEngine.launchOptions` the same way as for installed co
 | `hello` | `app`, `apiVersion` | The first message after connecting: the app's version and `DesktopEngine.apiVersion`. The command then sends `load` |
 | `loaded` | `revision`, `id`, `name`, `version`, `contentType`, `launchOptions` | It's running |
 | `load-failed` | `revision`, `message` | Downloading, unpacking, checking the manifest or running `index.js` failed |
-| `console` | `level`, `message` | `console.log/info/warn/error/debug`, the arguments formatted and joined with spaces |
+| `console` | `level`, `message` | `console.log/info/warn/error/debug`, the arguments formatted and joined with spaces. The app also sends its own warnings about the mini program this way (`level` `warn`) |
 | `exception` | `message`, `stack` | An uncaught exception, or a rejected promise nobody handles (`message` starts with `Unhandled promise rejection: `); `stack` may be missing |
 | `host` | `message` | The mini program called `postMessage('host', message)`; `move` is remembered, `close` stops the mini program |
 | `stopped` | | The mini program stopped (on `stop`, or because it sent `close`) |

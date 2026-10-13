@@ -48,7 +48,7 @@ These options stand in for what the user picks in the details pane: the [`launch
 
 ### In the browser
 
-`dev --web` runs the project on a page that looks like a Mac desktop, in the web runtime the DesktopEngine store uses to let people try content before they install it. It doesn't need the app, so it works on any computer with a browser; it rebuilds and reloads on changes and prints the console in the terminal like `dev`. The menu bar of the page switches between light and dark, turns the sound on and starts the content again, and for widgets picks the size.
+`dev --web` runs the project on a page that looks like a Mac desktop, in the web runtime the DesktopEngine store uses to let people try content before they install it. It doesn't need the app, so it works on any computer with a browser; it rebuilds and reloads on changes and prints the console in the terminal like `dev`. The menu bar of the page switches between light and dark, turns the sound on and starts the content again, for widgets picks the size, and for content that uses them opens more pretend app windows (New Window) and plays an audio file of yours to `systemAudio` (♫).
 
 The web runtime implements the same JavaScript API on top of the browser: windows are positioned elements, canvases draw with the browser's canvases. Your content only sees what it has in DesktopEngine, so it takes the same paths as in the app: the globals, not `window`, `document` or the DOM; and of a canvas, the members, compositing modes, colors, fonts and WebGL extensions DesktopEngine's have. What only a browser has is missing as it is in the app: `filter` or `fontKerning` read as `undefined`, `oklch()` colors and `em` font sizes are ignored, and `getExtension('WEBGL_lose_context')` is `null`. It is close, not the same: check your content in the app before you publish it. Differences:
 
@@ -57,8 +57,10 @@ The web runtime implements the same JavaScript API on top of the browser: window
 - Files in `defile://usr/`, `localStorage` and `sessionStorage` are kept in memory and gone when the page reloads.
 - The scroll wheel doesn't reach the content, and keyboard events never do (as in the app).
 - When a component listens to `click`, or one of its parents (the window too) does, the app holds back the primary button's `mousedown` and `mouseup` of a click and only fires `click`; the web runtime fires all three.
+- While the page is hidden (a background tab), the content is paused as in the app, and its timers run on the browser's own, which the browser may slow down more than the app does.
 - `DesktopEngine.system.cpuUsage()` and `memoryUsage()` return made-up values that change slowly: a web page can't see the computer's.
 - `DesktopEngine.windows` lists the page's pretend app windows: `dev --web` opens one for content with the `window-positions` permission, and New Window in the menu bar opens more (see [Other Apps' Windows](/guide/app-windows#on-the-web)); the store's preview has none.
+- `DesktopEngine.systemAudio` hears a made-up signal like music, or the audio file you play with ♫ (see [What the Mac plays](/guide/audio#what-the-mac-plays)); the store's preview hears the made-up signal.
 
 ## build
 

@@ -12,14 +12,13 @@ options.display;      // { id, name, frame, visibleFrame, scale }
 options.displays;     // the displays instead, when a wallpaper spans them, see Wallpapers
 options.parameters;   // the values of the options
 options.locale;       // the user's preferred language, e.g. 'en-US'
-options.permissions;  // the permissions the user allowed, e.g. ['audio', 'network']; denied ones aren't there
-options.screenSaver;  // { preview } when running as the screen saver, absent otherwise
+options.permissions;  // the permissions it runs with, e.g. ['audio', 'network']; denied ones aren't there
 ```
 
 Coordinates are the ones of `DesktopEngine.Window` styles: the origin at the top left of the main display, y pointing down. See [`LaunchOptions`](/api/interfaces/DesktopEngine.LaunchOptions) for all the fields.
 
 - `parameters` are the values of the [options](/reference/manifest#options-parameters), see [When options change](#when-options-change).
-- See [Permissions](/reference/manifest#permissions) for `permissions`, [Spanning displays](./wallpaper#spanning-displays) for `displays` and [Screen saver](./wallpaper#screen-saver) for `screenSaver`.
+- See [Permissions](/reference/manifest#permissions) for `permissions` and [Spanning displays](./wallpaper#spanning-displays) for `displays`.
 - While developing, `desktopengine dev --size / --level / --display / --span / --param / --position` stand in for them, see [Command Line](/reference/cli#dev).
 
 ## When options change

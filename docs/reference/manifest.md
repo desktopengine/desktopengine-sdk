@@ -95,14 +95,13 @@ When the user changes an option, the new values are in `DesktopEngine.launchOpti
 | `network` | Connect to the domains in `network.domains` |
 | `audio` | Play sound |
 | `system-info` | CPU and memory usage |
-| `mouse` | Where the pointer is and the clicks, in any app (needs `"apiVersion": 3`), see [Mouse and Typing](/guide/input) |
-| `key-activity` | How many keys are pressed in any app, never which ones; only content that comes with DesktopEngine gets it, see [Typing](/guide/input#typing) |
-| `system-audio` | How loud what the Mac plays is and how it spreads from low to high, never a recording (needs `"apiVersion": 6`); content with it can't have `network` too, see [What the Mac plays](/guide/audio#what-the-mac-plays) |
+| `mouse` | Where the pointer is and the clicks, in any app (needs `"apiVersion": 3`), see [Following the Mouse](/guide/input) |
+| `system-audio` | How loud the sound other apps play on the Mac is, overall and from low to high, never the sound itself (needs `"apiVersion": 6`); content with it can't have `network` too, see [What the Mac plays](/guide/audio#what-the-mac-plays) |
 | `window-positions` | Where other apps' windows are, their size and order, and which belong to the app in use; never their titles or what they show (needs `"apiVersion": 6`), see [Other Apps' Windows](/guide/app-windows) |
 
-Any other permission is an error: the app neither lists nor asks for permissions it doesn't know, and the content never gets them. The app lists these permissions in the details pane. `audio` isn't asked for: content that declares it can make sound, and users control it with the volume and Mute All Content. The other permissions are asked for one by one the first time the user adds the content to the desktop; the user can allow only some of them and change them any time in the details pane (the content restarts). Built-in content isn't asked for, and content that declares no permissions never prompts.
+Any other permission is an error: the app neither lists nor asks for permissions it doesn't know, and the content never gets them. The app lists these permissions in the details pane. `audio` isn't asked for: content that declares it can make sound, and users control it with the volume and Mute All Content. The other permissions are asked for one by one the first time the user adds the content to the desktop; the user can allow only some of them and change them any time in the details pane (the content restarts). Content that declares no permissions never prompts. On a Mac before macOS 14.2 `system-audio` isn't asked for either: there's nothing to hear, so the content gets it and hears silence (`supported` is false).
 
-A denied permission doesn't stop the content: it starts as usual with that capability off, so plan for running without it. The permissions it got are in `DesktopEngine.launchOptions.permissions`:
+A denied permission doesn't stop the content: it starts as usual with that capability off, so plan for running without it. The permissions it got are in `DesktopEngine.launchOptions.permissions`, each once, in the app and in the web preview alike. The previews in the app's details pane are silent and don't see other apps' windows, so `audio` and `window-positions` aren't there:
 
 ```js
 const permissions = DesktopEngine.launchOptions?.permissions ?? [];
@@ -120,7 +119,7 @@ With `network`, list the domains the content connects to; it can reach those and
 "network": { "domains": ["api.example.com", "*.tile.example.org"] }
 ```
 
-The runtime enforces `network` (no network without it, and only the listed domains with it, see [Network](/guide/network#domains)), `audio` (no sound without it, see [Audio](/guide/audio)) `system-info` (`cpuUsage()` / `memoryUsage()` throw without it) `mouse` (`DesktopEngine.input`'s mouse events never come without it), `window-positions` (`DesktopEngine.windows` is `null` without it), `key-activity` (built-in content only, see [Typing](/guide/input#typing)) and `system-audio` (`DesktopEngine.systemAudio` is `null` without it, and with `network` too). Content run by `desktopengine dev` or the Develop menu is yours, so it isn't asked and gets every permission it declares; the ones it doesn't declare are off there too.
+The runtime enforces `network` (no network without it, and only the listed domains with it, see [Network](/guide/network#domains)), `audio` (no sound without it, see [Audio](/guide/audio)), `system-info` (`cpuUsage()` / `memoryUsage()` throw without it), `mouse` (`DesktopEngine.input`'s mouse events never come without it), `window-positions` (`DesktopEngine.windows` is `null` without it) and `system-audio` (`DesktopEngine.systemAudio` is `null` without it). Declaring both `system-audio` and `network` is an error: `desktopengine validate` reports it, and the app and the store refuse the package. Content run by `desktopengine dev` or the Develop menu is yours, so it isn't asked and gets every permission it declares, under the same rules as installed content (`network`, for example, still reaches only the listed domains). The ones it doesn't declare are off there too.
 
 ## API versions
 
@@ -130,7 +129,7 @@ The runtime has an integer API version that goes up when APIs are added: `Deskto
 | --- | --- |
 | 1 | The first version |
 | 2 | The `companion` type, formerly `pet` |
-| 3 | `DesktopEngine.input`, the `mouse` and `key-activity` permissions, see [Mouse and Typing](/guide/input) |
+| 3 | `DesktopEngine.input` and the `mouse` permission, see [Following the Mouse](/guide/input) |
 | 4 | `Image`'s `size` `fill` (stretched) and `none` (its own size), `Video`'s `objectFit` `none`; every mouse button's `mousedown` and `mouseup`, with `button` and `buttons` in the mouse events' payload, see [Mouse](/guide/windows#mouse); `queueMicrotask`, `atob`, `btoa` and `crypto` (`getRandomValues`, `randomUUID`), see [Globals](/guide/runtime#globals); `currentTime`, `duration` and `paused` of `Video` |
 | 5 | `ellipse()`, `roundRect()`, `getTransform()`, `createConicGradient()`, `letterSpacing` and `wordSpacing` of 2D canvases, `setTransform()` taking a matrix, the blend modes (`multiply`…`luminosity`), the rest of `TextMetrics`, `Path2D`, `isPointInPath` and `isPointInStroke`; `createImageBitmap` and `new ImageData()`; `structuredClone`, `MessageChannel`, `FileReader`, `CustomEvent` and `navigator`, see [Globals](/guide/runtime#globals) |
 | 6 | `BroadcastChannel`, with the scopes `package` and `namespace`, see [Messages Between Content](/guide/messaging); `DesktopEngine.systemAudio` and the `system-audio` permission, see [What the Mac plays](/guide/audio#what-the-mac-plays); `DesktopEngine.windows` (`list()`, `visibleTopEdges()` and `change`) and the `window-positions` permission, see [Other Apps' Windows](/guide/app-windows); an `Image` loads its `src` before it's in a component, so its `load` can be waited for before adding it |

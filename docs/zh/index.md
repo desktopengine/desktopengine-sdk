@@ -21,7 +21,7 @@ hero:
 
 features:
   - title: 三种内容
-    details: 动态壁纸铺满显示器，也能作为屏幕保护程序；小组件贴在桌面上或浮于窗口之上；桌面伙伴陪在所有窗口之上。
+    details: 动态壁纸铺满一块显示器，也能跨多块；小组件贴在桌面上或浮于窗口之上；桌面伙伴陪在所有窗口之上。
   - title: 熟悉的 API
     details: Canvas 2D、WebGL 2、fetch、WebSocket、Web Audio 和 Streams，three.js 和 PixiJS 可以直接用。
   - title: 一条命令调试

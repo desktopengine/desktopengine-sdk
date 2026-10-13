@@ -49,7 +49,7 @@ WebSocket 上都是 UTF-8 的 JSON 文本消息，用 `type` 区分。
 | `hello` | `app`、`apiVersion` | 连接后第一条消息：应用版本、`DesktopEngine.apiVersion`。命令行收到后发送 `load` |
 | `loaded` | `revision`、`id`、`name`、`version`、`contentType`、`launchOptions` | 已经开始运行 |
 | `load-failed` | `revision`、`message` | 下载、解包、清单检查或 `index.js` 执行失败 |
-| `console` | `level`、`message` | `console.log/info/warn/error/debug`，参数已格式化并用空格连接 |
+| `console` | `level`、`message` | `console.log/info/warn/error/debug`，参数已格式化并用空格连接。应用自己对这个小程序发出的警告也这样发送（`level` 为 `warn`） |
 | `exception` | `message`、`stack` | 未捕获的异常，或没人处理的 Promise rejection（`message` 以 `Unhandled promise rejection: ` 开头），`stack` 可能没有 |
 | `host` | `message` | 小程序调用了 `postMessage('host', message)`；`move` 会被记住，`close` 会停止小程序 |
 | `stopped` | | 小程序停止了（收到 `stop`，或它自己发了 `close`） |

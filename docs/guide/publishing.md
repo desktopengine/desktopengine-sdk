@@ -45,7 +45,6 @@ The upload is checked right away; when something is wrong, the command prints th
 
 - The id is in your namespace, and `version` is higher than every version published before.
 - The package has at most 100 MB (unpacked too), 10,000 files and 48 MB per file, no symbolic links, and only the kinds of files content uses (code, data and text, images, audio, video, 3D models, shaders, fonts, WebAssembly).
-- It doesn't declare permissions that only content coming with DesktopEngine gets, such as `key-activity`.
 - Its `apiVersion` is no higher than the app that's out supports: content that needs a newer API waits for that app.
 
 A version stays a draft until it's submitted: publishing the same `version` again replaces the upload. Once it's submitted, change `version` for the next upload; a rejected version can be uploaded again with the same one.
@@ -70,7 +69,7 @@ A rejected version has no test links: rejecting it deletes them, and you make ne
 
 A submitted version is run on a review Mac, in the app and in browsers, before a reviewer sees it.
 
-**In the app**, for a minute, with the limits installed content has. The run takes screenshots after 5, 30 and 55 seconds, in light mode with the clock on an afternoon, each followed by one in dark mode with the clock in the evening; the store's screenshots of your content come from them (for widgets and companions, around what they draw). It records every network request, the console, uncaught exceptions and how much energy the content uses: the store shows energy use, and wasteful content can be rejected (see [Performance](./performance)).
+**In the app**, for a minute, with the limits installed content has. There `DesktopEngine.systemAudio` hears a made-up signal like music, as in the web preview, and `DesktopEngine.windows` lists the review Mac's own windows. The run takes screenshots after 5, 30 and 55 seconds, in light mode with the clock on an afternoon, each followed by one in dark mode with the clock in the evening; the store's screenshots of your content come from them (for widgets and companions, around what they draw). It records every network request, the console, uncaught exceptions and how much energy the content uses: the store shows energy use, and wasteful content can be rejected (see [Performance](./performance)).
 
 **In the browser**, in the web runtime of [`dev --web`](/reference/cli#in-the-browser), in Chrome and in WebKit (Safari's engine), for 35 seconds; widgets and companions are hovered, clicked and dragged. Your JavaScript runs obfuscated there, as the store's web desktop serves it: local names are changed and strings encoded.
 

@@ -5,7 +5,7 @@ Content can keep data between launches, without asking for a permission:
 - `localStorage` for small things such as settings and state: strings by key, as in browsers.
 - `DesktopEngine.fs` for files: Node's file functions, on the content's own folder.
 
-Both belong to the content: every instance of it (e.g. the same wallpaper on two displays) shares them. They're kept when the content is updated, when it's removed from the desktop and put back, and deleted when it's uninstalled. Content run by `desktopengine dev` or the Develop menu has its own, apart from the installed copy's, also kept between runs. In the screen saver, content starts with empty ones every time.
+Both belong to the content: every instance of it (e.g. the same wallpaper on two displays) shares them. They're kept when the content is updated, when it's removed from the desktop and put back, and deleted when it's uninstalled. Content run by `desktopengine dev` or the Develop menu has its own, apart from the installed copy's, also kept between runs.
 
 ## localStorage and sessionStorage
 

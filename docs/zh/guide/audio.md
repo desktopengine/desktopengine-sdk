@@ -42,7 +42,7 @@ requestAnimationFrame(function draw() {
 
 ## Mac 正在播放的声音
 
-`DesktopEngine.systemAudio` 跟随 Mac 正在播放的声音（音乐、视频、其它应用；不包括内容自己发出的声音），用来做音乐可视化。它给的是分析结果，从不给声音本身：整体有多响（`level`），以及从低到高各个频带有多响（`getBands`），都是 0...1。需要 `system-audio` 权限和 `"apiVersion": 6`；有它的内容不能同时有 `network`，这样听到的东西留在 Mac 上。没有这个权限时 `DesktopEngine.systemAudio` 是 `null`。
+`DesktopEngine.systemAudio` 分析其他应用在 Mac 上播放的声音（音乐、视频等），用来做音乐可视化。DesktopEngine 自己播放的声音它都听不到：你的内容、其他内容、带声音的视频壁纸。它给的是分析结果，从不给声音本身：整体有多响（`level`），以及从低到高各个频带有多响（`getBands`），取值都在 0...1 之间。需要 `system-audio` 权限和 `"apiVersion": 6`，有它的内容不能同时有 `network`。没有这个权限时 `DesktopEngine.systemAudio` 是 `null`。
 
 ```js
 const audio = DesktopEngine.systemAudio;
@@ -59,7 +59,7 @@ requestAnimationFrame(function draw() {
 });
 ```
 
-- 按自己的节奏读，比如每帧读一次：数值每秒最多变 30 次，经过平滑（上升快，大约半秒内落下）。频带覆盖 30 Hz 到 16 kHz，按八度均匀分布；设置 `bandCount`（1...`maxBandCount`，即 32）可以得到更少、更宽的频带。`level` 是整体响度，`active` 表示有没有听得见的声音在播放。
-- 应用只在内容读取它（或监听 `activechange`）并且有其它应用在出声时才去听，最后一次读取 2 秒后、以及应用暂停内容时停止。听的期间 macOS 会在菜单栏显示录音指示器。内容闲着时想停止收听，就停止读取，等 `activechange`。
-- 第一次使用时，macOS 会请用户允许 DesktopEngine 录制系统音频。用户不允许，或者 Mac 的系统早于 macOS 14.2（`supported` 为 false）时，听到的是静音：所有频带和 `level` 都是 0，`active` 为 false。静音时画一些安静的东西，不要当成错误。
-- 网页预览（`desktopengine dev --web` 和商店）里是一段像音乐的合成信号。在 `dev --web` 的菜单栏按 ♫ 可以选一个音频文件来代替。
+- 按自己的节奏读，比如每帧读一次：数值每秒最多变 30 次（所以在 60 Hz 的显示器上每两帧变一次），经过平滑（上升快，大约半秒内落下）。频带覆盖 30 Hz 到 16 kHz，按八度均匀分布；设置 `bandCount`（1...`maxBandCount`，即 32）可以得到更少、更宽的频带，它们由这 32 个合并而来。给 `bandCount` 设超出范围的数会被截到范围内，小数部分舍去；设成 `NaN` 或不是数字的值会被忽略。`level` 是整体响度，`active` 表示有没有听得见的声音在播放。
+- 只有其他应用在播放音频、并且你的内容在读取 `systemAudio`（最后一次读取后 2 秒内）或监听 `activechange` 时，应用才会去听 Mac 的声音；应用暂停内容时不听。听的期间 macOS 会在菜单栏显示录音指示器。一直占着音频输出、其实只放出静音的应用（空闲的通话、占着声音输出的网页标签）也算在播放，所以内容没什么可显示时，要停止读取，并且移除 `activechange` 监听。`activechange` 不带数据，加上监听本身不会触发它。
+- 第一次使用时，macOS 会请用户允许 DesktopEngine 录制系统音频。用户在 macOS 的询问里没有允许，或者系统早于 macOS 14.2（`supported` 为 false）时，听到的是静音：所有频带和 `level` 都是 0，`active` 为 false。静音时画一些安静的东西，不要当成错误。在早于 macOS 14.2 的系统上反正听不到声音，所以应用不会向用户询问 `system-audio`，内容不经询问就得到它。
+- 网页预览（`desktopengine dev --web` 和商店）里是一段像音乐的合成信号。在 `dev --web` 的菜单栏点 ♫，可以选一个自己的音频文件来代替，分析方式和应用分析 Mac 播放的声音一样。浏览器播放不了的文件会被忽略，再点 ♫ 重新选。

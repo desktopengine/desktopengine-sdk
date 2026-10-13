@@ -11,7 +11,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { validateManifest, validatePackage, englishText, isValidNetworkDomain, PERMISSIONS, TYPES } from '../src/manifest.ts';
+import { validateManifest, validatePackage, englishText, isValidNetworkDomain, BUILTIN_ONLY_PERMISSIONS, PERMISSIONS, TYPES } from '../src/manifest.ts';
 import { createZip, readZip, crc32 } from '../src/zip.ts';
 import { createProject, packProject, listPackageFiles, defaultId, RENDERERS } from '../src/project.ts';
 import { buildProject } from '../src/build.ts';
@@ -135,7 +135,9 @@ test('the mouse permission asks for the API that has DesktopEngine.input', () =>
 test('the permissions are the ones the type declarations give launchOptions', () => {
   const declarations = fs.readFileSync(path.join(import.meta.dirname, '..', 'types', 'desktop-engine.d.ts'), 'utf8');
   const union = /\n\s*type Permission =([^;]*);/.exec(declarations)?.[1] ?? '';
-  assert.deepEqual([...PERMISSIONS].sort(), [...union.matchAll(/'([^']+)'/g)].map((match) => match[1]).sort());
+  // the ones content can get: launchOptions never lists the others
+  const given = PERMISSIONS.filter((permission) => !BUILTIN_ONLY_PERMISSIONS.includes(permission));
+  assert.deepEqual([...given].sort(), [...union.matchAll(/'([^']+)'/g)].map((match) => match[1]).sort());
 });
 
 test('the window-positions permission asks for the API that has DesktopEngine.windows', () => {
@@ -145,10 +147,13 @@ test('the window-positions permission asks for the API that has DesktopEngine.wi
   assert.deepEqual(validateManifest({ ...minimal, permissions: ['window-positions'], apiVersion: 6 }), { errors: [], warnings: [] });
 });
 
-test('key-activity is listed but only built-in content gets it', () => {
+test('key-activity is never given', () => {
   const { errors, warnings } = validateManifest({ ...minimal, permissions: ['key-activity'], apiVersion: 3 });
   assert.deepEqual(errors, []);
-  assert.ok(warnings.some((message) => message.includes('Only content that comes with DesktopEngine')));
+  assert.ok(warnings.some((message) => message.includes('doesn\'t get the "key-activity" permission')));
+  // nor asks for an API version to use it, nor is suggested for a misspelled permission
+  assert.ok(!validateManifest({ ...minimal, permissions: ['key-activity'] }).warnings.some((message) => message.includes('"apiVersion"')));
+  assert.ok(!validateManifest({ ...minimal, permissions: ['keys'] }).errors.some((message) => message.includes('key-activity')));
 });
 
 test('the network permission reaches only the domains it lists', () => {

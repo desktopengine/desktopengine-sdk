@@ -46,7 +46,7 @@ declare namespace DesktopEngine {
   type ContentType = 'wallpaper' | 'widget' | 'companion' | 'pet';
 
   /** A permission declared in manifest.json */
-  type Permission = 'network' | 'audio' | 'system-info' | 'mouse' | 'key-activity' | 'system-audio' | 'window-positions';
+  type Permission = 'network' | 'audio' | 'system-info' | 'mouse' | 'system-audio' | 'window-positions';
 
   /** The value of a parameter: a `toggle` is a boolean, a `number` a number, a `choice`, `color` or `text` a string */
   type ParameterValue = boolean | number | string | null;
@@ -90,19 +90,25 @@ declare namespace DesktopEngine {
     /** The user's preferred language, such as "zh-Hans-CN" */
     locale?: string;
     /**
-     * The permissions the content runs with: the ones in manifest.json the user allowed. Denied ones are missing,
-     * the content still runs without them. `audio` isn't asked about, it's there when declared.
+     * The permissions the content runs with, each once, in the app and in the web preview alike: the declared ones it
+     * gets. Denied ones are missing, and the content still runs without them. `audio` isn't asked about: it's there
+     * when declared. The previews in the app's details pane are silent and don't see other apps' windows, so `audio`
+     * and `window-positions` are missing there.
      */
     permissions?: Permission[];
     /**
      * Present when a wallpaper runs as the macOS screen saver instead of on the desktop. The desktop window
      * fills the screen saver; there's no pointer or keyboard input (any input ends the screen saver) and JavaScript
      * runs without the JIT, so keep per-frame work on the GPU.
+     * @internal
      */
     screenSaver?: LaunchScreenSaver;
   }
 
-  /** How the content runs as the screen saver (`launchOptions.screenSaver`) */
+  /**
+   * How the content runs as the screen saver (`launchOptions.screenSaver`)
+   * @internal
+   */
   interface LaunchScreenSaver {
     /**
      * `true` in the small live preview of System Settings › Screen Saver: `devicePixelRatio` is lowered and frames are
@@ -415,7 +421,10 @@ declare namespace DesktopEngine {
     deltaZ: number;
   }
 
-  /** Keyboard event payload */
+  /**
+   * Keyboard event payload
+   * @internal
+   */
   interface KeyboardPayload {
     /** macOS virtual key code (NSEvent.keyCode) */
     code: number;
@@ -485,9 +494,15 @@ declare namespace DesktopEngine {
     focus: void;
     /** The window stopped being the main window */
     blur: void;
-    /** A key was pressed (once listened to, the key is not passed further down). Only content that comes with DesktopEngine gets the keyboard: for other content it never fires */
+    /**
+     * A key was pressed (once listened to, the key is not passed further down)
+     * @internal
+     */
     keydown: KeyboardPayload;
-    /** A key was released (once listened to, the key is not passed further down). Only content that comes with DesktopEngine gets the keyboard: for other content it never fires */
+    /**
+     * A key was released (once listened to, the key is not passed further down)
+     * @internal
+     */
     keyup: KeyboardPayload;
     /** devicePixelRatio changed: the window moved to a display with another scale, or the display's scale changed */
     devicepixelratiochange: void;
@@ -589,7 +604,10 @@ declare namespace DesktopEngine {
     deltaY: number;
   }
 
-  /** keyactivity of `DesktopEngine.input` */
+  /**
+   * keyactivity of `DesktopEngine.input`
+   * @internal
+   */
   interface KeyActivityPayload {
     /** How many keys went down since the previous keyactivity (a held key repeating counts once) */
     count: number;
@@ -609,17 +627,19 @@ declare namespace DesktopEngine {
     /** The wheel or the trackpad scrolled; deltas that come faster than the content takes them are added up */
     wheel: GlobalWheelPayload;
     /**
-     * Keys were pressed in any app: how many, never which ones, and only on a 100 ms grid. Needs the "key-activity"
-     * permission, which only content that comes with DesktopEngine gets, and the user allowing DesktopEngine Input
-     * Monitoring in System Settings › Privacy & Security (asked the first time content listens to it); otherwise it never
-     * fires. See `keyActivityAvailable`
+     * Keys were pressed in any app: how many, never which ones, on a 100 ms grid. See `keyActivityAvailable`
+     * @internal
      */
     keyactivity: KeyActivityPayload;
   }
 
   /** `DesktopEngine.systemAudio` event map */
   interface SystemAudioEventMap {
-    /** `active` changed: sound started or stopped playing. Listening keeps the app listening to the Mac, like reading */
+    /**
+     * `active` changed: sound started or stopped playing. No payload: read `active`. Adding a listener doesn't fire it
+     * by itself. Listening to it keeps the app listening to the Mac just as reading does, even while the other app
+     * plays only silence: remove the listener when the content has nothing to show
+     */
     activechange: void;
   }
 
@@ -634,7 +654,8 @@ declare namespace DesktopEngine {
     /**
      * Other apps' windows changed: one moved, resized, opened, closed, was minimized or came to the front, another app
      * became the active one, or another Space is shown. No payload: read `list()`. Changes that come faster than the
-     * content takes them are merged into one
+     * content takes them are merged into one. It comes only when the windows changed, never because a listener was
+     * added (nor removed and added again)
      */
     change: void;
   }
@@ -643,7 +664,10 @@ declare namespace DesktopEngine {
   // Component
   // ---------------------------------------------------------------------------
 
-  /** Component constructor options; fields other than style / events are stored as native attributes */
+  /**
+   * Component constructor options. Each component takes only the options it documents (each read once); others are
+   * ignored. Options that aren't an object are treated as none.
+   */
   interface ComponentOptions {
     /** Initial style */
     style?: StyleProperties;
@@ -802,9 +826,15 @@ declare namespace DesktopEngine {
     onfocus: EventHandler<this, void> | null | undefined;
     /** blur callback (not supported by the desktop type) */
     onblur: EventHandler<this, void> | null | undefined;
-    /** keydown callback (not supported by the desktop type; only content that comes with DesktopEngine gets the keyboard) */
+    /**
+     * keydown callback (not supported by the desktop type)
+     * @internal
+     */
     onkeydown: EventHandler<this, KeyboardPayload> | null | undefined;
-    /** keyup callback (not supported by the desktop type; only content that comes with DesktopEngine gets the keyboard) */
+    /**
+     * keyup callback (not supported by the desktop type)
+     * @internal
+     */
     onkeyup: EventHandler<this, KeyboardPayload> | null | undefined;
     /** devicepixelratiochange callback */
     ondevicepixelratiochange: EventHandler<this, void> | null | undefined;
@@ -822,9 +852,15 @@ declare namespace DesktopEngine {
     offfocus(): void;
     /** Removes the onblur callback */
     offblur(): void;
-    /** Removes the onkeydown callback */
+    /**
+     * Removes the onkeydown callback
+     * @internal
+     */
     offkeydown(): void;
-    /** Removes the onkeyup callback */
+    /**
+     * Removes the onkeyup callback
+     * @internal
+     */
     offkeyup(): void;
     /** Removes the ondevicepixelratiochange callback */
     offdevicepixelratiochange(): void;
@@ -3713,17 +3749,16 @@ declare namespace DesktopEngine {
   // ---------------------------------------------------------------------------
 
   /**
-   * The mouse anywhere on screen and typing in any app (DesktopEngine.input), e.g. for a companion that follows the
-   * pointer. The mouse needs the "mouse" permission in manifest.json (and `"apiVersion": 3`). The app watches them only
-   * while the content listens to their events.
+   * The mouse anywhere on screen, over other apps too (DesktopEngine.input), e.g. for a companion whose eyes follow the
+   * pointer. Needs the "mouse" permission in manifest.json (and `"apiVersion": 3`). The app watches the mouse only
+   * while the content listens to its events.
    */
   interface Input extends EventedObject<InputEventMap> {
     /** Where the pointer is now, in global coordinates; null without the "mouse" permission */
     readonly pointer: GlobalPoint | null;
     /**
-     * Whether keyactivity can come: the content comes with DesktopEngine, declares "key-activity" and the user allowed
-     * Input Monitoring. Can change
-     * while it runs (the user turns it on in System Settings): read it again from time to time
+     * Whether keyactivity can come
+     * @internal
      */
     readonly keyActivityAvailable: boolean;
     /** mousemove callback */
@@ -3742,9 +3777,15 @@ declare namespace DesktopEngine {
     onwheel: EventHandler<this, InputEventMap['wheel']> | null | undefined;
     /** Removes the onwheel callback */
     offwheel(): void;
-    /** keyactivity callback */
+    /**
+     * keyactivity callback
+     * @internal
+     */
     onkeyactivity: EventHandler<this, InputEventMap['keyactivity']> | null | undefined;
-    /** Removes the onkeyactivity callback */
+    /**
+     * Removes the onkeyactivity callback
+     * @internal
+     */
     offkeyactivity(): void;
   }
 
@@ -3753,36 +3794,44 @@ declare namespace DesktopEngine {
   // ---------------------------------------------------------------------------
 
   /**
-   * What the Mac plays (music, videos, other apps; never this content's own sound), as an analysis: how loud it is and
-   * how it spreads from low to high, never the sound itself. For music visualizers. Needs the "system-audio" permission
-   * (and `"apiVersion": 6`), which content can't have together with "network"; `DesktopEngine.systemAudio` is null
-   * without it.
+   * What other apps play on the Mac (music, videos…; never anything DesktopEngine plays: this content, other content,
+   * a video wallpaper with sound), as an analysis: how loud it is and how it spreads from low to high, never the sound
+   * itself. For music visualizers. Needs the "system-audio" permission (and `"apiVersion": 6`), which content can't have
+   * together with "network". `DesktopEngine.systemAudio` is null without it (not declared, or the user denied it in the
+   * app).
    *
-   * The app listens only while the content reads it (or listens to `activechange`) and another app plays sound; it
-   * stops 2 seconds after the last read, and while the app pauses the content. Meanwhile macOS shows its recording
-   * indicator in the menu bar, and the first time it asks the user to allow DesktopEngine to record system audio. A
-   * user who doesn't allow it, or a Mac before macOS 14.2, gets silence: every band and `level` 0, `active` false.
+   * The app listens only while another app plays audio and the content reads the values or listens to
+   * `activechange`. It stops 2 seconds after the last read once nothing listens to `activechange`, and whenever the app
+   * pauses the content. Meanwhile macOS shows its recording indicator in the menu bar, and the first time macOS asks
+   * the user to allow DesktopEngine to record system audio. A user who doesn't allow that, or a Mac before macOS 14.2,
+   * gets silence: every band and `level` 0, `active` false.
    *
-   * Read it at your own pace, e.g. in requestAnimationFrame: the values change up to 30 times a second, smoothed:
-   * they rise fast and fall about 1.8 per second.
+   * Read it at your own pace, e.g. in requestAnimationFrame: the values change up to 30 times a second, so every other
+   * frame on a 60 Hz display. They're smoothed: they rise fast and fall from 1 to 0 in about half a second.
    */
   interface SystemAudio extends EventedObject<SystemAudioEventMap> {
-    /** Whether this Mac can hear what it plays: false before macOS 14.2 */
+    /**
+     * Whether the app can follow what the Mac plays on this version of macOS: false before macOS 14.2, where every value
+     * stays 0
+     */
     readonly supported: boolean;
     /** Whether something audible plays (louder than -60 dB in the last second) */
     readonly active: boolean;
-    /** How loud it plays overall, 0...1 (-60 dB...0 dB) */
+    /** How loud it plays overall, 0...1 (-60 dB...0 dB of mean power, relative to full scale), in steps of 1/255 */
     readonly level: number;
     /**
-     * How many bands `getBands` fills: 1...`maxBandCount`, default 32. Values out of range are clamped, fractions dropped.
-     * The bands always cover 30 Hz...16 kHz, spaced evenly in octaves
+     * How many bands `getBands` fills: 1...`maxBandCount`, default 32. Numbers out of range are clamped (Infinity to
+     * `maxBandCount`, -Infinity to 1), fractions dropped; NaN and anything but a number are ignored. The bands always
+     * cover 30 Hz...16 kHz, spaced evenly in octaves. Fewer bands are merged from the 32, so reading with several counts
+     * tells nothing finer
      */
     bandCount: number;
     /** The most bands the content may ask for: 32 */
     readonly maxBandCount: number;
     /**
-     * Fills `array`'s first `bandCount` items (fewer when it's shorter) with the latest level of each band, low to high,
-     * 0...1 (-80 dB...-12 dB per octave, tilted +3 dB per octave so that music is about flat), in steps of 1/255.
+     * Fills `array`'s first `bandCount` items (fewer when it's shorter) with the latest level of each band, low to high:
+     * 0...1 for a band's power per octave from -80 dB to -12 dB (relative to a full-scale sine, tilted +3 dB per octave
+     * around 1 kHz so that music comes out about flat), in steps of 1/255.
      * Throws a TypeError when `array` isn't a Float32Array
      */
     getBands(array: Float32Array): void;
@@ -3798,13 +3847,16 @@ declare namespace DesktopEngine {
 
   /** Another app's window, in `DesktopEngine.windows.list()` */
   interface WindowInfo {
-    /** The same while the window exists (it keeps it when it moves or comes to the front), not across launches */
+    /**
+     * The same while the window exists, also when it moves or comes to the front; a window that's closed and opened
+     * again, or whose app is relaunched, gets a new one
+     */
     readonly id: number;
     /** Where it is, in global coordinates (like Window and Screen); the title bar is at its top */
     readonly frame: Readonly<Rect>;
-    /** It belongs to the app you're using (the frontmost one), e.g. to prefer the window that has the user's attention */
+    /** It belongs to the app the user is using (the frontmost one), e.g. to prefer the window that has their attention */
     readonly isActiveApp: boolean;
-    /** It fills its display in a full screen Space */
+    /** It fills its display in a full screen Space, alone or beside another window in Split View */
     readonly isFullScreen: boolean;
     /**
      * It floats above normal windows: a panel or a window its app keeps on top (picture in picture, a floating
@@ -3828,27 +3880,33 @@ declare namespace DesktopEngine {
   /**
    * Where other apps' windows are (DesktopEngine.windows), e.g. for a companion that walks on their title bars. Needs
    * the "window-positions" permission in manifest.json (and `"apiVersion": 6`); `DesktopEngine.windows` is null without
-   * it, or when the user didn't allow it.
+   * it, when the user didn't allow it, and in the app's previews in the details pane.
    *
    * Only the windows on the Spaces shown now (on every display), at least 40 points each way. Never the content's own
    * windows (nor any of DesktopEngine's), the menu bar, the Dock or desktop icons, and never what a window shows, its
-   * title or its app. Minimized and hidden windows aren't listed, a closing one leaves half way through its fade-out; while
-   * Mission Control is open the list stays as it was.
+   * title or its app. Minimized and hidden windows aren't listed, and a closing one leaves once it's half faded (about
+   * 0.1 second after it closes). While Mission Control is open, or when the system doesn't tell where the windows are,
+   * `list()` and `visibleTopEdges()` give the list as it last was, whether the content listens or not.
    *
-   * The app watches the windows only while the content listens to `change`: about 10 times a second, and up to 60
-   * times a second while the mouse button is down on a window (it may be dragged or resized).
+   * The app watches the windows only while the content listens to `change`: about 10 times a second, up to 60 times a
+   * second while the mouse button is down on a window (it may be dragged or resized), and once a second while all the
+   * content that listens has stopped drawing or is paused. Without a listener, `list()` and `visibleTopEdges()` ask the
+   * system when called: call them when deciding something, not every frame.
    */
   interface Windows extends EventedObject<WindowsEventMap> {
     /**
-     * The windows now, front to back: the first one is in front of all the others. A window behind others can be
-     * covered by them, see the guide for the parts of a title bar nothing covers
+     * The windows, front to back: the first one is in front of all the others. While the content listens to `change`,
+     * the ones as of the last `change` (or now, before the first); otherwise the ones now, asked of the system when
+     * called. Within one run of the content's code, `list()` and `visibleTopEdges()` give the same list. A window behind
+     * others can be covered by them: `visibleTopEdges()` gives the parts of the top edges nothing covers
      */
     list(): ReadonlyArray<WindowInfo>;
     /**
-     * Where a companion can stand: the parts of the windows' top edges that no window in front covers (your windows
-     * are above all others, so one standing on a covered edge would look like it stands on the window in front). Front
+     * Where a companion can stand: the parts of the windows' top edges that no window in front covers (a companion is
+     * above all windows, so one standing on a covered edge would look like it stands on the window in front). Front
      * to back, a window's parts from left to right; a window that a window in front cuts in two has two. Full screen
-     * windows have none, their top is the display's. Parts can reach past the displays' edges, as windows do
+     * windows (Split View ones too) have none, their top is the display's. Parts can reach past the displays' edges, as
+     * windows do
      */
     visibleTopEdges(): ReadonlyArray<TopEdge>;
     /** change callback */
@@ -4081,9 +4139,9 @@ declare namespace DesktopEngine {
     ScreenManager: ScreenManager;
     /** System services instance */
     system: System;
-    /** The mouse anywhere on screen and typing in any app; the mouse needs the "mouse" permission */
+    /** The mouse anywhere on screen, over other apps too; needs the "mouse" permission (API 3) */
     input: Input;
-    /** What the Mac plays, as an analysis for music visualizers; null without the "system-audio" permission */
+    /** What the Mac plays, as an analysis for music visualizers; null without the "system-audio" permission (API 6) */
     readonly systemAudio: SystemAudio | null;
     /** Where other apps' windows are; null without the "window-positions" permission (API 6) */
     readonly windows: Windows | null;
@@ -4140,10 +4198,18 @@ declare namespace DesktopEngine {
     readonly System: PlainConstructor<System>;
     /** Input constructor (use DesktopEngine.input) */
     readonly Input: PlainConstructor<Input>;
-    /** SystemAudio constructor (use DesktopEngine.systemAudio; throws without the "system-audio" permission) */
-    readonly SystemAudio: PlainConstructor<SystemAudio>;
-    /** Windows constructor (use DesktopEngine.windows): throws without the "window-positions" permission */
-    readonly Windows: PlainConstructor<Windows>;
+    /**
+     * SystemAudio constructor, a singleton: use DesktopEngine.systemAudio. Content may construct it before reading
+     * DesktopEngine.systemAudio, which is then that object; constructing another throws TypeError "Illegal constructor".
+     * Throws without the "system-audio" permission, and DesktopEngine.systemAudio is null then
+     */
+    readonly SystemAudio: SingletonConstructor<SystemAudio>;
+    /**
+     * Windows constructor, a singleton: use DesktopEngine.windows. Content may construct it before reading
+     * DesktopEngine.windows, which is then that object; constructing another throws TypeError "Illegal constructor".
+     * Throws without the "window-positions" permission, and DesktopEngine.windows is null then
+     */
+    readonly Windows: SingletonConstructor<Windows>;
     /** Native side of `DesktopEngine.fs` and `require` (internal: use `DesktopEngine.fs`) */
     readonly FileSystem: PlainConstructor<unknown>;
     /** Native side of `localStorage` (a singleton, internal: use the global) */
@@ -4366,15 +4432,17 @@ declare var WebGLRenderingContext: DesktopEngine.WebGLContextConstructor<Desktop
 declare var WebGL2RenderingContext: DesktopEngine.WebGLContextConstructor<DesktopEngine.WebGL2RenderingContext>;
 
 /**
- * Runs a callback after a delay in milliseconds, 0 by default, with the arguments after the delay. Like in browsers the
- * delay is converted to a number, and NaN or a negative one is 0. Returns the id for clearTimeout, which is never 0.
+ * Runs a callback after a delay in milliseconds, 0 by default, with the arguments after the delay. The delay is converted
+ * to a number, and NaN, a negative one, Infinity or one over 2^31 - 1 is 0. Returns the id for clearTimeout, which is
+ * never 0; a callback that isn't a function (a string of code, say) isn't run, and the result is null.
  */
 declare function setTimeout<A extends any[]>(callback: (...args: A) => void, delay?: number, ...args: A): number;
 /** Cancels a delayed callback */
 declare function clearTimeout(id: number | null | undefined): void;
 /**
  * Runs a callback repeatedly, every `delay` milliseconds but at least 4, with the arguments after the delay. The delay
- * is converted like setTimeout's. Returns the id for clearInterval, which is never 0.
+ * is converted like setTimeout's. Its beats keep to the period: one a slow callback misses is skipped, not added to
+ * the period. Returns the id for clearInterval, which is never 0.
  */
 declare function setInterval<A extends any[]>(callback: (...args: A) => void, delay?: number, ...args: A): number;
 /** Cancels a repeating callback */
@@ -4447,7 +4515,10 @@ declare var navigator: Navigator;
 interface StructuredSerializeOptions {
   /**
    * ArrayBuffers and MessagePorts to move rather than copy. A transferred ArrayBuffer is detached on macOS 14.4 and
-   * later (as in browsers), still usable before; a transferred MessagePort is the same object on the other side
+   * later (as in browsers) and still usable before. One the engine has already read (given to WebGL, a canvas, crypto,
+   * the file system, audio or systemAudio.getBands(), a WebSocket or a BroadcastChannel, or an ImageData's pixels)
+   * stays usable on macOS 14.4 and later too, while the web preview detaches it: don't use a buffer once it's
+   * transferred. A transferred MessagePort is the same object on the other side
    */
   transfer?: Iterable<ArrayBuffer | MessagePort>;
 }
@@ -4496,12 +4567,15 @@ declare var MessageChannel: {
  * Who a BroadcastChannel reaches, besides the content's own channels of the same name:
  * - `"package"`: every running instance of the same package, e.g. the copies of a wallpaper on each display.
  * - `"namespace"`: every package whose id has the same namespace, `app.desktopengine.<namespace>.<name>`: one creator's
- *   content, e.g. a widget and a companion made to work together. Only for content installed from the store (or built
- *   into the app); a package imported from a file throws a "SecurityError" DOMException, its id isn't checked.
+ *   content, e.g. a widget and a companion made to work together. Only for content installed from the store, whose id
+ *   the store checked: in a package imported from a file, which can take any id, the constructor throws a
+ *   "SecurityError" DOMException.
  *
- * Content run by `desktopengine dev` shares `"package"` and `"namespace"` channels only with other content run by it;
- * its `"namespace"` channels need an id of the store's form, `app.desktopengine.<namespace>.<name>`.
- * Live previews in the app (a wallpaper's details, the widget gallery) take part in no messaging.
+ * Content run by `desktopengine dev` (or from the Develop menu) shares `"package"` and `"namespace"` channels only with
+ * other content run that way; its `"namespace"` channels need an id of the store's form,
+ * `app.desktopengine.<namespace>.<name>`, otherwise the constructor throws a "SecurityError" DOMException. Live
+ * previews in the app's details pane are cut off from other content: a preview's channels reach only the preview's
+ * own channels.
  */
 type BroadcastChannelScope = 'package' | 'namespace';
 
@@ -4512,27 +4586,36 @@ interface BroadcastChannelOptions {
 
 /**
  * Messages to other content running at the same time, by channel name (API 6). As on the web, a message goes to every
- * other open channel of the same name and scope, in this content and in the others the scope reaches, never back to
- * the channel that posted it (nor to one this content opens after posting it); it's a copy (see structuredClone, without transferring), delivered in a task of its own.
- * Nothing is kept: content that isn't running or has no channel open doesn't get it. Messages from one channel arrive
- * in the order they were posted. Content that's paused (e.g. while a full screen app covers its wallpaper) still gets
- * them.
+ * other open channel of the same name and scope, in this content and in the others the scope reaches. It never comes
+ * back to the channel that posted it, nor to one this content opens after posting it. It's a copy (see
+ * structuredClone, without transferring), delivered in a task of its own. Nothing is kept: content that isn't running
+ * or has no channel open doesn't get it. Messages from one channel arrive in the order they were posted. Content
+ * that's paused (e.g. while a full screen app covers its wallpaper) still gets them right away.
  *
- *   const channel = new BroadcastChannel('scene');                            // the instances of this package
- *   channel.onmessage = (event) => applyScene(event.data);
- *   channel.postMessage({ scene: 'night' });
- *   const focus = new BroadcastChannel('focus', { scope: 'namespace' });      // the creator's other packages
+ * ```js
+ * const channel = new BroadcastChannel('scene');                        // the instances of this package
+ * channel.onmessage = (event) => applyScene(event.data);
+ * channel.postMessage({ scene: 'night' });
+ * const focus = new BroadcastChannel('focus', { scope: 'namespace' });  // every package of this creator
+ * ```
  *
- * Limits: a message takes at most 1 MB (2 bytes for each character of its strings and keys, plus its ArrayBuffers),
- * and content posts at most 240 messages and 16 MB a second over all its channels; postMessage throws past them. When
- * a content can't keep up with what it's sent (its thread is busy for long), the messages after its 1024 waiting ones
- * are dropped.
+ * Only a channel with a listener for messages (`onmessage` or `onmessageerror`, or a "message" or "messageerror"
+ * listener added with its addEventListener) gets them. As in browsers, one without a listener can be collected once
+ * the content no longer refers to it, which closes it; one with a listener keeps receiving until `close()`.
+ *
+ * Limits: a message takes at most 1 MB, counting 2 bytes for each character of its encoded form (a JSON-like tree:
+ * numbers' digits, keys and array indexes, quotes, punctuation and escapes included), plus the bytes of its
+ * ArrayBuffers (a typed array's whole buffer, once), Blobs and ImageData. Send many numbers in a typed array: 30,000
+ * numbers like `i / 7` take about 1.4 MB in an array, 0.23 MB in a Float64Array. Content posts at most 240 messages and
+ * 16 MB a second over all its channels; postMessage throws past them. When content can't keep up with what it's sent
+ * (its thread is busy for long), what comes for it while 1024 messages or 64 MB wait is dropped.
  */
 interface BroadcastChannel extends EventTarget {
   /** The name it was made with */
   readonly name: string;
   /** Who it reaches (browsers' BroadcastChannel has no scope: it reaches the same origin) */
   readonly scope: BroadcastChannelScope;
+  /** A message came: a copy of what was posted. Setting it (or adding a "message" listener) makes the channel receive */
   onmessage: ((this: BroadcastChannel, event: DesktopEngine.MessageEvent) => void) | null;
   /** A message came that can't be copied here */
   onmessageerror: ((this: BroadcastChannel, event: DesktopEngine.MessageEvent) => void) | null;
@@ -4542,14 +4625,18 @@ interface BroadcastChannel extends EventTarget {
    * one once the channel is closed
    */
   postMessage(message: any): void;
-  /** Stops receiving; posting throws afterwards. A channel that isn't closed keeps receiving as long as the content runs */
+  /**
+   * Stops receiving; posting throws afterwards. A channel with a listener for messages keeps receiving until it's
+   * closed, so close the ones you're done with
+   */
   close(): void;
 }
 declare var BroadcastChannel: {
   prototype: BroadcastChannel;
   /**
-   * Throws a "SecurityError" DOMException for `scope: "namespace"` in content whose id isn't checked (imported from a
-   * file), a TypeError for an unknown scope
+   * Throws a "SecurityError" DOMException for `scope: "namespace"` in content imported from a file, or run by
+   * `desktopengine dev` with an id not of the form `app.desktopengine.<namespace>.<name>`; a TypeError without a name,
+   * for options that aren't an object or for an unknown scope
    */
   new (name: string, options?: BroadcastChannelOptions): BroadcastChannel;
 };
