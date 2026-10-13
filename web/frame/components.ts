@@ -208,7 +208,9 @@ export class WindowImpl extends ComponentImpl {
   readonly childWindowList: WindowImpl[] = [];
 
   constructor(options?: Record<string, unknown>) {
-    const type = typeof options?.type === 'string' ? options.type : 'normal';
+    // each option read once, as in the app: a getter can't answer one type to the check and another to the window
+    const givenType = options?.type;
+    const type = typeof givenType === 'string' && givenType ? givenType : 'normal';
     const allowed = allowedTypes();
     if (allowed && !allowed.includes(type)) {
       throw new TypeError(`a ${state.launch?.contentType} placed here can't make "${type}" windows, only ${allowed.map((name) => `"${name}"`).join(' or ')} (launchOptions.windowType)`);
@@ -222,8 +224,10 @@ export class WindowImpl extends ComponentImpl {
     this.element.style.zIndex = String(LAYERS[this.type] * 1000 + (this.order % 1000));
     this.element.hidden = true;
     windows.add(this);
-    if (options?.style && typeof options.style === 'object') this.style = options.style as Record<string, unknown>;
-    if (options?.parent instanceof WindowImpl) this.parentWindow = options.parent;
+    const style = options?.style;
+    if (style && typeof style === 'object') this.style = style as Record<string, unknown>;
+    const parent = options?.parent;
+    if (parent instanceof WindowImpl) this.parentWindow = parent;
     this.place();
   }
 
@@ -599,9 +603,13 @@ export class ImageImpl extends ComponentImpl {
   constructor(options?: Record<string, unknown>) {
     super(options);
     Object.assign(this.element.style, { backgroundRepeat: 'no-repeat', backgroundSize: 'contain', backgroundPosition: 'center' });
-    if (typeof options?.size === 'string') this.size = options.size;
-    if (typeof options?.position === 'string') this.position = options.position;
-    if (typeof options?.src === 'string') this.src = options.src;
+    // each option read once, as in the app
+    const size = options?.size;
+    const position = options?.position;
+    const src = options?.src;
+    if (typeof size === 'string') this.size = size;
+    if (typeof position === 'string') this.position = position;
+    if (typeof src === 'string') this.src = src;
   }
 
   get src(): string | null {
@@ -713,8 +721,13 @@ export class VideoImpl extends ComponentImpl {
     video.addEventListener('durationchange', () => {
       if (Number.isFinite(video.duration) && video.duration > 0) this.knownDuration = video.duration;
     });
+    // as in the app: options that aren't an object are none (defaults), each is read once, and src is only a string
+    const given = options !== null && (typeof options === 'object' || typeof options === 'function') ? options : undefined;
     for (const key of ['objectFit', 'initialTime', 'playbackRate', 'autoplay', 'loop', 'muted', 'volume', 'src']) {
-      if (options && key in options) (this as unknown as Record<string, unknown>)[key] = options[key];
+      if (!given || !(key in given)) continue;
+      const value = given[key];
+      if (key === 'src' && typeof value !== 'string') continue;
+      (this as unknown as Record<string, unknown>)[key] = value;
     }
     this.applyAudio();
   }
