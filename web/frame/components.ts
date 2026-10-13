@@ -669,6 +669,8 @@ export class VideoImpl extends ComponentImpl {
   private source: string | null = null;
   private wantsMuted = false;
   private wantedVolume = 1;
+  /** `playbackRate` as set; the element's is kept in the range the browser plays */
+  private rate = 1;
   private start = 0;
   /** Played once loaded; not the element's autoplay, which would start a video that was paused out of a window */
   private plays = false;
@@ -721,14 +723,14 @@ export class VideoImpl extends ComponentImpl {
     video.addEventListener('durationchange', () => {
       if (Number.isFinite(video.duration) && video.duration > 0) this.knownDuration = video.duration;
     });
-    // as in the app: options that aren't an object are none (defaults), each is read once, and src is only a string
+    // as in the app: options that aren't an object are none (defaults), each is read once, then assigned to its
+    // property, whose setter takes or ignores it the same as later on
     const given = options !== null && (typeof options === 'object' || typeof options === 'function') ? options : undefined;
-    for (const key of ['objectFit', 'initialTime', 'playbackRate', 'autoplay', 'loop', 'muted', 'volume', 'src']) {
-      if (!given || !(key in given)) continue;
-      const value = given[key];
-      if (key === 'src' && typeof value !== 'string') continue;
-      (this as unknown as Record<string, unknown>)[key] = value;
-    }
+    const keys = ['objectFit', 'initialTime', 'playbackRate', 'autoplay', 'loop', 'muted', 'volume', 'src'] as const;
+    const values = keys.map((key) => given?.[key]);
+    keys.forEach((key, index) => {
+      if (values[index] !== undefined) (this as Record<typeof key, unknown>)[key] = values[index];
+    });
     this.applyAudio();
   }
 
@@ -736,10 +738,12 @@ export class VideoImpl extends ComponentImpl {
     return this.source;
   }
 
+  /** As in the app, only a string that isn't empty: anything else leaves the src as it was */
   set src(value: string | null) {
-    this.source = value === null || value === undefined ? null : String(value);
+    if (typeof value !== 'string' || !value) return;
+    this.source = value;
     this.knownDuration = NaN;
-    if (this.source && !mediaURL(this.source)) {
+    if (!mediaURL(value)) {
       setTimeout(() => this.emit('error', { errMsg: 'the video can\'t be read' }));
     }
     if (this.offscreen) {
@@ -773,15 +777,21 @@ export class VideoImpl extends ComponentImpl {
   }
 
   set objectFit(value: string) {
-    if (['contain', 'cover', 'fill', 'none'].includes(value)) this.video.style.objectFit = value;
+    if (typeof value === 'string' && ['contain', 'cover', 'fill', 'none'].includes(value)) this.video.style.objectFit = value;
   }
 
   get playbackRate(): number {
-    return this.video.playbackRate;
+    return this.rate;
   }
 
   set playbackRate(value: number) {
-    if (typeof value === 'number' && Number.isFinite(value) && value > 0) this.video.playbackRate = value;
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return;
+    this.rate = value;
+    // Chrome plays only 1/16...16 and throws outside it, the app takes any rate: the nearest one the browser plays
+    const played = Math.min(Math.max(value, 1 / 16), 16);
+    // the default too: loading a src (or the element again in a window) sets the rate to it, the app keeps the rate
+    this.video.defaultPlaybackRate = played;
+    this.video.playbackRate = played;
   }
 
   get autoplay(): boolean {

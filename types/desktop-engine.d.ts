@@ -851,7 +851,11 @@ declare namespace DesktopEngine {
    */
   type VideoObjectFit = 'contain' | 'cover' | 'fill' | 'none';
 
-  /** Video constructor options */
+  /**
+   * Video constructor options. Each is applied as if it were assigned to the {@link Video} property of the same name
+   * right after `new`: a value the property doesn't take (e.g. `loop: 'no'`, `volume: '0.5'`) is ignored and the
+   * default stays
+   */
   interface VideoOptions extends ComponentOptions {
     /** Video source: an http(s) URL or a path inside the package or sandbox */
     src?: string;
@@ -878,13 +882,16 @@ declare namespace DesktopEngine {
    * was. `play()` and `seek()` while it's out of a window take effect when it's in one.
    */
   interface Video extends ComponentBase<VideoEventMap> {
-    /** Video source (returns the value as it was set) */
+    /**
+     * Video source (returns the value as it was set), null until one is set. Takes only a string that isn't empty:
+     * anything else (null, `''`, a number) is ignored and the video keeps its source
+     */
     src: string | null;
-    /** Initial playback position (seconds); accepts numbers only */
+    /** Initial playback position (seconds); accepts finite numbers only */
     initialTime: number;
-    /** Scaling mode */
+    /** Scaling mode; other values are ignored */
     objectFit: VideoObjectFit;
-    /** Playback rate; accepts numbers only */
+    /** Playback rate; accepts finite numbers above 0 only */
     playbackRate: number;
     /** Whether to play automatically; accepts booleans only */
     autoplay: boolean;
@@ -892,7 +899,7 @@ declare namespace DesktopEngine {
     loop: boolean;
     /** Whether to mute; accepts booleans only */
     muted: boolean;
-    /** Volume from 0 to 1; accepts numbers only */
+    /** Volume from 0 to 1, clamped to that; accepts finite numbers only */
     volume: number;
     /** The playback position in seconds; right after `seek()`, where it goes. Read-only, `seek()` changes it */
     readonly currentTime: number;
