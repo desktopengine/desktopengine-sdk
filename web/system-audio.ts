@@ -14,11 +14,17 @@ export const LOWEST_FREQUENCY = 30;
 export const HIGHEST_FREQUENCY = 16000;
 /** Analyses a second */
 export const ANALYSIS_RATE = 60;
-/** Bands content gets by default, and the most it may ask for unless it comes with DesktopEngine */
+/** Bands content gets by default, and the most it may ask for without the detailed analysis */
 export const RESTRICTED_BAND_COUNT = 32;
-/** Without the detailed analysis: a new analysis at most this often (ms), values rounded to multiples of 1/255 */
+/**
+ * Without the detailed analysis: a new analysis at most once in this long (ms) on average, on a grid that lets one
+ * come up to RESTRICTED_EARLY sooner (see `restrictedRefresh`); values rounded to multiples of 1/255
+ */
 export const RESTRICTED_INTERVAL = 1000 / 30;
+export const RESTRICTED_EARLY = 2;
 export const RESTRICTED_QUANTUM = 1 / 255;
+/** A sample louder than this (-60 dB) is audible: `active` stays on for a second after one */
+export const AUDIBLE_PEAK = 1e-3;
 
 export interface Snapshot {
   /** FINE_BAND_COUNT powers per octave */
@@ -51,29 +57,65 @@ export function normalizedLevel(meanSquare: number): number {
   return Math.min(1, Math.max(0, (10 * Math.log10(meanSquare) + 60) / 60));
 }
 
-/** Louder than -60 dB */
-export function isAudible(meanSquare: number): boolean {
-  return meanSquare > 1e-6;
+/** Whether the loudest sample of a stretch is audible, louder than -60 dB */
+export function isAudible(peak: number): boolean {
+  return peak > AUDIBLE_PEAK;
 }
 
-/** Means of the fine bands for `count` bands over the same range, 0...1; `quantum` > 0 rounds them to multiples of it */
-export function mergeBands(snapshot: Snapshot, target: Float32Array, count: number, quantum: number): void {
-  count = Math.min(Math.max(1, count), FINE_BAND_COUNT);
-  const step = FINE_BAND_COUNT / count;
-  const filled = Math.min(count, target.length);
-  for (let band = 0; band < filled; band++) {
-    const start = band * step;
-    const end = (band + 1) * step;
+/**
+ * Means of the first `length` values of `source` for `count` values over the same range, into `target`: each of them
+ * over `length / count` values, and the share of a value it covers where its edge cuts one
+ */
+function mergeMeans(source: ArrayLike<number>, length: number, count: number, target: Float64Array): void {
+  const step = length / count;
+  for (let merged = 0; merged < count; merged++) {
+    const start = merged * step;
+    const end = (merged + 1) * step;
     let sum = 0;
     let weights = 0;
-    for (let fine = Math.floor(start); fine < FINE_BAND_COUNT && fine < end; fine++) {
-      const weight = Math.min(end, fine + 1) - Math.max(start, fine);
-      sum += weight * snapshot.bands[fine];
+    for (let index = Math.floor(start); index < length && index < end; index++) {
+      const weight = Math.min(end, index + 1) - Math.max(start, index);
+      sum += weight * source[index];
       weights += weight;
     }
-    const value = normalizedBand(weights > 0 ? sum / weights : 0);
-    target[band] = quantum > 0 ? Math.round(value / quantum) * quantum : value;
+    target[merged] = weights > 0 ? sum / weights : 0;
   }
+}
+
+const coarsePowers = new Float64Array(RESTRICTED_BAND_COUNT);
+const mergedPowers = new Float64Array(FINE_BAND_COUNT);
+
+/**
+ * The bands content gets, 0...1: `count` means of the fine bands' powers over the same range, the first ones that fit
+ * in `target`. Without the detailed analysis (`restricted`), at most RESTRICTED_BAND_COUNT, merged from those
+ * RESTRICTED_BAND_COUNT bands rather than from the fine ones, so that reading every count tells nothing finer, and
+ * rounded to multiples of RESTRICTED_QUANTUM.
+ */
+export function mergeBands(snapshot: Snapshot, target: Float32Array, count: number, restricted: boolean): void {
+  count = Math.min(Math.max(1, Math.floor(count) || 1), restricted ? RESTRICTED_BAND_COUNT : FINE_BAND_COUNT);
+  if (restricted) {
+    mergeMeans(snapshot.bands, FINE_BAND_COUNT, RESTRICTED_BAND_COUNT, coarsePowers);
+    mergeMeans(coarsePowers, RESTRICTED_BAND_COUNT, count, mergedPowers);
+  } else {
+    mergeMeans(snapshot.bands, FINE_BAND_COUNT, count, mergedPowers);
+  }
+  const filled = Math.min(count, target.length);
+  for (let band = 0; band < filled; band++) {
+    const value = normalizedBand(mergedPowers[band]);
+    target[band] = restricted ? Math.round(value / RESTRICTED_QUANTUM) * RESTRICTED_QUANTUM : value;
+  }
+}
+
+/**
+ * Whether content without the detailed analysis, reading at `now` (ms) when its next new analysis is due at `next`
+ * (-Infinity before its first), gets a new one: then the time the one after is due, otherwise null. They're due on a
+ * grid of RESTRICTED_INTERVAL and may come up to RESTRICTED_EARLY sooner, so that content reading in every display
+ * frame gets one every other frame (every fourth at 120 Hz) however its frames jitter, and never more than 30 a second
+ * on average.
+ */
+export function restrictedRefresh(next: number, now: number): number | null {
+  if (now < next - RESTRICTED_EARLY) return null;
+  return Math.max(next + RESTRICTED_INTERVAL, now - RESTRICTED_EARLY + RESTRICTED_INTERVAL);
 }
 
 /** A made-up signal like music (a beat, a bass line, chords, hi-hats) at `time` seconds; the app makes the same */
@@ -123,7 +165,8 @@ function smooth(previous: number, value: number): number {
 
 /**
  * The analysis of a Web Audio AnalyserNode's spectrum (`getFloatFrequencyData`, with smoothingTimeConstant 0) into
- * `snapshot`, smoothing it: call it ANALYSIS_RATE times a second. `meanSquare` from its time-domain data.
+ * `snapshot`, smoothing it: call it ANALYSIS_RATE times a second. `meanSquare` of its time-domain data's last
+ * 1/ANALYSIS_RATE second, as the app takes the level of the samples since its last analysis.
  */
 export function analyseSpectrum(decibels: Float32Array, sampleRate: number, fftSize: number, meanSquare: number, snapshot: Snapshot): void {
   // the analyser's Blackman window has a gain of 0.42 and a noise bandwidth of 1.73 bins, and it scales by 1/N: a

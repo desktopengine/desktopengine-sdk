@@ -15,7 +15,7 @@
 import { API_VERSION, frameDocument, type AppWindowInfo, type ChannelScope, type FrameMessage, type HostMessage, type ParameterValue, type Rect, type WebScreen, type WindowState } from '../protocol.ts';
 import { ANALYSIS_RATE, analyseSpectrum, emptySnapshot } from '../system-audio.ts';
 
-/** The ids of the content that comes with DesktopEngine */
+/** The id prefix the store reserves */
 const OFFICIAL_ID_PREFIX = 'app.desktopengine.official.';
 
 declare const __FRAME_RUNTIME__: string;
@@ -72,8 +72,7 @@ export interface DesktopOptions {
   locale?: string;
   /**
    * The contents that get DesktopEngine.input's keyactivity, of those that declare the key-activity permission: how many
-   * keys the visitor presses on the page (never which ones), on a 100 ms grid. None by default: the app gives it only to
-   * its own content.
+   * keys the visitor presses on the page (never which ones), on a 100 ms grid. None by default.
    */
   keyActivity?: (content: ContentSpec) => boolean;
   /**
@@ -129,6 +128,11 @@ export interface ContentSpec {
    * or all run by one developer); turn it off for packages anyone could have made, as the app does for imported ones.
    */
   namespaceChannels?: boolean;
+  /**
+   * Whether the content's id counts as one the store checked. On by default, for the store's items;
+   * `desktopengine dev --web` turns it off for the developer's copy.
+   */
+  officialId?: boolean;
 }
 
 type ContentEvents = {
@@ -280,12 +284,28 @@ export class WebContent {
     return true;
   }
 
-  /** What DesktopEngine.systemAudio gives it: it declares system-audio, and network too only if it comes with DesktopEngine */
+  /**
+   * What DesktopEngine.systemAudio gives it, from its permissions and its id (see ContentSpec.officialId)
+   */
   get systemAudio(): 'none' | 'restricted' | 'detailed' {
     const permissions = this.spec.permissions ?? this.spec.manifest?.permissions ?? [];
-    const official = (this.spec.manifest?.id ?? '').startsWith(OFFICIAL_ID_PREFIX);
+    const official = this.spec.officialId !== false && (this.spec.manifest?.id ?? '').startsWith(OFFICIAL_ID_PREFIX);
     if (!permissions.includes('system-audio') || (permissions.includes('network') && !official)) return 'none';
     return official ? 'detailed' : 'restricted';
+  }
+
+  /**
+   * What it runs with, as launchOptions.permissions lists them: the ones it may use (ContentSpec.permissions) but
+   * system-audio when it hears nothing (with network) and key-activity when the page doesn't give it, as the app leaves
+   * out what it doesn't give
+   */
+  get givenPermissions(): string[] {
+    const permissions = this.spec.permissions ?? this.spec.manifest?.permissions ?? [];
+    return [...new Set(permissions)].filter((permission) => {
+      if (permission === 'system-audio') return this.systemAudio !== 'none';
+      if (permission === 'key-activity') return this.getsKeyActivity;
+      return true;
+    });
   }
 
   /** Where its requests go */
@@ -415,6 +435,8 @@ export class WebContent {
     else replacement.srcdoc = frameDocument(__FRAME_RUNTIME__, { proxy: this.proxy });
     this.iframe.replaceWith(replacement);
     this.iframe = replacement;
+    // a new manifest may make it another type, or move a widget above all windows or back onto the desktop
+    this.desktop.place(this);
   }
 
   stop(): void {
@@ -577,7 +599,8 @@ export class WebDesktop {
   private frameRequest = 0;
   private audioContext: AudioContext | null = null;
   private readonly mediaSources = new WeakMap<HTMLMediaElement, MediaElementAudioSourceNode>();
-  private systemAudio: { element: HTMLMediaElement; source: AudioNode; analyser: AnalyserNode; timer: number } | null = null;
+  /** The element contents hear: its source, and the node it feeds the analysis */
+  private systemAudio: { element: HTMLMediaElement; source: AudioNode; input: AudioNode; timer: number } | null = null;
   /** The pretend app windows, front to back, the one the visitor last pressed (the active app's) and the press on one */
   private appWindowList: AppWindow[] = [];
   private activeAppWindow: number | null = null;
@@ -654,7 +677,7 @@ export class WebDesktop {
       this.updateAllPlayback();
     }, { rootMargin: '120px' });
     this.intersectionObserver.observe(container);
-    for (const frame of options.appWindows ?? []) this.addAppWindow(frame, false);
+    for (const frame of options.appWindows ?? []) this.createAppWindow(frame);
     this.appWindowList.reverse();
     this.stackAppWindows();
     this.activeAppWindow = this.appWindowList[0]?.id ?? null;
@@ -786,13 +809,20 @@ export class WebDesktop {
   /** Starts a mini program on the desktop */
   launch(spec: ContentSpec): WebContent {
     const content = new WebContent(this, spec);
-    content.order = content.type === 'wallpaper' ? 0 : this.nextOrder++;
     const union = this.bounds;
     Object.assign(content.iframe.style, { width: `${union.width}px`, height: `${union.height}px` });
     this.contents.add(content);
-    this.stack();
+    this.place(content);
     this.element.appendChild(content.iframe);
     return content;
+  }
+
+  /** @internal: stacks a content where its type and level go, as it launches or starts again */
+  place(content: WebContent): void {
+    // wallpapers are all at the bottom; anything else gets an order of its own, in front of the others of its level
+    if (content.type === 'wallpaper') content.order = 0;
+    else if (content.order === 0) content.order = this.nextOrder++;
+    this.stack();
   }
 
   terminate(content: WebContent): void {
@@ -826,12 +856,12 @@ export class WebDesktop {
     if (this.systemAudio?.element === element) return;
     if (this.systemAudio) {
       clearInterval(this.systemAudio.timer);
-      this.systemAudio.source.disconnect(this.systemAudio.analyser);
+      this.systemAudio.source.disconnect(this.systemAudio.input);
       this.systemAudio = null;
     }
     if (!element) {
       for (const content of this.contents) {
-        if (content.systemAudio !== 'none') content.post({ type: 'system-audio', bands: null, level: 0 });
+        if (content.systemAudio !== 'none') content.post({ type: 'system-audio', bands: null, level: 0, peak: 0 });
       }
       return;
     }
@@ -843,26 +873,52 @@ export class WebDesktop {
       source = context.createMediaElementSource(element);
       this.mediaSources.set(element, source);
     }
+    // the app hears a stereo mix: the element's sound as one, which the analysis takes in mono ((L + R) / 2), as the
+    // app's does, and each of its two channels for the peak (an analyser gives only the mono)
+    const stereo = context.createGain();
+    stereo.channelCount = 2;
+    stereo.channelCountMode = 'explicit';
+    stereo.channelInterpretation = 'speakers';
     const analyser = context.createAnalyser();
     analyser.fftSize = 4096;
     analyser.smoothingTimeConstant = 0;
+    const channels = context.createChannelSplitter(2);
+    const channelAnalysers = [0, 1].map((channel) => {
+      const channelAnalyser = context.createAnalyser();
+      channelAnalyser.fftSize = analyser.fftSize;
+      channels.connect(channelAnalyser, channel);
+      return channelAnalyser;
+    });
     source.disconnect();
-    source.connect(analyser);
+    source.connect(stereo);
+    stereo.connect(analyser);
+    stereo.connect(channels);
     source.connect(context.destination);
     const spectrum = new Float32Array(analyser.frequencyBinCount);
     const samples = new Float32Array(analyser.fftSize);
     const snapshot = emptySnapshot();
+    // as the app measures them: the level of the last 1/60 s, and the loudest sample of either channel since the last
+    // analysis
+    const hop = Math.max(1, Math.round(context.sampleRate / ANALYSIS_RATE));
+    let analysedAt = context.currentTime;
     const timer = window.setInterval(() => {
       analyser.getFloatFrequencyData(spectrum);
       analyser.getFloatTimeDomainData(samples);
+      const fresh = Math.min(samples.length, Math.max(hop, Math.round((context.currentTime - analysedAt) * context.sampleRate)));
+      analysedAt = context.currentTime;
       let sum = 0;
-      for (const sample of samples) sum += sample * sample;
-      analyseSpectrum(spectrum, context.sampleRate, analyser.fftSize, sum / samples.length, snapshot);
+      for (let index = samples.length - hop; index < samples.length; index++) sum += samples[index] * samples[index];
+      let peak = 0;
+      for (const channelAnalyser of channelAnalysers) {
+        channelAnalyser.getFloatTimeDomainData(samples);
+        for (let index = samples.length - fresh; index < samples.length; index++) peak = Math.max(peak, Math.abs(samples[index]));
+      }
+      analyseSpectrum(spectrum, context.sampleRate, analyser.fftSize, sum / hop, snapshot);
       for (const content of this.contents) {
-        if (content.systemAudio !== 'none') content.post({ type: 'system-audio', bands: snapshot.bands.slice(), level: snapshot.level });
+        if (content.systemAudio !== 'none') content.post({ type: 'system-audio', bands: snapshot.bands.slice(), level: snapshot.level, peak });
       }
     }, 1000 / ANALYSIS_RATE);
-    this.systemAudio = { element, source, analyser, timer };
+    this.systemAudio = { element, source, input: stereo, timer };
   }
 
   /** Pauses every content, like the app does when the desktop can't be seen */
@@ -903,7 +959,7 @@ export class WebDesktop {
   launchMessage(content: WebContent, files: Record<string, ArrayBuffer>): HostMessage {
     const spec = content.spec;
     const manifest = spec.manifest ?? {};
-    const permissions = spec.permissions ?? manifest.permissions ?? [];
+    const permissions = content.givenPermissions;
     return {
       type: 'launch',
       name: spec.name,
@@ -1107,8 +1163,17 @@ export class WebDesktop {
    * Opens a pretend app window in front of the others and makes it the active app's, at `frame` (global points) or a bit
    * below and right of the last one; returns its id. Only with `DesktopOptions.appWindows`, -1 without.
    */
-  addAppWindow(frame?: Rect, notify = true): number {
+  addAppWindow(frame?: Rect): number {
     if (!this.options.appWindows) return -1;
+    const win = this.createAppWindow(frame);
+    this.activeAppWindow = win.id;
+    this.stackAppWindows();
+    this.sendAppWindows();
+    return win.id;
+  }
+
+  /** A new pretend app window in front of the others, not yet stacked or told about */
+  private createAppWindow(frame?: Rect): AppWindow {
     const area = this.screens[0].visibleFrame;
     const offset = 30 * (this.appWindowList.length % 8);
     const rect = frame ?? { x: area.x + 80 + offset, y: area.y + 50 + offset, width: 480, height: 300 };
@@ -1125,12 +1190,7 @@ export class WebDesktop {
     this.appWindowList.unshift(win);
     this.styleAppWindow(win);
     this.element.appendChild(element);
-    if (notify) {
-      this.activeAppWindow = win.id;
-      this.stackAppWindows();
-      this.sendAppWindows();
-    }
-    return win.id;
+    return win;
   }
 
   /** Closes a pretend app window */
@@ -1269,8 +1329,10 @@ export class WebDesktop {
   private pointerDown(point: { x: number; y: number }, event: PointerInput): WindowState | null {
     if (event.button < 0 || this.press) return null;
     const hit = this.windowAt(point.x, point.y);
-    // pressing the desktop makes the Finder the active app: none of the pretend app windows is its
-    if (event.button === 0 && (!hit || hit.window.type === 'desktop') && this.activeAppWindow !== null && !this.appWindowAt(point.x, point.y)) {
+    // pressing the desktop makes the Finder the active app, and pressing a widget on it DesktopEngine (widgets and
+    // companions above all windows don't make it active): none of the pretend app windows is theirs
+    const activates = !hit || hit.window.type === 'desktop' || hit.window.type === 'widget';
+    if (event.button === 0 && activates && this.activeAppWindow !== null && !this.appWindowAt(point.x, point.y)) {
       this.activeAppWindow = null;
       this.sendAppWindows();
     }

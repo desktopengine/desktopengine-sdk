@@ -5,7 +5,8 @@
 
 // The messages between a page that shows a desktop (the host, web/host) and the mini program running in a sandboxed
 // iframe on it (the frame, web/frame). The frame has an opaque origin: it can't reach the page, its cookies or its
-// storage, and the page treats everything the frame says as coming from the content.
+// storage, and the page treats everything the frame says as coming from the content. Also what the frame makes of the
+// pretend app windows the host sends (readAppWindows, visibleTopEdges), plain functions a test holds to the engine's rule.
 //
 // Coordinates are global points, as DesktopEngine.Window uses them: origin at the top left of the main screen, y down.
 
@@ -67,8 +68,8 @@ export interface LaunchMessage {
   /** Whether it may open BroadcastChannels of scope "namespace" (ContentSpec.namespaceChannels) */
   namespaceChannels: boolean;
   /**
-   * DesktopEngine.systemAudio: none without the system-audio permission (or with network, unless it comes with
-   * DesktopEngine), detailed for content that comes with DesktopEngine (128 bands, 60 times a second, not rounded)
+   * DesktopEngine.systemAudio as the page gives it, from the content's permissions and id (WebContent.systemAudio,
+   * ContentSpec.officialId)
    */
   systemAudio: 'none' | 'restricted' | 'detailed';
   /** DesktopEngine.windows.list() at launch: the page's pretend app windows, only with the window-positions permission */
@@ -82,6 +83,53 @@ export interface AppWindowInfo {
   isActiveApp: boolean;
   isFullScreen: boolean;
   isFloating: boolean;
+}
+
+/** A part of a window's top edge that no window in front covers, as DesktopEngine.windows.visibleTopEdges() gives it */
+export interface TopEdge {
+  id: number;
+  x: number;
+  y: number;
+  width: number;
+}
+
+/** The windows of an `app-windows` message (or the launch's), as the app gives them: finite numbers and booleans */
+export function readAppWindows(value: unknown): AppWindowInfo[] {
+  if (!Array.isArray(value)) return [];
+  const finite = (number: unknown) => (typeof number === 'number' && Number.isFinite(number) ? number : 0);
+  return value.map((raw: Partial<AppWindowInfo> | null) => {
+    const frame = (raw?.frame ?? {}) as Partial<Rect>;
+    return {
+      id: finite(raw?.id),
+      frame: { x: finite(frame.x), y: finite(frame.y), width: finite(frame.width), height: finite(frame.height) },
+      isActiveApp: raw?.isActiveApp === true,
+      isFullScreen: raw?.isFullScreen === true,
+      isFloating: raw?.isFloating === true,
+    };
+  });
+}
+
+/**
+ * The parts of the windows' top edges (front to back) that no window in front covers, front to back, as the engine
+ * finds them: a full screen window has none; a window in front covers an edge where it spans the edge's height (its
+ * top at or above it, its bottom below it) and cuts it in two, its left part first; what a cut leaves of 1 point or
+ * less is dropped
+ */
+export function visibleTopEdges(windows: AppWindowInfo[]): TopEdge[] {
+  const edges: TopEdge[] = [];
+  windows.forEach((win, index) => {
+    if (win.isFullScreen) return;
+    const top = win.frame.y;
+    let parts: [number, number][] = [[win.frame.x, win.frame.x + win.frame.width]];
+    for (const front of windows.slice(0, index)) {
+      if (front.frame.y > top || front.frame.y + front.frame.height <= top) continue;
+      const left = front.frame.x;
+      const right = front.frame.x + front.frame.width;
+      parts = parts.flatMap(([start, end]): [number, number][] => [[start, Math.min(end, left)], [Math.max(start, right), end]]).filter(([start, end]) => end - start > 1);
+    }
+    for (const [start, end] of parts) edges.push({ id: win.id, x: start, y: top, width: end - start });
+  });
+  return edges;
 }
 
 export type ChannelScope = 'package' | 'namespace';
@@ -115,9 +163,10 @@ export type HostMessage =
   | { type: 'key-activity'; count: number }
   /**
    * DesktopEngine.systemAudio's analysis of what the page plays (`WebDesktop.setSystemAudioSource`), 60 times a second
-   * to contents that hear it: the fine bands' powers and the mean square; null bands go back to the made-up signal
+   * to contents that hear it: the fine bands' powers, the smoothed mean square and the loudest sample since the last
+   * one (the frame's `active`); null bands go back to the made-up signal
    */
-  | { type: 'system-audio'; bands: Float32Array | null; level: number }
+  | { type: 'system-audio'; bands: Float32Array | null; level: number; peak: number }
   /** DesktopEngine.windows: the pretend app windows changed, front to back; only to content with the window-positions permission */
   | { type: 'app-windows'; windows: AppWindowInfo[] }
   | { type: 'move-window'; window: string; x: number; y: number }
@@ -136,7 +185,8 @@ export type HostMessage =
   | { type: 'cursor'; cursor: string }
   /**
    * A message on a BroadcastChannel the frame has open. Of the frame's own: `source` is the id of the channel that
-   * posted it and `newest` of the newest channel it had then; -1 for another content's
+   * posted it and `newest` of the newest channel it had then; -1 for another content's. `data` is the message as the
+   * sending frame encoded it (frame/messages.ts), which the frame checks as it decodes it
    */
   | { type: 'broadcast'; scope: ChannelScope; name: string; data: unknown; source: number; newest: number }
   | { type: 'stop' };
@@ -171,7 +221,10 @@ export type FrameMessage =
   | { type: 'input-wanted'; mouse: boolean; keys: boolean }
   /** The frame has a BroadcastChannel of the scope and name open (or no longer): the host sends it their messages */
   | { type: 'channel'; scope: ChannelScope; name: string; open: boolean }
-  /** postMessage on a BroadcastChannel, from the channel with the id `source` when `newest` was the newest */
+  /**
+   * postMessage on a BroadcastChannel, from the channel with the id `source` when `newest` was the newest; `data` is the
+   * encoded message (frame/messages.ts), which the host passes on as it is
+   */
   | { type: 'broadcast'; scope: ChannelScope; name: string; data: unknown; source: number; newest: number }
   /** Whether the content applied new parameters itself (it listens to parameterschange); the host restarts it otherwise */
   | { type: 'parameters-result'; handled: boolean }

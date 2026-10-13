@@ -47,25 +47,33 @@ const ENGINE = [
 ];
 
 const VISIBLE = new Set([...LANGUAGE, ...ENGINE]);
+const ENGINE_GLOBALS = new Set(ENGINE);
 /** Browser functions that throw unless `this` is the real global object */
-const BOUND = new Set(['queueMicrotask', 'atob', 'btoa', 'postMessage', 'structuredClone']);
+const BOUND = new Set(['queueMicrotask', 'atob', 'btoa', 'postMessage']);
+
+/** Whether the engine has a global of the name (a class of its own: the frame's may be the browser's) */
+export const isEngineGlobal = (name: string): boolean => ENGINE_GLOBALS.has(name);
 
 const realGlobal = globalThis as unknown as Record<PropertyKey, unknown>;
 /** The content's own globals: the hidden names it assigned, and the globals it created */
 const own: Record<PropertyKey, unknown> = Object.create(null);
-const bound = new Map<string, unknown>();
+/** The bound functions given for BOUND names, with what they're bound from */
+const bound = new Map<string, { original: unknown; wrapper: unknown }>();
 
 const visible = (name: PropertyKey): name is string | symbol => typeof name === 'symbol' || VISIBLE.has(name as string);
 
 function visibleValue(name: string | symbol): unknown {
   const value = realGlobal[name];
   if (typeof name !== 'string' || !BOUND.has(name) || typeof value !== 'function') return value;
-  let wrapper = bound.get(name);
-  if (!wrapper || (wrapper as { original?: unknown }).original !== value) {
-    wrapper = Object.assign((value as (...args: unknown[]) => unknown).bind(realGlobal), { original: value });
-    bound.set(name, wrapper);
+  let entry = bound.get(name);
+  if (!entry || entry.original !== value) {
+    const wrapper = (value as (...args: unknown[]) => unknown).bind(realGlobal);
+    // named as what it's bound from, as the engine's functions are ("The function atob can't be cloned")
+    Object.defineProperty(wrapper, 'name', { value: (value as { name: unknown }).name, configurable: true });
+    entry = { original: value, wrapper };
+    bound.set(name, entry);
   }
-  return wrapper;
+  return entry.wrapper;
 }
 
 /** `globalThis`, `self` and `this` for the content */

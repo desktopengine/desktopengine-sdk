@@ -6,6 +6,7 @@
 // The engine's evented objects: `on<name>` properties and `off<name>()`, addEventListener with or without `on`, and
 // listeners called with a plain payload and `this` set to the object, not with DOM events.
 
+import { standIn } from './stand-ins.ts';
 import { guard } from './state.ts';
 
 export type Listener = (this: unknown, payload?: unknown) => void;
@@ -14,6 +15,11 @@ export class Evented {
   protected readonly listeners = new Map<string, Set<Listener>>();
   /** The `on<name>` callbacks */
   protected readonly handlers = new Map<string, Listener>();
+
+  constructor() {
+    // the engine's are native objects, which structuredClone and BroadcastChannel refuse
+    standIn(this);
+  }
 
   addEventListener(type: string, listener: Listener): void {
     if (typeof listener !== 'function') return;
@@ -59,10 +65,13 @@ export function eventName(type: string): string {
 export function defineEvents(prototype: object, names: string[]): void {
   for (const name of names) {
     Object.defineProperty(prototype, `off${name}`, {
-      value(this: Evented) {
-        (this as unknown as { handlers: Map<string, Listener> }).handlers.delete(name);
-        (this as unknown as { listenersChanged(name: string): void }).listenersChanged(name);
-      },
+      // named as the method, as the engine's are
+      value: {
+        [`off${name}`](this: Evented) {
+          (this as unknown as { handlers: Map<string, Listener> }).handlers.delete(name);
+          (this as unknown as { listenersChanged(name: string): void }).listenersChanged(name);
+        },
+      }[`off${name}`],
       configurable: true,
       writable: true,
     });

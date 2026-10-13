@@ -16,6 +16,7 @@ import {
   parseFont, parseLength, type RGBA,
 } from './canvas-api.ts';
 import { PATH_METHODS, callPath, matrixArgument, nativePath, num, type PathMethod } from './path2d.ts';
+import { standIn } from './stand-ins.ts';
 
 type Method = (typeof CONTEXT_2D_METHODS)[number];
 type Property = (typeof CONTEXT_2D_PROPERTIES)[number];
@@ -90,9 +91,15 @@ const GRADIENT = Object.create(Object.prototype, {
   },
 }) as object;
 const PATTERN = Object.create(Object.prototype, { [Symbol.toStringTag]: { value: 'CanvasPattern' } }) as object;
+/**
+ * The prototype of what measureText gives: as the engine's TextMetrics, an object of a class of its own with its values
+ * as its own properties, which a BroadcastChannel refuses
+ */
+export const METRICS = Object.create(Object.prototype, { [Symbol.toStringTag]: { value: 'TextMetrics' } }) as object;
 
 function style(native: CanvasGradient | CanvasPattern, prototype: object): object {
-  const value = Object.create(prototype) as object;
+  // a native object in the engine, which structuredClone and BroadcastChannel refuse
+  const value = standIn(Object.create(prototype) as object);
   natives.set(value, native);
   return value;
 }
@@ -372,7 +379,7 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
     measureText(text) {
       if (arguments.length < 1) return undefined;
       const metrics = native.measureText(String(text));
-      return Object.freeze(Object.fromEntries(TEXT_METRICS.map((key) => [key, metrics[key]])));
+      return standIn(Object.freeze(Object.assign(Object.create(METRICS) as object, Object.fromEntries(TEXT_METRICS.map((key) => [key, metrics[key]])))));
     },
     fillText(text, x, y, maxWidth) {
       if (arguments.length < 3) return;
@@ -503,7 +510,7 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
     shadowOffsetY: numeric('shadowOffsetY'),
   };
 
-  const context = Object.create(Object.prototype, { [Symbol.toStringTag]: { value: 'Canvas2DRenderingContext' } }) as object;
+  const context = standIn(Object.create(Object.prototype, { [Symbol.toStringTag]: { value: 'Canvas2DRenderingContext' } }) as object);
   Object.defineProperty(context, 'canvas', { get: () => canvas, enumerable: true });
   for (const [name, { get, set }] of Object.entries(properties)) Object.defineProperty(context, name, { get, set, enumerable: true });
   for (const [name, value] of Object.entries(methods)) Object.defineProperty(context, name, { value, writable: true, enumerable: true });

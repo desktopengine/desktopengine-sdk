@@ -419,6 +419,11 @@ export function createFileSystem(): Record<string, unknown> {
     };
   }
   Object.defineProperty(fs.Stats, 'prototype', { value: Stats.prototype });
+  // named and of the lengths the engine's are, whatever the bundler calls them ("The function readFile can't be cloned")
+  for (const [name, value] of Object.entries(fs)) {
+    Object.defineProperty(value as object, 'name', { value: name, configurable: true });
+    Object.defineProperty(value as object, 'length', { value: name === 'Stats' ? 2 : name === 'existsSync' ? 1 : 0, configurable: true });
+  }
   return fs;
 }
 

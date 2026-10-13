@@ -117,6 +117,8 @@ export function installNetwork(scope: typeof globalThis): void {
     Object.defineProperty(response, 'url', { value: target.href });
     return response;
   } as typeof fetch;
+  // named as the engine's, whatever the bundler calls it ("The function fetch can't be cloned")
+  Object.defineProperty(scope.fetch, 'name', { value: 'fetch', configurable: true });
 
   const NativeXHR = scope.XMLHttpRequest;
   class XMLHttpRequest extends NativeXHR {
@@ -150,6 +152,8 @@ export function installNetwork(scope: typeof globalThis): void {
       super.send(body);
     }
   }
+  // named as the engine's, whatever the bundler calls it (structuredClone refuses "A XMLHttpRequest")
+  Object.defineProperty(XMLHttpRequest, 'name', { value: 'XMLHttpRequest', configurable: true });
   scope.XMLHttpRequest = XMLHttpRequest;
 
   const NativeWebSocket = scope.WebSocket;
@@ -184,6 +188,8 @@ export function installNetwork(scope: typeof globalThis): void {
 
     close(): void {}
   }
+  // a WebSocket in the app, named so whatever the bundler calls it
+  Object.defineProperty(ClosedSocket, 'name', { value: 'WebSocket', configurable: true });
   /** As the engine's constructor checks it: what it throws for, the rules' refusals included, and the URL */
   const target = (url: unknown, protocols: unknown): URL => {
     const list = typeof protocols === 'string' ? [protocols] : Array.from((protocols ?? []) as Iterable<unknown>, String);
@@ -221,6 +227,9 @@ export function installNetwork(scope: typeof globalThis): void {
     Object.defineProperty(socket, 'url', { value: href });
     return socket;
   } as unknown as typeof WebSocket;
+  // named and of the length the engine's is, whatever the bundler calls it
+  Object.defineProperty(WebSocketShim, 'name', { value: 'WebSocket', configurable: true });
+  Object.defineProperty(WebSocketShim, 'length', { value: 1, configurable: true });
   Object.assign(WebSocketShim, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });
   WebSocketShim.prototype = NativeWebSocket.prototype;
   scope.WebSocket = WebSocketShim;

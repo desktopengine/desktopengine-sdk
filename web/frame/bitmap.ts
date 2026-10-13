@@ -45,7 +45,7 @@ export function createImageBitmapFunction(
   browserCreateImageBitmap: BrowserCreateImageBitmap,
   unwrap: (value: unknown) => unknown,
 ): (...args: unknown[]) => Promise<ImageBitmap> {
-  return async function createImageBitmap(...args: unknown[]): Promise<ImageBitmap> {
+  const createImageBitmap = async function createImageBitmap(...args: unknown[]): Promise<ImageBitmap> {
     if (args.length < 1) throw new TypeError('createImageBitmap: 1 argument required, but only 0 present');
     if (args.length === 3 || args.length === 4) {
       throw new TypeError('createImageBitmap takes an image, or an image and a rectangle (sx, sy, sw, sh)');
@@ -128,4 +128,8 @@ export function createImageBitmapFunction(
       if (!kept) source.close();
     }
   };
+  // named and of the length the engine's is, whatever the bundler calls it ("The function createImageBitmap can't be cloned")
+  Object.defineProperty(createImageBitmap, 'name', { value: 'createImageBitmap', configurable: true });
+  Object.defineProperty(createImageBitmap, 'length', { value: 1, configurable: true });
+  return createImageBitmap;
 }

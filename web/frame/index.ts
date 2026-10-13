@@ -9,18 +9,21 @@
 // the pointer, and tells the host where its windows are.
 
 import { contentFunction } from './realm.ts';
-import type { AppWindowInfo, FrameMessage, HostMessage, LaunchMessage, ParameterValue, Rect, WebScreen } from '../protocol.ts';
+import { readAppWindows, visibleTopEdges, type AppWindowInfo, type FrameMessage, type HostMessage, type LaunchMessage, type ParameterValue, type TopEdge, type WebScreen } from '../protocol.ts';
 import { CanvasImageImpl, CanvasImpl, ComponentImpl, componentOf, ImageImpl, VideoImpl, WindowImpl, allVideos, allWindows, reportWindows, unwrap, windowById } from './components.ts';
 import { Evented, defineEvents } from './events.ts';
 import { createFileSystem, loadPackage, requireFrom } from './files.ts';
 import { installNetwork } from './network.ts';
 import { createImageBitmapFunction } from './bitmap.ts';
 import { createChannels } from './channels.ts';
+import { createMessaging } from './clone.ts';
+import { installMessageEvent } from './message-event.ts';
 import { createPath2D } from './path2d.ts';
 import { cancelAnimationFrame, clearTimer, hostFrame, requestAnimationFrame, setInterval, setTimeout, startStats } from './scheduler.ts';
 import { guard, hasPermission, report, send, state } from './state.ts';
 import { installStorage } from './storage.ts';
-import { RESTRICTED_BAND_COUNT, RESTRICTED_INTERVAL, RESTRICTED_QUANTUM, FINE_BAND_COUNT, emptySnapshot, isAudible, mergeBands, normalizedLevel, syntheticSnapshot, type Snapshot } from '../system-audio.ts';
+import { engineConstructor, standIn } from './stand-ins.ts';
+import { RESTRICTED_BAND_COUNT, RESTRICTED_QUANTUM, FINE_BAND_COUNT, emptySnapshot, isAudible, mergeBands, normalizedLevel, restrictedRefresh, syntheticSnapshot, type Snapshot } from '../system-audio.ts';
 
 const scope = globalThis as unknown as Record<string, unknown> & typeof globalThis;
 
@@ -48,8 +51,12 @@ class SystemImpl extends Evented {
 }
 defineEvents(SystemImpl.prototype, ['appearancechange', 'parameterschange']);
 
+/** The prototype of the screens: as the engine's, objects of a class of their own with their values as own properties */
+const SCREEN = Object.create(Object.prototype, { [Symbol.toStringTag]: { value: 'Screen' } }) as object;
+
+/** A screen: a native object in the engine, which structuredClone and BroadcastChannel refuse */
 function screenObject(screen: WebScreen, index: number): Record<string, unknown> {
-  return Object.freeze({
+  return standIn(Object.freeze(Object.assign(Object.create(SCREEN) as Record<string, unknown>, {
     identifier: screen.id,
     isActive: true,
     isAsleep: false,
@@ -61,7 +68,7 @@ function screenObject(screen: WebScreen, index: number): Record<string, unknown>
     visibleFrame: { ...screen.visibleFrame },
     resolution: { width: screen.bounds.width * screen.scale, height: screen.bounds.height * screen.scale },
     physicalSize: { width: Math.round(screen.bounds.width * 0.2), height: Math.round(screen.bounds.height * 0.2) },
-  });
+  })));
 }
 
 class ScreenManagerImpl extends Evented {
@@ -140,7 +147,25 @@ let pageAudio: Snapshot | null = null;
 /** When the page's sound was last audible (performance.now()) */
 let pageAudibleAt = -Infinity;
 const systemAudioStart = performance.now();
-const systemAudioInstances = new Set<SystemAudioImpl>();
+/**
+ * The analysis the content reads, one for all of it as in the app; without the detailed analysis, a new one only when
+ * `next` (performance.now()) is due, see restrictedRefresh
+ */
+const systemAudioReading = { snapshot: emptySnapshot(), next: -Infinity };
+/** DesktopEngine.systemAudio, the only one there is: as in the app, the constructor works once */
+let systemAudio: SystemAudioImpl | null = null;
+
+/**
+ * As in the app: the one SystemAudio or Windows, made by DesktopEngine's getter or by content before it read that,
+ * becomes the property's value (the getter would only try to make another)
+ */
+function settleSingleton(key: 'systemAudio' | 'windows', value: object): void {
+  const desktopEngine = scope.DesktopEngine;
+  if (typeof desktopEngine !== 'object' || desktopEngine === null) return;
+  if (Reflect.deleteProperty(desktopEngine, key)) {
+    Reflect.defineProperty(desktopEngine, key, { value, writable: false, enumerable: true, configurable: true });
+  }
+}
 
 function systemAudioActive(): boolean {
   return pageAudio === null || performance.now() - pageAudibleAt < 1000;
@@ -152,16 +177,19 @@ function systemAudioActive(): boolean {
  */
 class SystemAudioImpl extends Evented {
   #bandCount = RESTRICTED_BAND_COUNT;
-  #snapshot = emptySnapshot();
-  #snapshotTime = -Infinity;
+  /** What the last activechange told, or what `active` read when the content started listening */
   #active = systemAudioActive();
+  /** Whether `active` reads #active: while the content listens for activechange */
+  #tracksActive = false;
 
   constructor() {
+    if (systemAudio) throw new TypeError('Illegal constructor');
     if (!state.launch || state.launch.systemAudio === 'none') {
       throw new Error('This content can\'t hear what the Mac plays: it needs the "system-audio" permission, without "network"');
     }
     super();
-    systemAudioInstances.add(this);
+    systemAudio = this;
+    settleSingleton('systemAudio', this);
   }
 
   get #detailed(): boolean {
@@ -169,24 +197,40 @@ class SystemAudioImpl extends Evented {
   }
 
   #current(): Snapshot {
+    const reading = systemAudioReading;
     const now = performance.now();
-    if (!this.#detailed && now - this.#snapshotTime < RESTRICTED_INTERVAL) return this.#snapshot;
-    this.#snapshotTime = now;
-    if (pageAudio) {
-      this.#snapshot.bands.set(pageAudio.bands);
-      this.#snapshot.level = pageAudio.level;
-    } else {
-      syntheticSnapshot((now - systemAudioStart) / 1000, this.#snapshot);
+    if (!this.#detailed) {
+      const next = restrictedRefresh(reading.next, now);
+      if (next === null) return reading.snapshot;
+      reading.next = next;
     }
-    return this.#snapshot;
+    if (pageAudio) {
+      reading.snapshot.bands.set(pageAudio.bands);
+      reading.snapshot.level = pageAudio.level;
+    } else {
+      syntheticSnapshot((now - systemAudioStart) / 1000, reading.snapshot);
+    }
+    return reading.snapshot;
   }
 
   get supported(): boolean {
     return true;
   }
 
+  /**
+   * As in the app: while the content listens for activechange, active changes only along with an event, so it never
+   * reads a change no event tells (e.g. between the page's messages while a hidden page's timers are slowed down)
+   */
   get active(): boolean {
-    return systemAudioActive();
+    return this.#tracksActive ? this.#active : systemAudioActive();
+  }
+
+  protected override listenersChanged(name: string): void {
+    if (name !== 'activechange') return;
+    const tracks = this.listens(name);
+    // a new listener hears of changes from what active read before it was added
+    if (tracks && !this.#tracksActive) this.#active = systemAudioActive();
+    this.#tracksActive = tracks;
   }
 
   get level(): number {
@@ -199,10 +243,9 @@ class SystemAudioImpl extends Evented {
   }
 
   set bandCount(value: unknown) {
-    // as the engine reads numbers: anything but a number is 0
-    const count = typeof value === 'number' ? value : 0;
-    if (Number.isNaN(count)) return;
-    this.#bandCount = Math.min(Math.max(Math.floor(count), 1), this.maxBandCount);
+    // as the engine: a number only, NaN aside; fractions dropped, and ±Infinity clamped like any other out of range
+    if (typeof value !== 'number' || Number.isNaN(value)) return;
+    this.#bandCount = Math.min(Math.max(Math.floor(value), 1), this.maxBandCount);
   }
 
   get maxBandCount(): number {
@@ -211,7 +254,7 @@ class SystemAudioImpl extends Evented {
 
   getBands(array: unknown): void {
     if (!(array instanceof Float32Array)) throw new TypeError('getBands: the argument must be a Float32Array');
-    mergeBands(this.#current(), array, this.#bandCount, this.#detailed ? 0 : RESTRICTED_QUANTUM);
+    mergeBands(this.#current(), array, this.#bandCount, !this.#detailed);
   }
 
   /** @internal: the page's sound started or stopped */
@@ -219,6 +262,7 @@ class SystemAudioImpl extends Evented {
     const active = systemAudioActive();
     if (active === this.#active) return;
     this.#active = active;
+    // no payload, like the engine's other change events
     this.emit('activechange');
   }
 }
@@ -230,11 +274,12 @@ function pageSystemAudio(message: Extract<HostMessage, { type: 'system-audio' }>
     // the page's sound starting counts as audible: its first moments may be quiet
     if (!pageAudio) pageAudibleAt = performance.now();
     pageAudio = { bands: message.bands, level: Number(message.level) || 0 };
-    if (isAudible(pageAudio.level)) pageAudibleAt = performance.now();
+    // as in the app: a sample since the page's last analysis louder than -60 dB, not the smoothed level
+    if (isAudible(Number(message.peak))) pageAudibleAt = performance.now();
   } else {
     pageAudio = null;
   }
-  for (const instance of systemAudioInstances) instance.activeChanged();
+  systemAudio?.activeChanged();
 }
 
 // MARK: Other apps' windows
@@ -242,11 +287,18 @@ function pageSystemAudio(message: Extract<HostMessage, { type: 'system-audio' }>
 /** The page's pretend app windows, front to back, as the host last sent them */
 let appWindows: AppWindowInfo[] = [];
 
-/** DesktopEngine.windows: the host sends its pretend app windows when they change, only with the permission */
+/**
+ * DesktopEngine.windows, the only one there is (the constructor works once, as in the app): the host sends its pretend
+ * app windows when they change, only with the permission. `change` comes only when they did, never for a listener
+ * being added.
+ */
 class WindowsImpl extends Evented {
   constructor() {
-    super();
+    if (windows) throw new TypeError('Illegal constructor');
     if (!hasPermission('window-positions')) throw new Error('DesktopEngine.windows needs the "window-positions" permission in manifest.json, and the user\'s consent');
+    super();
+    windows = this;
+    settleSingleton('windows', this);
   }
 
   list(): AppWindowInfo[] {
@@ -254,41 +306,11 @@ class WindowsImpl extends Evented {
   }
 
   /** The parts of the windows' top edges that no window in front covers, front to back, as the engine finds them */
-  visibleTopEdges(): { id: number; x: number; y: number; width: number }[] {
-    const edges: { id: number; x: number; y: number; width: number }[] = [];
-    appWindows.forEach((win, index) => {
-      if (win.isFullScreen) return;
-      const top = win.frame.y;
-      let parts: [number, number][] = [[win.frame.x, win.frame.x + win.frame.width]];
-      for (const front of appWindows.slice(0, index)) {
-        // a window in front covers the edge where it spans its height
-        if (front.frame.y > top || front.frame.y + front.frame.height <= top) continue;
-        const left = front.frame.x;
-        const right = front.frame.x + front.frame.width;
-        parts = parts.flatMap(([start, end]): [number, number][] => [[start, Math.min(end, left)], [Math.max(start, right), end]]).filter(([start, end]) => end - start > 1);
-      }
-      for (const [start, end] of parts) edges.push({ id: win.id, x: start, y: top, width: end - start });
-    });
-    return edges;
+  visibleTopEdges(): TopEdge[] {
+    return visibleTopEdges(appWindows);
   }
 }
 defineEvents(WindowsImpl.prototype, ['change']);
-
-/** The windows a host message lists, as the app gives them: finite frames and booleans */
-function readAppWindows(value: unknown): AppWindowInfo[] {
-  if (!Array.isArray(value)) return [];
-  const finite = (number: unknown) => (typeof number === 'number' && Number.isFinite(number) ? number : 0);
-  return value.map((raw: Partial<AppWindowInfo> | null) => {
-    const frame = (raw?.frame ?? {}) as Partial<Rect>;
-    return {
-      id: finite(raw?.id),
-      frame: { x: finite(frame.x), y: finite(frame.y), width: finite(frame.width), height: finite(frame.height) },
-      isActiveApp: raw?.isActiveApp === true,
-      isFullScreen: raw?.isFullScreen === true,
-      isFloating: raw?.isFloating === true,
-    };
-  });
-}
 
 function updateAppWindows(value: unknown): void {
   if (!hasPermission('window-positions')) return;
@@ -382,6 +404,9 @@ function installAudio(): void {
         if (!audioAllowed()) suspend.call(this).catch(() => undefined);
       }
     }
+    // named and of the length the engine's is, whatever the bundler calls it (structuredClone refuses "A AudioContext")
+    Object.defineProperty(AudioContext, 'name', { value: 'AudioContext', configurable: true });
+    Object.defineProperty(AudioContext, 'length', { value: 0, configurable: true });
     scope.AudioContext = AudioContext;
   }
   const NativeAudio = scope.Audio;
@@ -502,22 +527,31 @@ function format(values: unknown[]): string {
 }
 
 /**
- * The engine's crypto: getRandomValues and randomUUID, without the browser's `subtle`, which the app doesn't have.
- * The browser checks the arrays and throws the same DOMExceptions
+ * The engine's crypto: getRandomValues and randomUUID, without the browser's `subtle`, which the app doesn't have; an
+ * object of a class of its own as the engine's (there's no global for it). The browser checks the arrays and throws the
+ * same DOMExceptions
  */
 function installCrypto(): void {
   const browserCrypto = scope.crypto;
   const getRandomValues = browserCrypto.getRandomValues.bind(browserCrypto);
-  const randomUUID = (): `${string}-${string}-${string}-${string}-${string}` => {
-    // browsers have randomUUID only in secure contexts
-    const bytes = browserCrypto.getRandomValues(new Uint8Array(16));
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-  };
-  const crypto = Object.create({ getRandomValues, randomUUID, [Symbol.toStringTag]: 'Crypto' }) as Crypto;
-  Object.defineProperty(scope, 'crypto', { value: crypto, writable: true, configurable: true, enumerable: true });
+  class Crypto {
+    getRandomValues(array: unknown): unknown {
+      return getRandomValues(array as ArrayBufferView<ArrayBuffer>);
+    }
+
+    randomUUID(): `${string}-${string}-${string}-${string}-${string}` {
+      // browsers have randomUUID only in secure contexts
+      const bytes = browserCrypto.getRandomValues(new Uint8Array(16));
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    }
+  }
+  Object.defineProperty(Crypto.prototype, Symbol.toStringTag, { value: 'Crypto', configurable: true });
+  // named as the engine's, whatever the bundler calls it (structuredClone refuses "A Crypto")
+  Object.defineProperty(Crypto, 'name', { value: 'Crypto', configurable: true });
+  Object.defineProperty(scope, 'crypto', { value: new Crypto(), writable: true, configurable: true, enumerable: true });
 }
 
 /** A language as browsers give it, language-REGION, as the engine gives the system's: zh-Hans-CN is zh-CN */
@@ -553,6 +587,7 @@ function installNavigator(locale: unknown): void {
     get maxTouchPoints() { return 0; }
   }
   Object.defineProperty(Navigator.prototype, Symbol.toStringTag, { value: 'Navigator', configurable: true });
+  Object.defineProperty(Navigator, 'name', { value: 'Navigator', configurable: true });
   Object.defineProperty(scope, 'navigator', { value: new Navigator(), writable: true, configurable: true, enumerable: true });
 }
 
@@ -582,18 +617,33 @@ function deepFreeze<T>(value: T): T {
 
 let parameters: Record<string, ParameterValue> = {};
 
+/**
+ * As the app does it when the parameters change: DesktopEngine.launchOptions becomes a new frozen object, with what the
+ * one it had has and the new parameters
+ */
+function updateLaunchOptions(): void {
+  const desktopEngine = scope.DesktopEngine as unknown as Record<string, unknown> | undefined;
+  if (typeof desktopEngine !== 'object' || desktopEngine === null) return;
+  const current = (desktopEngine.launchOptions ?? {}) as Record<string, unknown>;
+  const updated: Record<string, unknown> = {};
+  for (const key of Object.keys(current)) updated[key] = current[key];
+  updated.parameters = parameters;
+  Object.freeze(updated);
+  try {
+    Object.defineProperty(desktopEngine, 'launchOptions', { value: updated, enumerable: true, configurable: true });
+  } catch {
+    try {
+      desktopEngine.launchOptions = updated;
+    } catch {
+      // the content made it read-only
+    }
+  }
+}
+
 function createGlobal(launch: LaunchMessage): Record<string, unknown> {
   parameters = deepFreeze({ ...((launch.options.parameters as Record<string, ParameterValue>) ?? {}) });
-  const launchOptions = { ...launch.options };
-  delete launchOptions.parameters;
-  deepFreeze(launchOptions);
-  const options = new Proxy(launchOptions, {
-    get: (target, key) => (key === 'parameters' ? parameters : Reflect.get(target, key)),
-    has: (target, key) => key === 'parameters' || Reflect.has(target, key),
-    ownKeys: (target) => [...Reflect.ownKeys(target), 'parameters'],
-    getOwnPropertyDescriptor: (target, key) =>
-      key === 'parameters' ? { value: parameters, enumerable: true, configurable: true, writable: false } : Reflect.getOwnPropertyDescriptor(target, key),
-  });
+  // a frozen object, as the app's (a new one when the parameters change, see updateLaunchOptions)
+  const options = deepFreeze({ ...launch.options, parameters });
 
   const fs = createFileSystem();
   const utils = {
@@ -603,10 +653,10 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
       if (!args || typeof args !== 'object') throw new TypeError('applyNew needs an array of arguments');
       return Reflect.construct(constructor, Array.from(args as ArrayLike<unknown>));
     },
-    setTimeout,
-    setInterval,
-    clearTimeout: clearTimer,
-    clearInterval: clearTimer,
+    setTimeout: timerFunctions.setTimeout,
+    setInterval: timerFunctions.setInterval,
+    clearTimeout: timerFunctions.clearTimeout,
+    clearInterval: timerFunctions.clearInterval,
     base64Encode(buffer: unknown) {
       if (!(buffer instanceof ArrayBuffer)) return null;
       let binary = '';
@@ -623,6 +673,8 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
     },
   };
 
+  // as the app's, bound functions of native ones
+  for (const name of ['applyNew', 'base64Encode', 'base64Decode'] as const) bound(name, utils[name]);
   const desktopEngine: Record<string, unknown> = {
     ...utils,
     Window: named(WindowImpl, 'Window'),
@@ -636,7 +688,6 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
     ScreenManager: screenManager,
     system,
     input,
-    systemAudio: launch.systemAudio === 'none' ? null : new SystemAudioImpl(),
     fs,
     launchOptions: options,
     apiVersion: launch.apiVersion,
@@ -649,17 +700,67 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
     },
     enumerable: true,
   });
-  windows = hasPermission('window-positions') ? new WindowsImpl() : null;
-  desktopEngine.windows = windows;
-  for (const key of ['systemAudio', 'fs', 'launchOptions', 'apiVersion', 'windows']) {
+  for (const key of ['fs', 'launchOptions', 'apiVersion']) {
     Object.defineProperty(desktopEngine, key, { value: desktopEngine[key], writable: false, enumerable: true });
   }
-  return desktopEngine;
+  // as the app's polyfills: made the first time they're read, null when the constructor refuses (without the
+  // permission); content may construct the one there is first (settleSingleton)
+  for (const [key, make] of [['systemAudio', () => new SystemAudioImpl()], ['windows', () => new WindowsImpl()]] as const) {
+    let made: Evented | null | undefined;
+    Object.defineProperty(desktopEngine, key, {
+      get: () => {
+        if (made === undefined) {
+          try {
+            made = make();
+          } catch {
+            made = null;
+          }
+        }
+        return made;
+      },
+      enumerable: true,
+      configurable: true,
+    });
+  }
+  // in the order the app's has its properties (Object.keys, for-in, JSON.stringify and structuredClone go by it)
+  const ordered: Record<string, unknown> = {};
+  for (const key of [...DESKTOP_ENGINE_ORDER, ...Object.keys(desktopEngine)]) {
+    const descriptor = Object.getOwnPropertyDescriptor(desktopEngine, key);
+    if (descriptor && !Object.prototype.hasOwnProperty.call(ordered, key)) Object.defineProperty(ordered, key, descriptor);
+  }
+  return ordered;
 }
+
+/** The order of the properties of the app's DesktopEngine */
+const DESKTOP_ENGINE_ORDER = [
+  'setTimeout', 'clearTimeout', 'base64Encode', 'clearInterval', 'base64Decode', 'applyNew', 'setInterval', 'preferredFramesPerSecond',
+  'Canvas', 'WebGLRenderingContext', 'WebGL2RenderingContext', 'CanvasImage', 'Component', 'fs', 'Image', 'input', 'ScreenManager',
+  'system', 'systemAudio', 'Video', 'Window', 'windows', 'apiVersion', 'launchOptions',
+];
 
 // MARK: Launch
 
+// `performance` is a native object in the engine, refused as the runtime's other stand-ins are (see stand-ins.ts; the
+// Storage class is the engine's global, see installStorage)
+standIn(scope.performance);
 const channels = createChannels({ send, namespaceChannels: () => state.launch?.namespaceChannels === true });
+// the engine's structuredClone, MessageChannel and MessagePort: its messages come on the content's timers
+const messaging = createMessaging({ setTimeout });
+
+/** The content's timer functions, named and of the length of the engine's (bound functions of native ones) */
+function bound<T extends (...args: never[]) => unknown>(name: string, action: T): T {
+  Object.defineProperty(action, 'name', { value: `bound ${name}`, configurable: true });
+  Object.defineProperty(action, 'length', { value: 0, configurable: true });
+  return action;
+}
+const timerFunctions = {
+  setTimeout: bound('setTimeout', setTimeout),
+  setInterval: bound('setInterval', setInterval),
+  clearTimeout: bound('clearTimeout', (id: unknown) => clearTimer(id)),
+  clearInterval: bound('clearInterval', (id: unknown) => clearTimer(id)),
+  requestAnimationFrame: bound('requestAnimationFrame', requestAnimationFrame),
+  cancelAnimationFrame: bound('cancelAnimationFrame', cancelAnimationFrame),
+};
 
 function launch(message: LaunchMessage): void {
   if (state.launch) return;
@@ -681,41 +782,56 @@ function launch(message: LaunchMessage): void {
     value: createImageBitmapFunction(scope.createImageBitmap.bind(scope), unwrap),
     writable: true, configurable: true, enumerable: true,
   });
-  // the engine's BroadcastChannel, through the host (the browser's reaches nothing from an opaque origin)
-  Object.defineProperty(scope, 'BroadcastChannel', { value: channels.BroadcastChannel, writable: true, configurable: true, enumerable: true });
+  // the engine's structuredClone, MessageChannel, MessagePort and MessageEvent rather than the browser's, and its
+  // BroadcastChannel, through the host (the browser's reaches nothing from an opaque origin); not enumerable, as the
+  // engine's
+  const { structuredClone, MessageChannel, MessagePort } = messaging;
+  for (const [name, value] of Object.entries({ structuredClone, MessageChannel, MessagePort, BroadcastChannel: channels.BroadcastChannel })) {
+    Object.defineProperty(scope, name, { value, writable: true, configurable: true, enumerable: false });
+  }
+  installMessageEvent(scope);
   // the engine's Path2D, around the browser's (which the 2D contexts draw)
   Object.defineProperty(scope, 'Path2D', { value: createPath2D(scope.Path2D), writable: true, configurable: true, enumerable: true });
   installConsole();
 
   const desktopEngine = createGlobal(message);
+  // as the app's, whose members aren't enumerable: Object.keys gives none, structuredClone an empty object
   const runtimeScope: Record<string, unknown> = {};
   for (const [name, value] of Object.entries({
     Window: WindowImpl, Component: ComponentImpl, Video: VideoImpl, Image: ImageImpl, Canvas: CanvasImpl, CanvasImage: CanvasImageImpl,
-    ScreenManager: ScreenManagerImpl, System: SystemImpl, Input: InputImpl, SystemAudio: SystemAudioImpl, Windows: WindowsImpl,
+    ScreenManager: ScreenManagerImpl, System: SystemImpl, Input: InputImpl,
+    // one each, as in the app: content may make it before DesktopEngine.systemAudio or .windows does
+    SystemAudio: named(SystemAudioImpl, 'SystemAudio'), Windows: named(WindowsImpl, 'Windows'),
   })) {
-    Object.defineProperty(runtimeScope, name, { get: () => value, enumerable: true });
+    engineConstructor(value);
+    Object.defineProperty(runtimeScope, name, { get: () => value });
   }
-  for (const name of ['AnimationFrameManager', 'FileSystem', 'LocalStorage', 'Network', 'Audio']) runtimeScope[name] = undefined;
+  // the app's singletons, made by DesktopEngine's globals: there's no second one
+  for (const name of ['AnimationFrameManager', 'FileSystem', 'LocalStorage', 'Network', 'Audio']) {
+    Object.defineProperty(runtimeScope, name, { value: undefined, writable: true, configurable: true });
+  }
+  const coreScope = Object.defineProperties({}, {
+    Utils: { value: undefined, writable: true, configurable: true },
+    Performance: { value: undefined, writable: true, configurable: true },
+  });
 
   Object.assign(scope, {
     DesktopEngine: desktopEngine,
-    DesktopEngineCore: { Utils: undefined, Performance: undefined },
+    DesktopEngineCore: coreScope,
     DesktopEngineRuntime: runtimeScope,
-    requestAnimationFrame,
-    cancelAnimationFrame,
-    setTimeout,
-    setInterval,
-    clearTimeout: clearTimer,
-    clearInterval: clearTimer,
+    ...timerFunctions,
     require: (id: string) => requireFrom('/', id, {}),
   });
   // the engine's global postMessage(name, message): 'host' reaches the app, here the page
   scope.postMessage = ((name: unknown, payload?: unknown) => {
     if (name === 'host') send({ type: 'host-message', message: JSON.parse(JSON.stringify(payload ?? null)) });
   }) as typeof scope.postMessage;
+  // of the length the engine's is (and anonymous, as it is)
+  Object.defineProperty(scope.postMessage, 'length', { value: 0, configurable: true });
 
   scope.addEventListener('error', (event) => report(event.error ?? event.message));
-  scope.addEventListener('unhandledrejection', (event) => report(`Unhandled promise rejection: ${event.reason instanceof Error ? event.reason.message : String(event.reason)}`));
+  // described by report, which never throws, even for a reason without a string form
+  scope.addEventListener('unhandledrejection', (event) => report(event.reason, 'Unhandled promise rejection: '));
 
   startStats();
   guard(() => {
@@ -843,6 +959,7 @@ scope.addEventListener('message', (event: MessageEvent) => {
       break;
     case 'parameters': {
       parameters = deepFreeze({ ...message.parameters });
+      updateLaunchOptions();
       const handled = system.listens('parameterschange');
       if (handled) system.emit('parameterschange', { parameters, changed: [...message.changed] });
       send({ type: 'parameters-result', handled });

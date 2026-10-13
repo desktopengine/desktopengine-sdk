@@ -8,6 +8,41 @@
 // taking the engine's Canvas and CanvasImage.
 
 import { WEBGL_EXTENSIONS, WEBGL_EXTENSION_ALIASES } from './canvas-api.ts';
+import { isStandIn, standIn } from './stand-ins.ts';
+
+/**
+ * The contexts' methods that make objects: what they make (a texture, a buffer, a uniform's location, a WebGL 2 query)
+ * is a native object in the engine, which structuredClone and BroadcastChannel refuse
+ */
+const MAKERS = [
+  'createBuffer', 'createFramebuffer', 'createProgram', 'createRenderbuffer', 'createShader', 'createTexture', 'getUniformLocation',
+  'getActiveAttrib', 'getActiveUniform', 'getShaderPrecisionFormat', 'createQuery', 'createSampler', 'createTransformFeedback',
+  'createVertexArray', 'fenceSync', 'getTransformFeedbackVarying',
+];
+
+/** The object's method `name`, made to note what it makes as a stand-in for a native object (see stand-ins.ts) */
+function noteMade(object: object, name: string, original: (...args: unknown[]) => unknown): void {
+  const method = {
+    [name](...args: unknown[]): unknown {
+      const made = original.apply(object, args);
+      if (typeof made === 'object' && made !== null) standIn(made);
+      return made;
+    },
+  }[name];
+  Object.defineProperty(method, 'length', { value: original.length, configurable: true });
+  Object.defineProperty(object, name, { value: method, writable: true, configurable: true });
+}
+
+/** The engine's extension objects are native ones, and what they make (OES_vertex_array_object's vertex arrays) too */
+function noteExtension(extension: unknown): void {
+  if (typeof extension !== 'object' || extension === null || isStandIn(extension)) return;
+  standIn(extension);
+  const prototype = Object.getPrototypeOf(extension) as object | null;
+  for (const name of prototype ? Object.getOwnPropertyNames(prototype) : []) {
+    const original = (extension as Record<string, unknown>)[name];
+    if (name.startsWith('create') && typeof original === 'function') noteMade(extension, name, original as (...args: unknown[]) => unknown);
+  }
+}
 
 export function adaptWebGL(context: WebGLRenderingContext | WebGL2RenderingContext, version: 1 | 2, canvas: object, unwrap: (value: unknown) => unknown): void {
   Object.defineProperty(context, 'canvas', { get: () => canvas });
@@ -15,6 +50,10 @@ export function adaptWebGL(context: WebGLRenderingContext | WebGL2RenderingConte
     const original = (context as unknown as Record<string, ((...args: unknown[]) => void) | undefined>)[name];
     if (!original) continue;
     (context as unknown as Record<string, unknown>)[name] = (...args: unknown[]) => original.apply(context, args.map(unwrap));
+  }
+  for (const name of MAKERS) {
+    const original = (context as unknown as Record<string, unknown>)[name];
+    if (typeof original === 'function') noteMade(context, name, original as (...args: unknown[]) => unknown);
   }
 
   const names = WEBGL_EXTENSIONS[version];
@@ -34,9 +73,12 @@ export function adaptWebGL(context: WebGLRenderingContext | WebGL2RenderingConte
         const extension = getExtension(target);
         // a browser has the alias as an extension of its own: what it allows comes with it
         if (extension) getExtension(text);
+        noteExtension(extension);
         return extension;
       }
-      return names.includes(text) ? getExtension(text) : null;
+      const extension = names.includes(text) ? getExtension(text) : null;
+      noteExtension(extension);
+      return extension;
     },
   });
 }

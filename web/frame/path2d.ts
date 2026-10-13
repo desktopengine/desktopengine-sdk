@@ -115,5 +115,7 @@ export function createPath2D(BrowserPath2D: typeof Path2D): new (path?: unknown)
     return value;
   } as unknown as new (path?: unknown) => object;
   Object.defineProperty(Path2DClass, Symbol.hasInstance, { value: (value: unknown) => nativePath(value) !== undefined });
+  // named as the engine's, whatever the bundler calls it ("The function Path2D can't be cloned")
+  Object.defineProperty(Path2DClass, 'name', { value: 'Path2D', configurable: true });
   return Path2DClass;
 }

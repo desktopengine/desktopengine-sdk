@@ -8,8 +8,15 @@
 
 const QUOTA = 5 * 1024 * 1024;
 
+let constructing = false;
+
 class StorageArea {
   private readonly items = new Map<string, string>();
+
+  constructor() {
+    // as the engine's Storage: only localStorage and sessionStorage
+    if (!constructing) throw new TypeError('Illegal constructor');
+  }
 
   get length(): number {
     return this.items.size;
@@ -47,16 +54,32 @@ class StorageArea {
   }
 }
 
+Object.defineProperty(StorageArea, 'name', { value: 'Storage' });
+
 const METHODS = new Set(['length', 'key', 'getItem', 'setItem', 'removeItem', 'clear']);
 
-function createStorage(): Storage {
+function createStorage(): object {
+  constructing = true;
   const area = new StorageArea();
+  constructing = false;
+  /** The methods given, bound to the area: one for each, named as the method, as the app's are its class' own */
+  const methods = new Map<string, { original: unknown; method: unknown }>();
   return new Proxy(area, {
     get(target, key) {
       if (typeof key === 'symbol') return Reflect.get(target, key);
+      // as in the app, an item doesn't hide its class (whose name a refused postMessage gives)
+      if (key === 'constructor') return StorageArea;
       if (METHODS.has(key)) {
         const value = Reflect.get(target, key);
-        return typeof value === 'function' ? value.bind(target) : value;
+        if (typeof value !== 'function') return value;
+        let entry = methods.get(key);
+        if (!entry || entry.original !== value) {
+          const method = (value as (...args: unknown[]) => unknown).bind(target);
+          Object.defineProperty(method, 'name', { value: (value as { name: unknown }).name, configurable: true });
+          entry = { original: value, method };
+          methods.set(key, entry);
+        }
+        return entry.method;
       }
       return target.getItem(key) ?? undefined;
     },
@@ -80,11 +103,14 @@ function createStorage(): Storage {
       const value = target.getItem(key);
       return value === null ? undefined : { value, enumerable: true, configurable: true, writable: true };
     },
-  }) as unknown as Storage;
+  });
 }
 
 export function installStorage(scope: typeof globalThis): void {
   for (const name of ['localStorage', 'sessionStorage']) {
     Object.defineProperty(scope, name, { value: createStorage(), configurable: true, enumerable: true });
   }
+  // the engine's global Storage is their class, as in browsers: `localStorage instanceof Storage`, and structuredClone
+  // and a BroadcastChannel refuse them and objects made from them as "A Storage"
+  Object.defineProperty(scope, 'Storage', { value: StorageArea, writable: true, configurable: true, enumerable: false });
 }

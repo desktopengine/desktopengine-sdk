@@ -700,6 +700,7 @@ const banner = document.getElementById('banner');
 let content = null;
 let size;
 let openedWindow = false;
+let toldNoSystemAudio = false;
 
 async function run() {
   const response = await fetch(api('/package'));
@@ -719,8 +720,8 @@ async function run() {
   select.innerHTML = sizes.map((value) => '<option>' + value + '</option>').join('');
   size = size ?? build.launch?.size ?? sizes[0];
   select.value = size;
-  document.getElementById('music').hidden = !(build.manifest.permissions ?? []).includes('system-audio');
-  const seesWindows = (build.manifest.permissions ?? []).includes('window-positions');
+  const permissions = build.manifest.permissions ?? [];
+  const seesWindows = permissions.includes('window-positions');
   document.getElementById('new-window').hidden = !seesWindows;
   if (seesWindows && !openedWindow) {
     openedWindow = true;
@@ -730,18 +731,34 @@ async function run() {
     name, code: build.code, files, manifest: build.manifest,
     parameters: build.launch?.parameters, size, level: build.launch?.level, position: build.launch?.position,
     span: build.launch?.span,
+    // the developer's copy, as desktopengine dev runs it in the app
+    officialId: false,
   };
   banner.style.display = 'none';
-  if (content) { content.restart(spec); return; }
-  content = desktop.launch(spec);
-  content.on('console', ({ level, message }) => log({ kind: 'console', level, message }));
-  content.on('exception', ({ message, stack }) => {
-    log({ kind: 'exception', message, stack });
-    banner.textContent = message;
-    banner.style.display = 'block';
-  });
-  content.on('host-message', (message) => log({ kind: 'host-message', message: JSON.stringify(message) }));
-  content.on('stats', ({ framesPerSecond }) => { document.getElementById('status').textContent = framesPerSecond + ' fps'; });
+  if (content) {
+    content.restart(spec);
+  } else {
+    content = desktop.launch(spec);
+    content.on('console', ({ level, message }) => log({ kind: 'console', level, message }));
+    content.on('exception', ({ message, stack }) => {
+      log({ kind: 'exception', message, stack });
+      banner.textContent = message;
+      banner.style.display = 'block';
+    });
+    content.on('host-message', (message) => log({ kind: 'host-message', message: JSON.stringify(message) }));
+    content.on('stats', ({ framesPerSecond }) => { document.getElementById('status').textContent = framesPerSecond + ' fps'; });
+  }
+  // the ♫ button while the content hears something: with network too, it doesn't
+  const hears = content.systemAudio !== 'none';
+  if (!hears && player.src) stopMusic();
+  music.hidden = !hears;
+  if (permissions.includes('system-audio') && !hears && !toldNoSystemAudio) {
+    toldNoSystemAudio = true;
+    // the same words as the app's desktopengine dev
+    const message = '"system-audio" is off because the content also has "network"';
+    console.warn(message);
+    log({ kind: 'console', level: 'warn', message });
+  }
 }
 
 document.getElementById('new-window').onclick = () => desktop.addAppWindow();
@@ -768,19 +785,26 @@ const showMusic = () => {
   music.title = player.src ? (player.paused ? 'Play the file systemAudio hears' : 'Back to the made-up signal') : 'Choose an audio file for systemAudio to hear (it hears a made-up signal like music now)';
 };
 showMusic();
+// back to the made-up signal, the file gone
+const stopMusic = () => {
+  player.pause();
+  desktop.setSystemAudioSource(null);
+  if (player.src) URL.revokeObjectURL(player.src);
+  player.removeAttribute('src');
+  player.load();
+  showMusic();
+};
+// a file the browser can't play goes, so the next click chooses another; a play the browser held back until a click
+// keeps it for the next one, the content hearing the made-up signal meanwhile
+const playFailed = () => (player.error ? stopMusic() : desktop.setSystemAudioSource(null));
 music.onclick = () => {
   if (!player.src) { musicFile.click(); return; }
   if (player.paused) {
     // in the click: browsers start the page's sound only after one
     desktop.setSystemAudioSource(player);
-    player.play().catch(() => {}).finally(showMusic);
+    player.play().catch(playFailed).finally(showMusic);
   } else {
-    player.pause();
-    desktop.setSystemAudioSource(null);
-    URL.revokeObjectURL(player.src);
-    player.removeAttribute('src');
-    player.load();
-    showMusic();
+    stopMusic();
   }
 };
 musicFile.onchange = () => {
@@ -790,9 +814,11 @@ musicFile.onchange = () => {
   player.src = URL.createObjectURL(file);
   // started at once when the browser still counts the click that opened the chooser, otherwise with the next click
   desktop.setSystemAudioSource(player);
-  player.play().catch(() => desktop.setSystemAudioSource(null)).finally(showMusic);
+  player.play().catch(playFailed).finally(showMusic);
 };
 player.onplay = player.onpause = showMusic;
+// one that stops playing midway too
+player.onerror = () => { if (player.getAttribute('src')) stopMusic(); };
 let revision = 0;
 new EventSource(api('/events')).addEventListener('revision', (event) => {
   const next = Number(event.data);
