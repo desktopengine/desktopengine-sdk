@@ -979,7 +979,11 @@ declare namespace DesktopEngine {
     position?: ImagePosition;
   }
 
-  /** Image view component */
+  /**
+   * Image view component. It loads its src whether it's in a window, in a component or in none yet, so `load` can be
+   * waited for before it's added (API 6; before, it loaded only once it was in a component). A new src replaces the
+   * picture once it has loaded (or failed to): until then the old one stays
+   */
   interface Image extends ComponentBase<ImageEventMap> {
     /**
      * Image source (returns the value as it was set), null until one is set. Takes only a string that isn't empty:

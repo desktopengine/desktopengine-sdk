@@ -610,6 +610,19 @@ export class CanvasImageImpl extends Evented {
 }
 defineEvents(CanvasImageImpl.prototype, ['load', 'error']);
 
+/**
+ * As in the app: options that aren't an object are none (defaults), each of `keys` is read once, now (a getter that
+ * throws does now); the function returned assigns them to their properties, whose setters take or ignore them the same
+ * as later on
+ */
+function readOptions<Key extends string>(options: unknown, keys: readonly Key[]): (target: Record<Key, unknown>) => void {
+  const given = options !== null && (typeof options === 'object' || typeof options === 'function') ? options as Record<string, unknown> : undefined;
+  const values = keys.map((key) => given?.[key]);
+  return (target) => keys.forEach((key, index) => {
+    if (values[index] !== undefined) target[key] = values[index];
+  });
+}
+
 // MARK: Image
 
 const POSITIONS: Record<string, string> = {
@@ -633,19 +646,13 @@ export class ImageImpl extends ComponentImpl {
   private source: string | null = null;
   private sizeValue = 'contain';
   private positionValue = 'center';
-  private loader: HTMLImageElement | null = null;
+  /** Counts the srcs set: only the last one calls back */
+  private generation = 0;
 
   constructor(options?: Record<string, unknown>) {
     super(options);
     Object.assign(this.element.style, { backgroundRepeat: 'no-repeat', backgroundSize: 'contain', backgroundPosition: 'center' });
-    // as in the app: options that aren't an object are none (defaults), each is read once, then assigned to its
-    // property, whose setter takes or ignores it the same as later on
-    const given = options !== null && (typeof options === 'object' || typeof options === 'function') ? options : undefined;
-    const keys = ['size', 'position', 'src'] as const;
-    const values = keys.map((key) => given?.[key]);
-    keys.forEach((key, index) => {
-      if (values[index] !== undefined) (this as Record<typeof key, unknown>)[key] = values[index];
-    });
+    readOptions(options, ['size', 'position', 'src'])(this as Record<'size' | 'position' | 'src', unknown>);
   }
 
   get src(): string | null {
@@ -656,22 +663,28 @@ export class ImageImpl extends ComponentImpl {
   set src(value: string | null) {
     if (typeof value !== 'string' || !value) return;
     this.source = value;
-    // a src replaced before it loaded calls neither callback
-    if (this.loader) this.loader.onload = this.loader.onerror = null;
-    this.element.style.backgroundImage = '';
-    const url = mediaURL(value);
+    // As in the app (in a component or not): a src replaced before it loaded calls neither callback, and the picture
+    // shown stays until the new one has loaded, or goes when it can't be
+    const generation = ++this.generation;
+    const fail = (errMsg: string) => {
+      if (generation !== this.generation) return;
+      this.element.style.backgroundImage = '';
+      this.emit('error', { errMsg });
+    };
+    // the app loads no data: URL into an Image, only into a CanvasImage
+    const url = /^data:/i.test(value) ? null : mediaURL(value);
     if (!url) {
       const reason = /^https?:/i.test(value) && !hasPermission('network') ? 'the "network" permission is needed' : 'the image can\'t be read';
-      setTimeout(() => this.emit('error', { errMsg: reason }));
+      setTimeout(() => fail(reason));
       return;
     }
     const loader = document.createElement('img');
-    this.loader = loader;
     loader.onload = () => {
+      if (generation !== this.generation) return;
       this.element.style.backgroundImage = `url("${url}")`;
       this.emit('load');
     };
-    loader.onerror = () => this.emit('error', { errMsg: 'the image can\'t be read' });
+    loader.onerror = () => fail('the image can\'t be read');
     loader.src = url;
   }
 
@@ -730,12 +743,9 @@ export class VideoImpl extends ComponentImpl {
   constructor(options?: Record<string, unknown>) {
     const video = document.createElement('video');
     super(options, video);
-    // as in the app: options that aren't an object are none (defaults), each is read once, and a getter that throws
-    // does before the video is counted; they're assigned to their properties at the end, whose setters take or ignore
-    // them the same as later on
-    const given = options !== null && (typeof options === 'object' || typeof options === 'function') ? options : undefined;
+    // read before the video is counted, so that a getter that throws does first; assigned at the end
     const keys = ['objectFit', 'initialTime', 'playbackRate', 'autoplay', 'loop', 'muted', 'volume', 'src'] as const;
-    const values = keys.map((key) => given?.[key]);
+    const assignOptions = readOptions(options, keys);
     this.video = video;
     video.playsInline = true;
     video.style.objectFit = 'contain';
@@ -766,9 +776,7 @@ export class VideoImpl extends ComponentImpl {
     video.addEventListener('durationchange', () => {
       if (Number.isFinite(video.duration) && video.duration > 0) this.knownDuration = video.duration;
     });
-    keys.forEach((key, index) => {
-      if (values[index] !== undefined) (this as Record<typeof key, unknown>)[key] = values[index];
-    });
+    assignOptions(this as Record<(typeof keys)[number], unknown>);
     this.applyAudio();
   }
 
