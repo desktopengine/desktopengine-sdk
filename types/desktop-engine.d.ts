@@ -966,7 +966,10 @@ declare namespace DesktopEngine {
   /** Image alignment; defaults to center */
   type ImagePosition = 'top' | 'left' | 'center' | 'bottom' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
-  /** Image constructor options */
+  /**
+   * Image constructor options. Each is applied as if it were assigned to the {@link Image} property of the same name
+   * right after `new`: a value the property doesn't take (e.g. `size: 5`, `src: ''`) is ignored and the default stays
+   */
   interface ImageOptions extends ComponentOptions {
     /** Image source: an http(s) URL or a path inside the package or sandbox */
     src?: string;
@@ -978,11 +981,14 @@ declare namespace DesktopEngine {
 
   /** Image view component */
   interface Image extends ComponentBase<ImageEventMap> {
-    /** Image source (returns the value as it was set) */
+    /**
+     * Image source (returns the value as it was set), null until one is set. Takes only a string that isn't empty:
+     * anything else (null, `''`, a number) is ignored and the image keeps its source
+     */
     src: string | null;
-    /** Scaling mode */
+    /** Scaling mode; other values are ignored */
     size: ImageSize;
-    /** Alignment */
+    /** Alignment; other values are ignored */
     position: ImagePosition;
 
     /** Called when the image of a src has loaded, once for each src set (the same one again too); changing position or size doesn't load it again */

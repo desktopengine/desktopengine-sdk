@@ -586,9 +586,9 @@ const POSITIONS: Record<string, string> = {
   'top-left': 'left top', 'top-right': 'right top', 'bottom-left': 'left bottom', 'bottom-right': 'right bottom',
 };
 
-/** One of the table's own keys, not e.g. 'constructor' */
-function isKey(table: Record<string, string>, value: string): boolean {
-  return Object.prototype.hasOwnProperty.call(table, value);
+/** One of the table's own keys (not e.g. 'constructor'), as a string only, as in the app */
+function isKey(table: Record<string, string>, value: unknown): value is string {
+  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(table, value);
 }
 
 /** An image's size as a background-size: 'none' is the image's own size, a pixel to a CSS pixel as in the app */
@@ -603,28 +603,30 @@ export class ImageImpl extends ComponentImpl {
   constructor(options?: Record<string, unknown>) {
     super(options);
     Object.assign(this.element.style, { backgroundRepeat: 'no-repeat', backgroundSize: 'contain', backgroundPosition: 'center' });
-    // each option read once, as in the app
-    const size = options?.size;
-    const position = options?.position;
-    const src = options?.src;
-    if (typeof size === 'string') this.size = size;
-    if (typeof position === 'string') this.position = position;
-    if (typeof src === 'string') this.src = src;
+    // as in the app: options that aren't an object are none (defaults), each is read once, then assigned to its
+    // property, whose setter takes or ignores it the same as later on
+    const given = options !== null && (typeof options === 'object' || typeof options === 'function') ? options : undefined;
+    const keys = ['size', 'position', 'src'] as const;
+    const values = keys.map((key) => given?.[key]);
+    keys.forEach((key, index) => {
+      if (values[index] !== undefined) (this as Record<typeof key, unknown>)[key] = values[index];
+    });
   }
 
   get src(): string | null {
     return this.source;
   }
 
+  /** As in the app, only a string that isn't empty: anything else leaves the src as it was */
   set src(value: string | null) {
-    this.source = value === null || value === undefined ? null : String(value);
+    if (typeof value !== 'string' || !value) return;
+    this.source = value;
     // a src replaced before it loaded calls neither callback
     if (this.loader) this.loader.onload = this.loader.onerror = null;
     this.element.style.backgroundImage = '';
-    if (!this.source) return;
-    const url = mediaURL(this.source);
+    const url = mediaURL(value);
     if (!url) {
-      const reason = /^https?:/i.test(this.source) && !hasPermission('network') ? 'the "network" permission is needed' : 'the image can\'t be read';
+      const reason = /^https?:/i.test(value) && !hasPermission('network') ? 'the "network" permission is needed' : 'the image can\'t be read';
       setTimeout(() => this.emit('error', { errMsg: reason }));
       return;
     }
