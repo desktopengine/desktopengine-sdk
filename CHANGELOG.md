@@ -2,6 +2,33 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 4.2.0 (2026-10-14)
+
+API version 6 (was 5): packages with `"apiVersion": 6` need an app that has it.
+
+### Features
+
+- BroadcastChannel to other running content, with the scopes package and namespace (API 6)
+- DesktopEngine.systemAudio and the system-audio permission (API 6): how loud what the Mac plays is, in bands from low to high; a made-up signal in the web preview, or an audio file chosen in dev --web
+- DesktopEngine.windows tells content with the window-positions permission where other apps' windows are, with list(), visibleTopEdges() and change (API 6)
+
+### Bug Fixes
+
+- The Permission type of launchOptions includes system-audio
+- The web runtime's Video takes options that aren't an object as none instead of throwing, and components read each option once and take src only as a string
+- The web runtime's Video takes a src only as a non-empty string, as in the app, and keeps its playback rate when the src changes
+- The web runtime's Image takes a src only as a non-empty string, as in the app, and size and position only as strings
+- A Window in the web runtime no longer takes one of the 16 window slots when making it throws, style values whose reading or conversion throws are left out instead of throwing, and a window type such as "toString" makes a normal window
+- The web runtime's Image keeps its picture until a new src has loaded, calls back only for the last src set and doesn't load data: URLs, as in the app
+- The web preview copies, posts and times like the app: structuredClone, MessageChannel and BroadcastChannel follow the app's rules, timers aren't clamped by the browser and slow down in a hidden page, and system audio and other apps' windows match
+- The guides, types and manifest schema cover only what your content can use, without key-activity, keyboard events or the screen saver, and describe the API 6 features as the app runs them
+- The web preview finds content's globals, calls its listeners and handles the page's messages even after the content replaces builtins like Set.prototype.has, Array.prototype.filter or the Array iterator
+- The web preview converts component styles as the app does: only strings and numbers, nothing thrown, a whole style read before it replaces the old one
+- The web preview's Audio plays the package's files and http(s) URLs and, as in the app, no data: or blob: URLs, and a Video doesn't play a data: URL
+- In the web preview, content's global object inherits Object.prototype as in the app (globalThis.toString, hasOwnProperty, constructor), and `delete name` removes a global the content created
+- The PixiJS wallpaper template no longer throws when the mouse is pressed over the desktop
+- The web preview reads getContext's alpha and antialias as the app does: a value other than undefined counts as true or false, so { alpha: null } is opaque and { antialias: 1 } antialiases
+
 ## 4.1.1 (2026-10-12)
 
 ### Bug Fixes
