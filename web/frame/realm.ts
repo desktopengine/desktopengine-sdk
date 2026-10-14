@@ -11,8 +11,10 @@
 // The content runs inside `with (scope)`: names it doesn't declare itself resolve through the scope proxy, which
 // answers the hidden ones from the content's own globals; `globalThis`, `self` and the top-level `this` are a proxy of
 // the global object that hides the same names. What the content assigns to a hidden name stays among its own globals,
-// what it assigns to an engine global replaces it. Unlike the engine, reading a name nobody defined gives undefined
-// rather than a ReferenceError (the proxy can't tell `typeof x` from `x`).
+// what it assigns to an engine global replaces it. As the engine's global object, the content's inherits Object.prototype
+// (toString, hasOwnProperty, constructor, what the content adds to it) and can't be given another prototype. Unlike the
+// engine, reading a name nobody defined gives undefined rather than a ReferenceError (the proxy can't tell `typeof x`
+// from `x`), and a function the content calls by a global name gets the scope as `this` rather than undefined.
 
 const LANGUAGE = [
   'Object', 'Function', 'Array', 'Number', 'parseFloat', 'parseInt', 'Infinity', 'NaN', 'undefined', 'Boolean', 'String',
@@ -51,13 +53,13 @@ const ENGINE = [
 // and Object's functions, Function.prototype.call), as the engine's lookups don't. Their handlers and the descriptors
 // they give have no prototype: a proxy looks a trap or a descriptor's fields up through it, and would find what the
 // content put on Object.prototype.
-const { apply, construct, ownKeys, getOwnPropertyDescriptor, defineProperty, deleteProperty } = Reflect;
+const { apply, construct, get, set, ownKeys, getOwnPropertyDescriptor, defineProperty, deleteProperty } = Reflect;
 const { create, setPrototypeOf } = Object;
 const ObjectPrototype = Object.prototype;
 const { bind } = Function.prototype;
 const FunctionClass = Function;
 const ProxyClass = Proxy;
-const { unscopables } = Symbol;
+const { unscopables, toStringTag } = Symbol;
 
 /** An object or array without a prototype: what's read of it is its own */
 const bare = <T extends object>(object: T): T => setPrototypeOf(object, null) as T;
@@ -79,12 +81,17 @@ const BOUND = names(['queueMicrotask', 'atob', 'btoa', 'postMessage']);
 export const isEngineGlobal = (name: string): boolean => ENGINE_GLOBALS[name] === true;
 
 const realGlobal = globalThis as unknown as Record<PropertyKey, unknown>;
-/** The content's own globals: the hidden names it assigned, and the globals it created */
-const own: Record<PropertyKey, unknown> = create(null);
+/**
+ * The content's own globals: the hidden names it assigned, and the globals it created. It inherits Object.prototype as
+ * the engine's global object does, so what isn't among them is looked up there, with the content's global object as
+ * the receiver: Object.prototype's getters and setters (`__proto__`, the content's own) see `globalThis`.
+ */
+const own: Record<PropertyKey, unknown> = create(ObjectPrototype);
 /** The bound functions given for BOUND names, with what they're bound from */
 const bound = create(null) as Record<string, { original: unknown; wrapper: unknown } | undefined>;
 
-const visible = (name: PropertyKey): name is string | symbol => typeof name === 'symbol' || VISIBLE[name as string] === true;
+/** The engine's globals and the language's, and symbols but the browser's Symbol.toStringTag ("Window") */
+const visible = (name: PropertyKey): name is string | symbol => (typeof name === 'symbol' ? name !== toStringTag : VISIBLE[name] === true);
 
 function visibleValue(name: string | symbol): unknown {
   const value = realGlobal[name];
@@ -105,10 +112,10 @@ const bareDescriptor = (descriptor: PropertyDescriptor | undefined): PropertyDes
 
 /** `globalThis`, `self` and `this` for the content */
 export const contentGlobal: Record<PropertyKey, unknown> = new ProxyClass(own, bare<ProxyHandler<Record<PropertyKey, unknown>>>({
-  get: (target, name) => (name === 'globalThis' || name === 'self' ? contentGlobal : visible(name) ? visibleValue(name) : target[name]),
-  set: (target, name, value) => {
-    if (visible(name)) realGlobal[name] = value;
-    else target[name] = value;
+  get: (target, name, receiver) => (name === 'globalThis' || name === 'self' ? contentGlobal : visible(name) ? visibleValue(name) : get(target, name, receiver)),
+  set: (target, name, value, receiver) => {
+    if (!visible(name)) return set(target, name, value, receiver);
+    realGlobal[name] = value;
     return true;
   },
   has: (target, name) => (visible(name) ? name in realGlobal : name in target),
@@ -136,17 +143,18 @@ export const contentGlobal: Record<PropertyKey, unknown> = new ProxyClass(own, b
     ? defineProperty(realGlobal, name, bare(descriptor)) || true
     : defineProperty(target, name, bare(descriptor))),
   getPrototypeOf: () => ObjectPrototype,
+  // the engine's global object keeps its prototype: setting another fails
+  setPrototypeOf: (_target, prototype) => prototype === ObjectPrototype,
 }));
 
 /** The names of a function's parameters resolve to them, not through the scope */
 function scopeFor(parameters: Names): object {
   return new ProxyClass(create(null) as object, bare<ProxyHandler<object>>({
     has: (_target, name) => typeof name === 'string' && parameters[name] !== true && (name === 'globalThis' || name === 'self' || VISIBLE[name] !== true),
-    get: (_target, name) => (name === unscopables ? undefined : name === 'globalThis' || name === 'self' ? contentGlobal : own[name]),
-    set: (_target, name, value) => {
-      own[name] = value;
-      return true;
-    },
+    get: (_target, name) => (name === unscopables ? undefined : name === 'globalThis' || name === 'self' ? contentGlobal : get(own, name, contentGlobal)),
+    set: (_target, name, value) => set(own, name, value, contentGlobal),
+    // `delete name` of a global the content created
+    deleteProperty: (_target, name) => deleteProperty(own, name),
   }));
 }
 

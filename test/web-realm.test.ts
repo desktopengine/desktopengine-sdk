@@ -172,9 +172,13 @@ test('content\'s globals resolve whatever it did to Set.prototype.has, Array.pro
     replace(Reflect, 'ownKeys', 'Reflect.ownKeys');
     replace(Reflect, 'apply', 'Reflect.apply');
     replace(Reflect, 'getOwnPropertyDescriptor', 'Reflect.getOwnPropertyDescriptor');
+    replace(Reflect, 'get', 'Reflect.get');
+    replace(Reflect, 'set', 'Reflect.set');
+    replace(Reflect, 'deleteProperty', 'Reflect.deleteProperty');
     replace(Object, 'create', 'Object.create');
 
     created = 1;
+    removed = 1;
     globalThis.assigned = 2;
     const names = Object.keys(globalThis);
     let listed = 0;
@@ -192,7 +196,7 @@ test('content\'s globals resolve whatever it did to Set.prototype.has, Array.pro
       own: [created, globalThis.created, assigned, typeof created, 'created' in globalThis, self === globalThis, this === globalThis],
       keys: listed,
       descriptor: [typeof descriptor.value, descriptor.configurable],
-      deleted: [delete globalThis.assigned, typeof assigned],
+      deleted: [delete globalThis.assigned, typeof assigned, delete removed, typeof removed, typeof toString],
     };
     // a replaced builtin the content calls is still its own
     let own;
@@ -216,7 +220,7 @@ test('content\'s globals resolve whatever it did to Set.prototype.has, Array.pro
       own: [1, 1, 2, 'number', true, true, true],
       keys: 3,
       descriptor: ['object', true],
-      deleted: [true, 'undefined'],
+      deleted: [true, 'undefined', true, 'undefined', 'function'],
       calledByContent: 'Array.prototype.filter was replaced',
     },
     { timer: 'object' },
@@ -373,4 +377,101 @@ test('what the host sends, the listeners, the console and the windows work whate
   assert.deepEqual(windows.at(-2)?.windows.map((win) => win.frame), [{ x: 300, y: 200, width: 200, height: 100 }]);
   // destroyed when the content stops
   assert.deepEqual(windows.at(-1)?.windows, []);
+});
+
+// The content's global object is like the app's, where it inherits Object.prototype and keeps it: what's expected
+// below is what the app gave. Unlike the app, a function called by a global name gets the scope as `this`
+// (`toString()` gives "[object Object]", the app's "[object Undefined]"), which isn't checked.
+test('content\'s global object inherits Object.prototype', async () => {
+  const { posted, exceptions } = await runContent(`
+    const report = {};
+    const check = (label, action) => {
+      try {
+        report[label] = action();
+      } catch (error) {
+        report[label] = 'throws ' + error.name;
+      }
+    };
+    check('inherited', () => [typeof globalThis.hasOwnProperty, typeof globalThis.toString, typeof toString, typeof hasOwnProperty,
+      constructor === Object, 'toString' in globalThis, globalThis.__proto__ === Object.prototype, Object.prototype.isPrototypeOf(globalThis),
+      globalThis instanceof Object]);
+    check('own', () => [globalThis.hasOwnProperty('DesktopEngine'), globalThis.hasOwnProperty('toString'), Object.keys(globalThis).indexOf('toString')]);
+    check('tag', () => [String(globalThis), globalThis.toString(), Object.prototype.toString.call(globalThis), typeof globalThis[Symbol.toStringTag]]);
+    check('hidden', () => [typeof window, typeof document, typeof addEventListener, typeof HTMLCanvasElement, typeof undeclared,
+      'addEventListener' in globalThis, typeof globalThis.dispatchEvent]);
+    check('added', () => {
+      Object.prototype.added = 'yes';
+      let listed = false;
+      for (const name in globalThis) if (name === 'added') listed = true;
+      const found = [added, globalThis.added, 'added' in globalThis, listed, Object.keys(globalThis).indexOf('added')];
+      delete Object.prototype.added;
+      return [...found, typeof added];
+    });
+    check('assigned', () => {
+      toString = 5;
+      const assigned = [toString, globalThis.toString, globalThis.hasOwnProperty('toString'), typeof ({}).toString];
+      return [...assigned, delete toString, typeof toString, delete valueOf, typeof valueOf];
+    });
+    check('accessors', () => {
+      const seen = [];
+      Object.defineProperty(Object.prototype, 'accessed', {
+        get() { return this === globalThis; },
+        set(value) { seen.push(value, this === globalThis); },
+        configurable: true,
+      });
+      accessed = 1;
+      globalThis.accessed = 2;
+      const found = [accessed, globalThis.accessed, seen, globalThis.hasOwnProperty('accessed')];
+      delete Object.prototype.accessed;
+      return found;
+    });
+    check('read only', () => {
+      Object.defineProperty(Object.prototype, 'readOnly', { value: 1, writable: false, configurable: true });
+      let strict;
+      try {
+        (function () {
+          'use strict';
+          readOnly = 2;
+        })();
+      } catch (error) {
+        strict = error.name;
+      }
+      readOnly = 3;
+      const found = [strict, readOnly, globalThis.hasOwnProperty('readOnly')];
+      delete Object.prototype.readOnly;
+      return found;
+    });
+    check('prototype', () => [Reflect.setPrototypeOf(globalThis, {}), Object.setPrototypeOf(globalThis, Object.prototype) === globalThis,
+      Object.getPrototypeOf(globalThis) === Object.prototype]);
+    check('setPrototypeOf', () => Object.setPrototypeOf(globalThis, {}));
+    check('assigned __proto__', () => {
+      globalThis.__proto__ = {};
+    });
+    check('bare __proto__', () => {
+      __proto__ = {};
+    });
+    check('deleted', () => {
+      created = 1;
+      const deleted = [delete created, typeof created, 'created' in globalThis];
+      globalThis.created = 2;
+      return [...deleted, delete globalThis.created, typeof created];
+    });
+    postMessage('host', report);
+  `);
+  assert.deepEqual(posted, [{
+    inherited: ['function', 'function', 'function', 'function', true, true, true, true, true],
+    own: [true, false, -1],
+    tag: ['[object Object]', '[object Object]', '[object Object]', 'undefined'],
+    hidden: ['undefined', 'undefined', 'undefined', 'undefined', 'undefined', false, 'undefined'],
+    added: ['yes', 'yes', true, true, -1, 'undefined'],
+    assigned: [5, 5, true, 'function', true, 'function', true, 'function'],
+    accessors: [true, true, [1, true, 2, true], false],
+    'read only': ['TypeError', 1, false],
+    prototype: [false, true, true],
+    setPrototypeOf: 'throws TypeError',
+    'assigned __proto__': 'throws TypeError',
+    'bare __proto__': 'throws TypeError',
+    deleted: [true, 'undefined', false, true, 'undefined'],
+  }]);
+  assert.deepEqual(exceptions, []);
 });
