@@ -143,7 +143,7 @@ declare namespace DesktopEngine {
   // Styles (Yoga layout + basic visual properties)
   // ---------------------------------------------------------------------------
 
-  /** A length: a number (pt), a numeric string, `"10px"`, or a percentage `"50%"`; treated as unset if it can't be parsed */
+  /** A length: a number (pt), a numeric string, `"10px"`, or a percentage `"50%"`; treated as unset if it can't be parsed (`"auto"` too) */
   type StyleLength = number | `${number}` | `${number}px` | `${number}%`;
 
   /** A color: `#RGB`/`#RGBA`/`#RRGGBB`/`#RRGGBBAA`, `rgb()`/`rgba()`, a color name, or a 0xRRGGBB number */
@@ -183,7 +183,13 @@ declare namespace DesktopEngine {
    */
   type ImageRendering = 'auto' | 'pixelated' | 'crisp-edges';
 
-  /** Component style dictionary (the `style` constructor option, or assigning the whole object with `component.style = {...}`) */
+  /**
+   * Component style dictionary (the `style` constructor option, or assigning the whole object with
+   * `component.style = {...}`). Each value is a string or a number: any other value (null, undefined, a boolean, an
+   * object, an array) leaves the property unset. A value the property can't use (`width: 'wide'`, `display: 'grid'`)
+   * is kept, and laid out as if unset. The enumerable properties are read once each, inherited ones too, as `for…in`
+   * lists them; one that can't be read (its getter throws) is left out, and other names are ignored.
+   */
   interface StyleProperties {
     /** Positioning type; defaults to relative */
     position?: PositionType;
@@ -282,9 +288,16 @@ declare namespace DesktopEngine {
   /** A style value (returned as stored when read; null if unset) */
   type StyleValue = string | number | null;
 
-  /** The style object returned by `component.style`; assigning a single property merges it into the current style and updates; assigning null removes it */
+  /**
+   * The style object returned by `component.style`; assigning a single property merges it into the current style and
+   * updates; assigning null, or anything that isn't a string or a number, removes it
+   */
   interface ComponentStyle {
-    /** Reads or writes all styles as `key: value;` text; assigning replaces the whole style */
+    /**
+     * Reads or writes all styles as `key: value;` text; assigning replaces the whole style. The names are as in CSS
+     * (`background-color`) or as here (`backgroundColor`), the values strings; assigning anything but a string clears
+     * the style
+     */
     cssText: string;
     /** Positioning type */
     position: PositionType | null;
@@ -679,7 +692,11 @@ declare namespace DesktopEngine {
   interface ComponentBase<M extends ComponentEventMap> extends EventedObject<M> {
     /** Unique identifier of the native component (a pointer string) */
     readonly identifier: string;
-    /** Reading returns the style object; assigning an object replaces the whole style */
+    /**
+     * Reading returns the style object; assigning an object replaces the whole style, read in full first
+     * (`a.style = a.style` keeps it, `b.style = a.style` copies it). Assigning anything else (null, an array) leaves
+     * the style as it is.
+     */
     get style(): ComponentStyle;
     set style(value: StyleProperties);
     /** Width after layout (reading triggers layout first) */

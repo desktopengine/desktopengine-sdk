@@ -12,7 +12,7 @@
 import { createContext2D } from './context2d.ts';
 import { defineEvents, Evented } from './events.ts';
 import { adaptWebGL } from './webgl.ts';
-import { applyStyle, BASE_CSS, createStyle, type StyleValue } from './style.ts';
+import { applyStyle, BASE_CSS, createStyle, readStyle, STYLE_KEYS, stylePoints, styleValue, type StyleValue } from './style.ts';
 import { mediaURL } from './network.ts';
 import { hasPermission, itemsOf, nextIdentifier, send, state } from './state.ts';
 import type { Rect, WindowState } from '../protocol.ts';
@@ -30,6 +30,9 @@ const { max, floor, sqrt } = Math;
 const queueTask = queueMicrotask.bind(globalThis);
 
 const COMPONENT_EVENTS = ['framechange', 'click', 'dblclick', 'mousedown', 'mouseup', 'mouseenter', 'mouseleave', 'mousemove', 'wheel'];
+const STYLE_NAMES = new Set(STYLE_KEYS);
+/** In Yoga these win over flex, whichever was set first; in CSS flex sets them */
+const FLEX_LONGHANDS = ['flexGrow', 'flexShrink', 'flexBasis'];
 const MAX_WINDOWS = 16;
 
 /** Which component an element is, for finding what the pointer is on */
@@ -50,8 +53,7 @@ export class ComponentImpl extends Evented {
     this.element.style.cssText = BASE_CSS + this.element.style.cssText;
     componentOf.set(this.element, this);
     this.styleObject = createStyle(this.styleValues, (key, value) => this.setStyle(key, value));
-    const style = options?.style;
-    if (style && typeof style === 'object') this.style = style as Record<string, unknown>;
+    this.style = options?.style as Record<string, unknown>;
   }
 
   get style(): Record<string, unknown> {
@@ -59,32 +61,26 @@ export class ComponentImpl extends Evented {
   }
 
   set style(value: Record<string, unknown>) {
+    // read in full before it replaces the style (`component.style = component.style` keeps it); anything but an
+    // object, an array or a typed array leaves it as it is
+    const entries = readStyle(value);
+    if (!entries) return;
     for (const key of [...this.styleValues.keys()]) this.setStyle(key, null);
-    if (!value || typeof value !== 'object') return;
-    // what can't be read or converted (a getter or a Proxy that throws, a value without a string form) is left out
-    // instead of throwing, the rest applies
-    let keys: string[];
-    try {
-      keys = Object.keys(value);
-    } catch {
-      return;
-    }
-    for (const key of keys) {
-      try {
-        this.setStyle(key, value[key]);
-      } catch {
-        // left out
-      }
-    }
+    for (const [key, item] of entries) this.setStyle(key, item);
   }
 
+  /** Sets one style property: a string or a number is kept as given, anything else unsets it */
   setStyle(key: string, value: unknown): void {
-    if (value === null || value === undefined) {
-      this.styleValues.delete(key);
-      applyStyle(this.element, key, null);
-      return;
+    if (!STYLE_NAMES.has(key)) return;
+    const item = styleValue(value);
+    if (item === null) this.styleValues.delete(key);
+    else this.styleValues.set(key, item);
+    applyStyle(this.element, key, item);
+    if (key === 'flex') {
+      for (const longhand of FLEX_LONGHANDS) {
+        if (this.styleValues.has(longhand)) applyStyle(this.element, longhand, this.styleValues.get(longhand)!);
+      }
     }
-    if (applyStyle(this.element, key, value)) this.styleValues.set(key, value as StyleValue);
   }
 
   get width(): number {
@@ -268,7 +264,7 @@ export class WindowImpl extends ComponentImpl {
     this.element.hidden = true;
     apply(setAdd, windows, [this]);
     try {
-      if (style && typeof style === 'object') this.style = style as Record<string, unknown>;
+      this.style = style as Record<string, unknown>;
       if (parentWindow) this.parentWindow = parentWindow;
       this.place();
     } catch (error) {
@@ -286,13 +282,14 @@ export class WindowImpl extends ComponentImpl {
   }
 
   override setStyle(key: string, value: unknown): void {
-    if (['left', 'top', 'width', 'height'].includes(key)) {
-      const number = typeof value === 'number' ? value : parseFloat(String(value));
-      if (value === null || value === undefined) this.styleValues.delete(key);
-      else if (Number.isFinite(number)) this.styleValues.set(key, value as StyleValue);
-      else return;
+    if (key === 'left' || key === 'top' || key === 'width' || key === 'height') {
+      // the frame, in points: kept as given like any style value, the default where it isn't a number of points
+      const item = styleValue(value);
+      if (item === null) this.styleValues.delete(key);
+      else this.styleValues.set(key, item);
+      const number = stylePoints(item);
       const field = key === 'left' ? 'x' : key === 'top' ? 'y' : key;
-      const fallback = { x: 0, y: 0, width: 400, height: 300 }[field as 'x' | 'y' | 'width' | 'height'];
+      const fallback = { x: 0, y: 0, width: 400, height: 300 }[field];
       this.frameRect = { ...this.frameRect, [field]: Number.isFinite(number) ? number : fallback };
       this.place();
       return;
@@ -498,9 +495,11 @@ export class CanvasImpl extends ComponentImpl {
     const canvas = document.createElement('canvas');
     super(options, canvas);
     this.canvas = canvas;
-    // 300 × 150 when it's given no size, as on the web
-    if (!this.styleValues.has('width') && !this.styleValues.has('flex') && !this.styleValues.has('flexGrow')) this.setStyle('width', 300);
-    if (!this.styleValues.has('height') && !this.styleValues.has('flex') && !this.styleValues.has('flexGrow')) this.setStyle('height', 150);
+    // 300 × 150 when it's given no style, as in the app
+    if (this.styleValues.size === 0) {
+      this.setStyle('width', 300);
+      this.setStyle('height', 150);
+    }
     // a drawing buffer that wasn't sized follows the layout
     this.sizeObserver = new ResizeObserver(() => {
       const rect = canvas.getBoundingClientRect();
@@ -515,12 +514,6 @@ export class CanvasImpl extends ComponentImpl {
       this.emit('webglcontextlost', { type: 'webglcontextlost', statusMessage: 'the GPU stopped the canvas\' work', preventDefault() {} });
     });
     canvas.addEventListener('contextlost', () => this.emit('contextlost', { type: 'contextlost', statusMessage: 'the GPU stopped the canvas\' work', preventDefault() {} }));
-  }
-
-  override setStyle(key: string, value: unknown): void {
-    super.setStyle(key, value);
-    // the element is the canvas (this.canvas isn't set yet while the constructor applies the first style)
-    if (key === 'imageRendering') this.element.style.imageRendering = value === 'crisp-edges' ? 'pixelated' : String(value ?? '');
   }
 
   override get width(): number {
