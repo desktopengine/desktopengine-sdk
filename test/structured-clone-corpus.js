@@ -149,14 +149,20 @@ function runCorpus(done, options) {
 
   // MARK: What's copied
 
-  /** A Proxy of an object of a class, which the class' getter doesn't take for one (node's Blob does) */
-  const notTakenForOne = (proxy, Class, name) => {
-    try {
-      Object.getOwnPropertyDescriptor(Class.prototype, name).get.call(proxy);
-      return UNAVAILABLE;
-    } catch {
-      return proxy;
+  /**
+   * A Proxy of an object of a class, which none of the getters, each a [Class, name], takes for one: node's Blob does,
+   * and node 22's File, whose own getters don't, inherits it
+   */
+  const notTakenForOne = (proxy, ...getters) => {
+    for (const [Class, name] of getters) {
+      try {
+        Object.getOwnPropertyDescriptor(Class.prototype, name).get.call(proxy);
+        return UNAVAILABLE;
+      } catch {
+        // not taken: the next getter
+      }
     }
+    return proxy;
   };
 
   const accepted = {
@@ -364,9 +370,9 @@ function runCorpus(done, options) {
     'the navigator': () => (typeof navigator === 'object' ? navigator : UNAVAILABLE),
     // what only inherits a class of data, or wraps one: copied as an object of its own properties, not refused
     'an object made from the Blob prototype': () => Object.create(Blob.prototype),
-    'a proxy of a Blob': () => notTakenForOne(new Proxy(new Blob(['x']), {}), Blob, 'size'),
+    'a proxy of a Blob': () => notTakenForOne(new Proxy(new Blob(['x']), {}), [Blob, 'size']),
     'an object made from the File prototype': () => Object.create(File.prototype),
-    'a proxy of a File': () => notTakenForOne(new Proxy(new File(['x'], 'f.txt'), {}), File, 'name'),
+    'a proxy of a File': () => notTakenForOne(new Proxy(new File(['x'], 'f.txt'), {}), [Blob, 'size'], [File, 'name']),
     'one inside an object': () => ({ inner: Object.create(Blob.prototype), n: 1 }),
     'an object of a function made to inherit Blob': () => {
       function Fake() {
