@@ -93,20 +93,41 @@ export interface TopEdge {
   width: number;
 }
 
+// taken before a content runs in the frame, whose realm this module shares: the host's messages are read whatever the
+// content did to Array and Number
+const { isArray } = Array;
+const { isFinite } = Number;
+
 /** The windows of an `app-windows` message (or the launch's), as the app gives them: finite numbers and booleans */
 export function readAppWindows(value: unknown): AppWindowInfo[] {
-  if (!Array.isArray(value)) return [];
-  const finite = (number: unknown) => (typeof number === 'number' && Number.isFinite(number) ? number : 0);
-  return value.map((raw: Partial<AppWindowInfo> | null) => {
+  if (!isArray(value)) return [];
+  const finite = (number: unknown) => (typeof number === 'number' && isFinite(number) ? number : 0);
+  const windows: AppWindowInfo[] = [];
+  for (let index = 0; index < value.length; index++) {
+    const raw = value[index] as Partial<AppWindowInfo> | null;
     const frame = (raw?.frame ?? {}) as Partial<Rect>;
-    return {
+    windows[index] = {
       id: finite(raw?.id),
       frame: { x: finite(frame.x), y: finite(frame.y), width: finite(frame.width), height: finite(frame.height) },
       isActiveApp: raw?.isActiveApp === true,
       isFullScreen: raw?.isFullScreen === true,
       isFloating: raw?.isFloating === true,
     };
-  });
+  }
+  return windows;
+}
+
+/** Whether two lists of windows read by readAppWindows are the same */
+export function sameAppWindows(a: AppWindowInfo[], b: AppWindowInfo[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let index = 0; index < a.length; index++) {
+    const one = a[index];
+    const other = b[index];
+    if (one.id !== other.id || one.isActiveApp !== other.isActiveApp || one.isFullScreen !== other.isFullScreen
+      || one.isFloating !== other.isFloating || one.frame.x !== other.frame.x || one.frame.y !== other.frame.y
+      || one.frame.width !== other.frame.width || one.frame.height !== other.frame.height) return false;
+  }
+  return true;
 }
 
 /**

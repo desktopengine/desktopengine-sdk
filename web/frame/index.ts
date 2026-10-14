@@ -9,7 +9,7 @@
 // the pointer, and tells the host where its windows are.
 
 import { contentFunction } from './realm.ts';
-import { readAppWindows, visibleTopEdges, type AppWindowInfo, type FrameMessage, type HostMessage, type LaunchMessage, type ParameterValue, type TopEdge, type WebScreen } from '../protocol.ts';
+import { readAppWindows, sameAppWindows, visibleTopEdges, type AppWindowInfo, type FrameMessage, type HostMessage, type LaunchMessage, type ParameterValue, type TopEdge, type WebScreen } from '../protocol.ts';
 import { CanvasImageImpl, CanvasImpl, ComponentImpl, componentOf, ImageImpl, VideoImpl, WindowImpl, allVideos, allWindows, reportWindows, unwrap, windowById } from './components.ts';
 import { Evented, defineEvents } from './events.ts';
 import { createFileSystem, loadPackage, requireFrom } from './files.ts';
@@ -20,12 +20,45 @@ import { createMessaging } from './clone.ts';
 import { installMessageEvent } from './message-event.ts';
 import { createPath2D } from './path2d.ts';
 import { cancelAnimationFrame, clearTimer, hostFrame, requestAnimationFrame, setInterval, setTimeout, startStats } from './scheduler.ts';
-import { guard, hasPermission, report, send, state } from './state.ts';
+import { guard, hasPermission, itemsOf, list, report, send, state } from './state.ts';
 import { installStorage } from './storage.ts';
 import { engineConstructor, standIn } from './stand-ins.ts';
 import { RESTRICTED_BAND_COUNT, RESTRICTED_QUANTUM, FINE_BAND_COUNT, emptySnapshot, isAudible, mergeBands, normalizedLevel, restrictedRefresh, syntheticSnapshot, type Snapshot } from '../system-audio.ts';
 
 const scope = globalThis as unknown as Record<string, unknown> & typeof globalThis;
+
+// what the content may replace, taken before it runs: the host's messages are handled, and the console, postMessage
+// and the events work, whatever the content did to the language's prototypes and globals, as in the engine, where
+// they're native
+const { apply } = Reflect;
+const { values: objectValues, keys: objectKeys, freeze, defineProperty, getOwnPropertyDescriptor, getPrototypeOf, setPrototypeOf } = Object;
+const { defineProperty: reflectDefine, deleteProperty: reflectDelete } = Reflect;
+const { stringify, parse } = JSON;
+const { isFinite } = Number;
+const { max, floor, hypot } = Math;
+const toNumber = Number;
+const toText = String;
+const ErrorClass = Error;
+const Float32ArrayClass = Float32Array;
+const typedArrayLength = getOwnPropertyDescriptor(getPrototypeOf(Uint8Array.prototype) as object, 'length')!.get!;
+const PromiseClass = Promise;
+const { then } = Promise.prototype;
+const { resolve: promiseResolve, reject: promiseReject } = Promise;
+const { get: mapGet, set: mapSet, has: mapHas, delete: mapDelete, forEach: mapForEach } = Map.prototype;
+const { add: setAdd, delete: setDelete } = Set.prototype;
+const { get: weakMapGet, set: weakMapSet } = WeakMap.prototype;
+const { has: weakSetHas, add: weakSetAdd } = WeakSet.prototype;
+const now = performance.now.bind(performance);
+const contains = <T>(items: T[], item: T): boolean => {
+  for (let index = 0; index < items.length; index++) if (items[index] === item) return true;
+  return false;
+};
+/** A promise's failure dropped */
+const ignoreFailure = (promise: Promise<unknown>): void => {
+  apply(then, promise, [undefined, () => undefined]);
+};
+/** A descriptor without a prototype: defining with it reads none of what the content put on Object.prototype */
+const descriptor = (fields: PropertyDescriptor): PropertyDescriptor => setPrototypeOf(fields, null) as PropertyDescriptor;
 
 // MARK: System and screens
 
@@ -109,8 +142,10 @@ class InputImpl extends Evented {
   }
 
   protected override listenersChanged(_name: string): void {
+    let listensForMouse = false;
+    for (let index = 0; index < MOUSE_EVENTS.length && !listensForMouse; index++) listensForMouse = this.listens(MOUSE_EVENTS[index]);
     const wanted = {
-      mouse: hasPermission('mouse') && MOUSE_EVENTS.some((name) => this.listens(name)),
+      mouse: hasPermission('mouse') && listensForMouse,
       keys: this.keyActivityAvailable && this.listens('keyactivity'),
     };
     if (wanted.mouse === inputWanted.mouse && wanted.keys === inputWanted.keys) return;
@@ -122,9 +157,9 @@ defineEvents(InputImpl.prototype, [...MOUSE_EVENTS, 'keyactivity']);
 
 function globalMouse(message: Extract<HostMessage, { type: 'global-mouse' }>): void {
   if (!hasPermission('mouse')) return;
-  const x = Number(message.x);
-  const y = Number(message.y);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  const x = toNumber(message.x);
+  const y = toNumber(message.y);
+  if (!isFinite(x) || !isFinite(y)) return;
   lastPointer = { x, y };
   switch (message.kind) {
     case 'move':
@@ -132,10 +167,10 @@ function globalMouse(message: Extract<HostMessage, { type: 'global-mouse' }>): v
       break;
     case 'down':
     case 'up':
-      input.emit(message.kind === 'down' ? 'mousedown' : 'mouseup', { x, y, button: Number(message.button) || 0 });
+      input.emit(message.kind === 'down' ? 'mousedown' : 'mouseup', { x, y, button: toNumber(message.button) || 0 });
       break;
     case 'wheel':
-      input.emit('wheel', { x, y, deltaX: Number(message.deltaX) || 0, deltaY: Number(message.deltaY) || 0 });
+      input.emit('wheel', { x, y, deltaX: toNumber(message.deltaX) || 0, deltaY: toNumber(message.deltaY) || 0 });
       break;
   }
 }
@@ -146,7 +181,7 @@ function globalMouse(message: Extract<HostMessage, { type: 'global-mouse' }>): v
 let pageAudio: Snapshot | null = null;
 /** When the page's sound was last audible (performance.now()) */
 let pageAudibleAt = -Infinity;
-const systemAudioStart = performance.now();
+const systemAudioStart = now();
 /**
  * The analysis the content reads, one for all of it as in the app; without the detailed analysis, a new one only when
  * `next` (performance.now()) is due, see restrictedRefresh
@@ -162,13 +197,13 @@ let systemAudio: SystemAudioImpl | null = null;
 function settleSingleton(key: 'systemAudio' | 'windows', value: object): void {
   const desktopEngine = scope.DesktopEngine;
   if (typeof desktopEngine !== 'object' || desktopEngine === null) return;
-  if (Reflect.deleteProperty(desktopEngine, key)) {
-    Reflect.defineProperty(desktopEngine, key, { value, writable: false, enumerable: true, configurable: true });
+  if (reflectDelete(desktopEngine, key)) {
+    reflectDefine(desktopEngine, key, descriptor({ value, writable: false, enumerable: true, configurable: true }));
   }
 }
 
 function systemAudioActive(): boolean {
-  return pageAudio === null || performance.now() - pageAudibleAt < 1000;
+  return pageAudio === null || now() - pageAudibleAt < 1000;
 }
 
 /**
@@ -270,12 +305,12 @@ defineEvents(SystemAudioImpl.prototype, ['activechange']);
 
 function pageSystemAudio(message: Extract<HostMessage, { type: 'system-audio' }>): void {
   if (!state.launch || state.launch.systemAudio === 'none') return;
-  if (message.bands instanceof Float32Array && message.bands.length === FINE_BAND_COUNT) {
+  if (message.bands instanceof Float32ArrayClass && apply(typedArrayLength, message.bands, []) === FINE_BAND_COUNT) {
     // the page's sound starting counts as audible: its first moments may be quiet
-    if (!pageAudio) pageAudibleAt = performance.now();
-    pageAudio = { bands: message.bands, level: Number(message.level) || 0 };
+    if (!pageAudio) pageAudibleAt = now();
+    pageAudio = { bands: message.bands, level: toNumber(message.level) || 0 };
     // as in the app: a sample since the page's last analysis louder than -60 dB, not the smoothed level
-    if (isAudible(Number(message.peak))) pageAudibleAt = performance.now();
+    if (isAudible(toNumber(message.peak))) pageAudibleAt = now();
   } else {
     pageAudio = null;
   }
@@ -315,7 +350,7 @@ defineEvents(WindowsImpl.prototype, ['change']);
 function updateAppWindows(value: unknown): void {
   if (!hasPermission('window-positions')) return;
   const next = readAppWindows(value);
-  if (JSON.stringify(next) === JSON.stringify(appWindows)) return;
+  if (sameAppWindows(next, appWindows)) return;
   appWindows = next;
   windows?.emit('change');
 }
@@ -338,7 +373,7 @@ const contentMuted = new WeakMap<HTMLMediaElement, boolean>();
  * Audio elements to start when the sound may start (applyAudio), with the play() calls waiting for it: ones the browser
  * held back until the visitor pressed in the frame, and ones paused while the content is (suspended)
  */
-const heldPlays = new Map<HTMLAudioElement, { resolve: () => void; reject: (error: unknown) => void }[]>();
+const heldPlays = new Map<HTMLAudioElement, HeldPlay[]>();
 const nativeMuted = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'muted')!;
 const nativePlay = HTMLMediaElement.prototype.play;
 const nativePause = HTMLMediaElement.prototype.pause;
@@ -347,61 +382,68 @@ function audioAllowed(): boolean {
   return hasPermission('audio') && !state.muted && !state.suspended;
 }
 
+type HeldPlay = { resolve: () => void; reject: (error: unknown) => void };
+
 function applyAudio(): void {
-  for (const entry of audioContexts) {
+  const contexts = itemsOf(audioContexts);
+  for (let index = 0; index < contexts.length; index++) {
+    const entry = contexts[index];
     if (entry.context.state === 'closed') continue;
-    if (audioAllowed() && entry.wantsRunning) entry.context.resume().catch(() => undefined);
-    else entry.context.suspend().catch(() => undefined);
+    if (audioAllowed() && entry.wantsRunning) ignoreFailure(entry.context.resume());
+    else ignoreFailure(entry.context.suspend());
   }
-  for (const video of allVideos()) video.applyAudio();
-  for (const element of audioElements) applyElementAudio(element);
+  const videos = allVideos();
+  for (let index = 0; index < videos.length; index++) videos[index].applyAudio();
+  const elements = itemsOf(audioElements);
+  for (let index = 0; index < elements.length; index++) applyElementAudio(elements[index]);
   if (state.suspended) {
     // as in the app: playing Audio elements pause while the content is paused, and go on afterwards
-    for (const element of audioElements) {
+    for (let index = 0; index < elements.length; index++) {
+      const element = elements[index];
       if (element.paused) continue;
-      nativePause.call(element);
-      if (!heldPlays.has(element)) heldPlays.set(element, []);
+      apply(nativePause, element, []);
+      if (!apply(mapHas, heldPlays, [element])) apply(mapSet, heldPlays, [element, list<HeldPlay>()]);
     }
     return;
   }
-  for (const [element, held] of heldPlays) {
-    nativePlay.call(element).then(() => {
-      if (heldPlays.get(element) !== held) return;
-      heldPlays.delete(element);
-      for (const play of held) play.resolve();
+  apply(mapForEach, heldPlays, [(held: HeldPlay[], element: HTMLAudioElement) => {
+    apply(then, apply(nativePlay, element, []), [() => {
+      if (apply(mapGet, heldPlays, [element]) !== held) return;
+      apply(mapDelete, heldPlays, [element]);
+      for (let index = 0; index < held.length; index++) held[index].resolve();
     }, (error: unknown) => {
-      if ((error instanceof DOMException && error.name === 'NotAllowedError') || heldPlays.get(element) !== held) return;
-      heldPlays.delete(element);
-      audioElements.delete(element);
-      for (const play of held) play.reject(error);
-    });
-  }
+      if ((error instanceof DOMException && error.name === 'NotAllowedError') || apply(mapGet, heldPlays, [element]) !== held) return;
+      apply(mapDelete, heldPlays, [element]);
+      apply(setDelete, audioElements, [element]);
+      for (let index = 0; index < held.length; index++) held[index].reject(error);
+    }]);
+  }]);
 }
 
 function applyElementAudio(element: HTMLMediaElement): void {
-  nativeMuted.set!.call(element, (contentMuted.get(element) ?? false) || state.muted || !hasPermission('audio'));
+  apply(nativeMuted.set!, element, [((apply(weakMapGet, contentMuted, [element]) as boolean | undefined) ?? false) || state.muted || !hasPermission('audio')]);
 }
 
 /** Without the audio permission an AudioContext stays suspended and play() fails, as in the app */
 function installAudio(): void {
   const NativeAudioContext = scope.AudioContext;
   if (NativeAudioContext) {
+    // the browser's, taken before the content runs: applyAudio resumes and suspends the contexts through them
+    const { resume, suspend } = NativeAudioContext.prototype;
     class AudioContext extends NativeAudioContext {
       constructor(options?: AudioContextOptions) {
         super(options);
         const entry = { context: this as globalThis.AudioContext, wantsRunning: true };
-        audioContexts.add(entry);
-        const resume = NativeAudioContext.prototype.resume;
+        apply(setAdd, audioContexts, [entry]);
         this.resume = () => {
           entry.wantsRunning = true;
-          return audioAllowed() ? resume.call(this) : Promise.resolve();
+          return audioAllowed() ? apply(resume, this, []) as Promise<void> : apply(promiseResolve, PromiseClass, []) as Promise<void>;
         };
-        const suspend = NativeAudioContext.prototype.suspend;
         this.suspend = () => {
           entry.wantsRunning = false;
-          return suspend.call(this);
+          return apply(suspend, this, []) as Promise<void>;
         };
-        if (!audioAllowed()) suspend.call(this).catch(() => undefined);
+        if (!audioAllowed()) ignoreFailure(apply(suspend, this, []) as Promise<void>);
       }
     }
     // named and of the length the engine's is, whatever the bundler calls it (structuredClone refuses "A AudioContext")
@@ -415,46 +457,53 @@ function installAudio(): void {
       configurable: true,
       enumerable: true,
       get(this: HTMLAudioElement) {
-        return contentMuted.get(this) ?? false;
+        return (apply(weakMapGet, contentMuted, [this]) as boolean | undefined) ?? false;
       },
       set(this: HTMLAudioElement, value: unknown) {
-        contentMuted.set(this, Boolean(value));
+        apply(weakMapSet, contentMuted, [this, !!value]);
         applyElementAudio(this);
       },
     });
+    // with the language's functions as they were before the content ran: a Video's element plays through them too, also
+    // when the content resumes
+    const AudioElement = HTMLAudioElement;
     HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
-      if (!(this instanceof HTMLAudioElement)) return nativePlay.call(this);
+      if (!(this instanceof AudioElement)) return apply(nativePlay, this, []) as Promise<void>;
       if (!hasPermission('audio')) {
-        return Promise.reject(new DOMException('playing sound needs the "audio" permission in manifest.json', 'NotAllowedError'));
+        return apply(promiseReject, PromiseClass, [new DOMException('playing sound needs the "audio" permission in manifest.json', 'NotAllowedError')]) as Promise<void>;
       }
       const element = this;
-      if (!endWatched.has(element)) {
-        endWatched.add(element);
-        element.addEventListener('ended', () => audioElements.delete(element));
+      if (!apply(weakSetHas, endWatched, [element])) {
+        apply(weakSetAdd, endWatched, [element]);
+        element.addEventListener('ended', () => apply(setDelete, audioElements, [element]));
       }
-      audioElements.add(element);
+      apply(setAdd, audioElements, [element]);
       applyElementAudio(element);
-      const hold = () => new Promise<void>((resolve, reject) => {
-        const held = heldPlays.get(element) ?? [];
-        held.push({ resolve, reject });
-        heldPlays.set(element, held);
+      const hold = () => new PromiseClass<void>((resolve, reject) => {
+        const held = (apply(mapGet, heldPlays, [element]) as HeldPlay[] | undefined) ?? list<HeldPlay>();
+        held[held.length] = { resolve, reject };
+        apply(mapSet, heldPlays, [element, held]);
       });
       if (state.suspended) return hold();
       // a browser plays sound in the frame only after the visitor pressed in it: the play waits for that (applyAudio)
       // instead of failing, as there is nothing to wait for in the app
-      return nativePlay.call(element).catch((error: unknown) => {
+      return apply(then, apply(nativePlay, element, []), [undefined, (error: unknown) => {
         if (!(error instanceof DOMException && error.name === 'NotAllowedError')) throw error;
         return hold();
-      });
+      }]) as Promise<void>;
     };
     HTMLMediaElement.prototype.pause = function (this: HTMLMediaElement) {
-      if (this instanceof HTMLAudioElement) {
-        const held = heldPlays.get(this);
-        heldPlays.delete(this);
-        audioElements.delete(this);
-        for (const play of held ?? []) play.reject(new DOMException('The play() request was interrupted by a call to pause()', 'AbortError'));
+      if (this instanceof AudioElement) {
+        const held = apply(mapGet, heldPlays, [this]) as HeldPlay[] | undefined;
+        apply(mapDelete, heldPlays, [this]);
+        apply(setDelete, audioElements, [this]);
+        if (held) {
+          for (let index = 0; index < held.length; index++) {
+            held[index].reject(new DOMException('The play() request was interrupted by a call to pause()', 'AbortError'));
+          }
+        }
       }
-      nativePause.call(this);
+      apply(nativePause, this, []);
     };
   }
 }
@@ -513,17 +562,25 @@ function installPointerInput(): void {
 // MARK: Console
 
 function format(values: unknown[]): string {
-  return values
-    .map((value) => {
-      if (typeof value === 'string') return value;
-      if (value instanceof Error) return `${value.name}: ${value.message}`;
+  let text = '';
+  for (let index = 0; index < values.length; index++) {
+    const value = values[index];
+    let part: string | undefined;
+    if (typeof value === 'string') {
+      part = value;
+    } else if (value instanceof ErrorClass) {
+      part = `${value.name}: ${value.message}`;
+    } else {
       try {
-        return typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value);
+        part = typeof value === 'object' && value !== null ? stringify(value) : toText(value);
       } catch {
-        return String(value);
+        part = toText(value);
       }
-    })
-    .join(' ');
+    }
+    // as join() writes them: what JSON leaves out is nothing
+    text += `${index > 0 ? ' ' : ''}${part ?? ''}`;
+  }
+  return text;
 }
 
 /**
@@ -594,7 +651,7 @@ function installNavigator(locale: unknown): void {
 function installConsole(): void {
   const original = scope.console;
   const forward = (level: 'log' | 'info' | 'warn' | 'error' | 'debug') => (...values: unknown[]) => {
-    original[level](...values);
+    apply(original[level], original, values);
     send({ type: 'console', level, message: format(values) });
   };
   scope.console = { ...original, log: forward('log'), info: forward('info'), warn: forward('warn'), error: forward('error'), debug: forward('debug') };
@@ -609,8 +666,9 @@ function named<T extends object>(constructor: T, name: string): T {
 
 function deepFreeze<T>(value: T): T {
   if (value && typeof value === 'object') {
-    for (const item of Object.values(value)) deepFreeze(item);
-    Object.freeze(value);
+    const items = objectValues(value);
+    for (let index = 0; index < items.length; index++) deepFreeze(items[index]);
+    freeze(value);
   }
   return value;
 }
@@ -626,11 +684,12 @@ function updateLaunchOptions(): void {
   if (typeof desktopEngine !== 'object' || desktopEngine === null) return;
   const current = (desktopEngine.launchOptions ?? {}) as Record<string, unknown>;
   const updated: Record<string, unknown> = {};
-  for (const key of Object.keys(current)) updated[key] = current[key];
+  const keys = objectKeys(current);
+  for (let index = 0; index < keys.length; index++) updated[keys[index]] = current[keys[index]];
   updated.parameters = parameters;
-  Object.freeze(updated);
+  freeze(updated);
   try {
-    Object.defineProperty(desktopEngine, 'launchOptions', { value: updated, enumerable: true, configurable: true });
+    defineProperty(desktopEngine, 'launchOptions', descriptor({ value: updated, enumerable: true, configurable: true }));
   } catch {
     try {
       desktopEngine.launchOptions = updated;
@@ -824,7 +883,7 @@ function launch(message: LaunchMessage): void {
   });
   // the engine's global postMessage(name, message): 'host' reaches the app, here the page
   scope.postMessage = ((name: unknown, payload?: unknown) => {
-    if (name === 'host') send({ type: 'host-message', message: JSON.parse(JSON.stringify(payload ?? null)) });
+    if (name === 'host') send({ type: 'host-message', message: parse(stringify(payload ?? null)) });
   }) as typeof scope.postMessage;
   // of the length the engine's is (and anonymous, as it is)
   Object.defineProperty(scope.postMessage, 'length', { value: 0, configurable: true });
@@ -842,7 +901,7 @@ function launch(message: LaunchMessage): void {
 
 // MARK: The pointer
 
-let hovered: ComponentImpl[] = [];
+let hovered = list<ComponentImpl>();
 let pressed: { chain: ComponentImpl[]; x: number; y: number; moved: boolean } | null = null;
 let lastClick = { time: 0, x: 0, y: 0, target: null as ComponentImpl | null };
 
@@ -850,10 +909,12 @@ let lastClick = { time: 0, x: 0, y: 0, target: null as ComponentImpl | null };
 function chainAt(win: WindowImpl, x: number, y: number): ComponentImpl[] {
   const element = document.elementFromPoint(x, y);
   let component: ComponentImpl | null = null;
-  for (let node: Element | null = element; node && !component; node = node.parentElement) component = componentOf.get(node) ?? null;
+  for (let node: Element | null = element; node && !component; node = node.parentElement) {
+    component = (apply(weakMapGet, componentOf, [node]) as ComponentImpl | undefined) ?? null;
+  }
   if (!component || component.rootWindow !== win) component = win;
-  const chain: ComponentImpl[] = [];
-  for (let node: ComponentImpl | null = component; node; node = node.parent) chain.push(node);
+  const chain = list<ComponentImpl>();
+  for (let node: ComponentImpl | null = component; node; node = node.parent) chain[chain.length] = node;
   return chain;
 }
 
@@ -866,46 +927,53 @@ function mousePayload(component: ComponentImpl, message: Extract<HostMessage, { 
     metaKey: message.metaKey,
     shiftKey: message.shiftKey,
     button,
-    buttons: Number(message.buttons) || 0,
+    buttons: toNumber(message.buttons) || 0,
   };
 }
 
 function click(chain: ComponentImpl[], message: Extract<HostMessage, { type: 'pointer' }>): void {
-  const now = performance.now();
-  const double = now - lastClick.time < 400 && Math.hypot(message.x - lastClick.x, message.y - lastClick.y) < 5 && lastClick.target === chain[0];
-  lastClick = { time: double ? 0 : now, x: message.x, y: message.y, target: chain[0] };
-  for (const component of chain) {
-    component.emit(double ? 'dblclick' : 'click', mousePayload(component, message));
+  const time = now();
+  const double = time - lastClick.time < 400 && hypot(message.x - lastClick.x, message.y - lastClick.y) < 5 && lastClick.target === chain[0];
+  lastClick = { time: double ? 0 : time, x: message.x, y: message.y, target: chain[0] };
+  for (let index = 0; index < chain.length; index++) {
+    chain[index].emit(double ? 'dblclick' : 'click', mousePayload(chain[index], message));
   }
 }
 
 function pointer(message: Extract<HostMessage, { type: 'pointer' }>): void {
   const win = message.window ? windowById(message.window) : undefined;
+  // each component told in turn, as the list was when the pointer moved
+  const tell = (components: ComponentImpl[], name: string, button?: number, unless?: ComponentImpl[]) => {
+    for (let index = 0; index < components.length; index++) {
+      const component = components[index];
+      if (!unless || !contains(unless, component)) component.emit(name, mousePayload(component, message, button));
+    }
+  };
   if (message.kind === 'leave' || !win) {
-    for (const component of hovered) component.emit('mouseleave', mousePayload(component, message));
-    hovered = [];
+    tell(hovered, 'mouseleave');
+    hovered = list();
     return;
   }
   const chain = chainAt(win, message.x, message.y);
   switch (message.kind) {
     case 'move': {
-      for (const component of hovered) if (!chain.includes(component)) component.emit('mouseleave', mousePayload(component, message));
-      for (const component of chain) if (!hovered.includes(component)) component.emit('mouseenter', mousePayload(component, message));
+      tell(hovered, 'mouseleave', undefined, chain);
+      tell(chain, 'mouseenter', undefined, hovered);
       hovered = chain;
       // while pressed, the components the press began on follow the pointer (mouseDragged goes up the views)
       const targets = pressed ? pressed.chain : chain;
-      if (pressed && Math.hypot(message.x - pressed.x, message.y - pressed.y) > 3) pressed.moved = true;
-      for (const component of targets) component.emit('mousemove', mousePayload(component, message));
+      if (pressed && hypot(message.x - pressed.x, message.y - pressed.y) > 3) pressed.moved = true;
+      tell(targets, 'mousemove');
       break;
     }
     case 'down':
       pressed = { chain, x: message.x, y: message.y, moved: false };
-      for (const component of chain) component.emit('mousedown', mousePayload(component, message, message.button));
+      tell(chain, 'mousedown', message.button);
       break;
     case 'up': {
       const press = pressed;
       pressed = null;
-      for (const component of press?.chain ?? chain) component.emit('mouseup', mousePayload(component, message, message.button));
+      tell(press?.chain ?? chain, 'mouseup', message.button);
       // only the primary button clicks
       if (press && !press.moved && message.button === 0) click(chain, message);
       break;
@@ -938,7 +1006,7 @@ scope.addEventListener('message', (event: MessageEvent) => {
       if (state.launch) globalMouse(message);
       break;
     case 'key-activity':
-      if (state.launch?.keyActivity) input.emit('keyactivity', { count: Math.max(1, Math.floor(Number(message.count) || 0)) });
+      if (state.launch?.keyActivity) input.emit('keyactivity', { count: max(1, floor(toNumber(message.count) || 0)) });
       break;
     case 'system-audio':
       pageSystemAudio(message);
@@ -947,7 +1015,7 @@ scope.addEventListener('message', (event: MessageEvent) => {
       if (state.launch) updateAppWindows(message.windows);
       break;
     case 'cursor':
-      document.documentElement.style.cursor = String(message.cursor);
+      document.documentElement.style.cursor = toText(message.cursor);
       break;
     case 'move-window':
       windowById(message.window)?.moveTo(message.x, message.y);
@@ -961,7 +1029,11 @@ scope.addEventListener('message', (event: MessageEvent) => {
       parameters = deepFreeze({ ...message.parameters });
       updateLaunchOptions();
       const handled = system.listens('parameterschange');
-      if (handled) system.emit('parameterschange', { parameters, changed: [...message.changed] });
+      if (handled) {
+        const changed: string[] = [];
+        for (let index = 0; index < message.changed.length; index++) changed[index] = message.changed[index];
+        system.emit('parameterschange', { parameters, changed });
+      }
       send({ type: 'parameters-result', handled });
       break;
     }
@@ -977,18 +1049,25 @@ scope.addEventListener('message', (event: MessageEvent) => {
       state.muted = message.muted;
       state.hostMaxFramesPerSecond = message.maxFramesPerSecond;
       const visible = !state.suspended && !state.renderingPaused;
-      if (visible !== wasVisible) for (const win of allWindows()) win.visibilityChanged(visible);
-      for (const video of allVideos()) video.suspend(state.suspended);
+      if (visible !== wasVisible) {
+        const shown = allWindows();
+        for (let index = 0; index < shown.length; index++) shown[index].visibilityChanged(visible);
+      }
+      const videos = allVideos();
+      for (let index = 0; index < videos.length; index++) videos[index].suspend(state.suspended);
       applyAudio();
       break;
     }
     case 'broadcast':
       if (state.launch) channels.receive(message);
       break;
-    case 'stop':
-      for (const win of allWindows()) win.destroy();
-      for (const entry of audioContexts) entry.context.close().catch(() => undefined);
+    case 'stop': {
+      const made = allWindows();
+      for (let index = 0; index < made.length; index++) made[index].destroy();
+      const contexts = itemsOf(audioContexts);
+      for (let index = 0; index < contexts.length; index++) ignoreFailure(contexts[index].context.close());
       break;
+    }
   }
 });
 

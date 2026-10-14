@@ -46,38 +46,65 @@ const ENGINE = [
   'ChannelMergerNode', 'PeriodicWave',
 ];
 
-const VISIBLE = new Set([...LANGUAGE, ...ENGINE]);
-const ENGINE_GLOBALS = new Set(ENGINE);
+// what the content may replace, taken before it runs: every name the content looks up goes through the scope and
+// global proxies below, so they read nothing it can change (Set.prototype.has, Array.prototype's iterator, Reflect's
+// and Object's functions, Function.prototype.call), as the engine's lookups don't. Their handlers and the descriptors
+// they give have no prototype: a proxy looks a trap or a descriptor's fields up through it, and would find what the
+// content put on Object.prototype.
+const { apply, construct, ownKeys, getOwnPropertyDescriptor, defineProperty, deleteProperty } = Reflect;
+const { create, setPrototypeOf } = Object;
+const ObjectPrototype = Object.prototype;
+const { bind } = Function.prototype;
+const FunctionClass = Function;
+const ProxyClass = Proxy;
+const { unscopables } = Symbol;
+
+/** An object or array without a prototype: what's read of it is its own */
+const bare = <T extends object>(object: T): T => setPrototypeOf(object, null) as T;
+
+/** Names, as a dictionary without a prototype: looking one up reads nothing the content may replace, as Set's has() would */
+type Names = Record<string, true>;
+function names(list: readonly string[]): Names {
+  const set = create(null) as Names;
+  for (let index = 0; index < list.length; index++) set[list[index]] = true;
+  return set;
+}
+
+const VISIBLE = names([...LANGUAGE, ...ENGINE]);
+const ENGINE_GLOBALS = names(ENGINE);
 /** Browser functions that throw unless `this` is the real global object */
-const BOUND = new Set(['queueMicrotask', 'atob', 'btoa', 'postMessage']);
+const BOUND = names(['queueMicrotask', 'atob', 'btoa', 'postMessage']);
 
 /** Whether the engine has a global of the name (a class of its own: the frame's may be the browser's) */
-export const isEngineGlobal = (name: string): boolean => ENGINE_GLOBALS.has(name);
+export const isEngineGlobal = (name: string): boolean => ENGINE_GLOBALS[name] === true;
 
 const realGlobal = globalThis as unknown as Record<PropertyKey, unknown>;
 /** The content's own globals: the hidden names it assigned, and the globals it created */
-const own: Record<PropertyKey, unknown> = Object.create(null);
+const own: Record<PropertyKey, unknown> = create(null);
 /** The bound functions given for BOUND names, with what they're bound from */
-const bound = new Map<string, { original: unknown; wrapper: unknown }>();
+const bound = create(null) as Record<string, { original: unknown; wrapper: unknown } | undefined>;
 
-const visible = (name: PropertyKey): name is string | symbol => typeof name === 'symbol' || VISIBLE.has(name as string);
+const visible = (name: PropertyKey): name is string | symbol => typeof name === 'symbol' || VISIBLE[name as string] === true;
 
 function visibleValue(name: string | symbol): unknown {
   const value = realGlobal[name];
-  if (typeof name !== 'string' || !BOUND.has(name) || typeof value !== 'function') return value;
-  let entry = bound.get(name);
+  if (typeof name !== 'string' || BOUND[name] !== true || typeof value !== 'function') return value;
+  let entry = bound[name];
   if (!entry || entry.original !== value) {
-    const wrapper = (value as (...args: unknown[]) => unknown).bind(realGlobal);
+    const wrapper = apply(bind, value, [realGlobal]) as object;
     // named as what it's bound from, as the engine's functions are ("The function atob can't be cloned")
-    Object.defineProperty(wrapper, 'name', { value: (value as { name: unknown }).name, configurable: true });
-    entry = { original: value, wrapper };
-    bound.set(name, entry);
+    defineProperty(wrapper, 'name', bare({ value: (value as { name: unknown }).name, configurable: true }));
+    entry = bare({ original: value as unknown, wrapper: wrapper as unknown });
+    bound[name] = entry;
   }
   return entry.wrapper;
 }
 
+/** A descriptor the proxies give or pass on, without a prototype (undefined stays undefined) */
+const bareDescriptor = (descriptor: PropertyDescriptor | undefined): PropertyDescriptor | undefined => descriptor && bare(descriptor);
+
 /** `globalThis`, `self` and `this` for the content */
-export const contentGlobal: Record<PropertyKey, unknown> = new Proxy(own, {
+export const contentGlobal: Record<PropertyKey, unknown> = new ProxyClass(own, bare<ProxyHandler<Record<PropertyKey, unknown>>>({
   get: (target, name) => (name === 'globalThis' || name === 'self' ? contentGlobal : visible(name) ? visibleValue(name) : target[name]),
   set: (target, name, value) => {
     if (visible(name)) realGlobal[name] = value;
@@ -85,43 +112,64 @@ export const contentGlobal: Record<PropertyKey, unknown> = new Proxy(own, {
     return true;
   },
   has: (target, name) => (visible(name) ? name in realGlobal : name in target),
-  deleteProperty: (target, name) => (visible(name) ? Reflect.deleteProperty(realGlobal, name) || true : Reflect.deleteProperty(target, name)),
-  ownKeys: (target) => [
-    ...Reflect.ownKeys(realGlobal).filter((name) => visible(name) && !Object.prototype.hasOwnProperty.call(target, name)),
-    ...Reflect.ownKeys(target),
-  ],
-  getOwnPropertyDescriptor: (target, name) => {
-    if (!visible(name)) return Reflect.getOwnPropertyDescriptor(target, name);
-    const descriptor = Reflect.getOwnPropertyDescriptor(realGlobal, name);
-    // the proxy's target doesn't have it, so it can't be reported as non-configurable
-    return descriptor && { ...descriptor, configurable: true };
+  deleteProperty: (target, name) => (visible(name) ? deleteProperty(realGlobal, name) || true : deleteProperty(target, name)),
+  ownKeys: (target) => {
+    // by index, into an array without a prototype: no iterator, filter or push the content may have replaced
+    const keys = bare<(string | symbol)[]>([]);
+    const globals = ownKeys(realGlobal);
+    for (let index = 0; index < globals.length; index++) {
+      const name = globals[index];
+      if (visible(name) && !getOwnPropertyDescriptor(target, name)) keys[keys.length] = name;
+    }
+    const created = ownKeys(target);
+    for (let index = 0; index < created.length; index++) keys[keys.length] = created[index];
+    return keys;
   },
-  defineProperty: (target, name, descriptor) => (visible(name) ? Reflect.defineProperty(realGlobal, name, descriptor) || true : Reflect.defineProperty(target, name, descriptor)),
-  getPrototypeOf: () => Object.prototype,
-});
+  getOwnPropertyDescriptor: (target, name) => {
+    if (!visible(name)) return bareDescriptor(getOwnPropertyDescriptor(target, name));
+    const descriptor = bareDescriptor(getOwnPropertyDescriptor(realGlobal, name));
+    // the proxy's target doesn't have it, so it can't be reported as non-configurable
+    if (descriptor) descriptor.configurable = true;
+    return descriptor;
+  },
+  defineProperty: (target, name, descriptor) => (visible(name)
+    ? defineProperty(realGlobal, name, bare(descriptor)) || true
+    : defineProperty(target, name, bare(descriptor))),
+  getPrototypeOf: () => ObjectPrototype,
+}));
 
 /** The names of a function's parameters resolve to them, not through the scope */
-function scopeFor(parameters: Set<string>): object {
-  return new Proxy(Object.create(null), {
-    has: (_target, name) => typeof name === 'string' && !parameters.has(name) && (name === 'globalThis' || name === 'self' || !VISIBLE.has(name)),
-    get: (_target, name) => (name === Symbol.unscopables ? undefined : name === 'globalThis' || name === 'self' ? contentGlobal : own[name]),
+function scopeFor(parameters: Names): object {
+  return new ProxyClass(create(null) as object, bare<ProxyHandler<object>>({
+    has: (_target, name) => typeof name === 'string' && parameters[name] !== true && (name === 'globalThis' || name === 'self' || VISIBLE[name] !== true),
+    get: (_target, name) => (name === unscopables ? undefined : name === 'globalThis' || name === 'self' ? contentGlobal : own[name]),
     set: (_target, name, value) => {
       own[name] = value;
       return true;
     },
-  });
+  }));
 }
 
 const SCOPE_PARAMETER = '__desktopEngineScope';
+/** Runs the content's function with `this` as given, whatever the content made of Function.prototype.call */
+const RUN_PARAMETER = '__desktopEngineRun';
+const run = (action: () => unknown, self: unknown): unknown => apply(action, self, []);
 
 /**
  * Compiles code to run with the content's globals; `parameters` are its arguments' names. The code keeps its lines:
  * it starts on the first line of the function's body.
  */
-export function contentFunction(code: string, sourceURL: string, parameters: string[] = []): (...args: unknown[]) => unknown {
+export function contentFunction(code: string, sourceURL: string, parameters: readonly string[] = []): (...args: unknown[]) => unknown {
+  // require compiles while the content runs: the lists by index, without spread or the content's iterator
+  const source = bare<string[]>([SCOPE_PARAMETER, RUN_PARAMETER]);
+  for (let index = 0; index < parameters.length; index++) source[source.length] = parameters[index];
+  const scope = scopeFor(names(source));
   // the wrapper isn't strict (`with`), the content's "use strict" applies to the function it's in
-  // eslint-disable-next-line @typescript-eslint/no-implied-eval
-  const program = new Function(SCOPE_PARAMETER, ...parameters, `with (${SCOPE_PARAMETER}) { return (function () {${code}\n}).call(this); }\n//# sourceURL=${sourceURL}`);
-  const scope = scopeFor(new Set([SCOPE_PARAMETER, ...parameters]));
-  return (...args: unknown[]) => program.call(contentGlobal, scope, ...args);
+  source[source.length] = `with (${SCOPE_PARAMETER}) { return ${RUN_PARAMETER}(function () {${code}\n}, this); }\n//# sourceURL=${sourceURL}`;
+  const program = construct(FunctionClass, source) as (...args: unknown[]) => unknown;
+  return (...args: unknown[]) => {
+    const values = bare<unknown[]>([scope, run]);
+    for (let index = 0; index < args.length; index++) values[values.length] = args[index];
+    return apply(program, contentGlobal, values);
+  };
 }

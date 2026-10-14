@@ -14,8 +14,20 @@ import { defineEvents, Evented } from './events.ts';
 import { adaptWebGL } from './webgl.ts';
 import { applyStyle, BASE_CSS, createStyle, type StyleValue } from './style.ts';
 import { mediaURL } from './network.ts';
-import { hasPermission, nextIdentifier, send, state } from './state.ts';
+import { hasPermission, itemsOf, nextIdentifier, send, state } from './state.ts';
 import type { Rect, WindowState } from '../protocol.ts';
+
+// what the content may replace, taken before it runs: what the runtime does on its own (the host's messages, telling
+// it where the windows are, destroying them when the content stops) uses nothing the content can change, as the
+// engine's native components don't
+const { apply } = Reflect;
+const { assign } = Object;
+const { has: setHas, add: setAdd, delete: setDelete } = Set.prototype;
+const setSize = Object.getOwnPropertyDescriptor(Set.prototype, 'size')!.get!;
+const { set: mapSet } = Map.prototype;
+const { then } = Promise.prototype;
+const { max, floor, sqrt } = Math;
+const queueTask = queueMicrotask.bind(globalThis);
 
 const COMPONENT_EVENTS = ['framechange', 'click', 'dblclick', 'mousedown', 'mouseup', 'mouseenter', 'mouseleave', 'mousemove', 'wheel'];
 const MAX_WINDOWS = 16;
@@ -138,12 +150,13 @@ export class ComponentImpl extends Evented {
   /** In a window that isn't destroyed, directly or inside other components */
   get inWindow(): boolean {
     const window = this.rootWindow;
-    return window !== null && windows.has(window);
+    return window !== null && (apply(setHas, windows, [window]) as boolean);
   }
 
   private notifyInWindow(inWindow: boolean): void {
     this.inWindowChanged(inWindow);
-    for (const child of this.childList) child.notifyInWindow(inWindow);
+    const children = this.childList;
+    for (let index = 0; index < children.length; index++) children[index].notifyInWindow(inWindow);
   }
 
   /** Added to a window or removed from one, itself or with a parent */
@@ -153,7 +166,8 @@ export class ComponentImpl extends Evented {
     super.destroy();
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
-    for (const child of this.childList) child.destroy();
+    const children = this.childList;
+    for (let index = 0; index < children.length; index++) children[index].destroy();
   }
 
   protected override listenersChanged(name: string): void {
@@ -199,15 +213,24 @@ function positiveRects(value: unknown): Rect[] | null {
     .filter((rect) => rect.width > 0 && rect.height > 0);
 }
 
+/** A copy of a region, each rect a new object */
+function copyRects(rects: Rect[]): Rect[] {
+  const copy: Rect[] = [];
+  for (let index = 0; index < rects.length; index++) copy[index] = { ...rects[index] };
+  return copy;
+}
+
 let reportScheduled = false;
 /** The host hit tests with the windows' frames and regions: tell it what changed, once per task */
 export function reportWindows(): void {
   if (reportScheduled) return;
   reportScheduled = true;
-  queueMicrotask(() => {
+  queueTask(() => {
     reportScheduled = false;
-    const list: WindowState[] = [...windows].map((win) => win.stateForHost());
-    send({ type: 'windows', windows: list });
+    const all = allWindows();
+    const states: WindowState[] = [];
+    for (let index = 0; index < all.length; index++) states[index] = all[index].stateForHost();
+    send({ type: 'windows', windows: states });
   });
 }
 
@@ -234,7 +257,7 @@ export class WindowImpl extends ComponentImpl {
     if (allowed && !allowed.includes(type)) {
       throw new TypeError(`a ${state.launch?.contentType} placed here can't make "${type}" windows, only ${allowed.map((name) => `"${name}"`).join(' or ')} (launchOptions.windowType)`);
     }
-    if (allowed && windows.size >= MAX_WINDOWS) {
+    if (allowed && (apply(setSize, windows, []) as number) >= MAX_WINDOWS) {
       throw new Error(`content can have at most ${MAX_WINDOWS} windows: destroy() the ones it no longer needs`);
     }
     super(undefined);
@@ -243,14 +266,14 @@ export class WindowImpl extends ComponentImpl {
     this.element.style.position = 'absolute';
     this.element.style.zIndex = String(LAYERS[this.type] * 1000 + (this.order % 1000));
     this.element.hidden = true;
-    windows.add(this);
+    apply(setAdd, windows, [this]);
     try {
       if (style && typeof style === 'object') this.style = style as Record<string, unknown>;
       if (parentWindow) this.parentWindow = parentWindow;
       this.place();
     } catch (error) {
       // whatever threw (e.g. a property content redefined on the parent), the window that isn't made isn't counted
-      windows.delete(this);
+      apply(setDelete, windows, [this]);
       this.parentWindow = null;
       this.element.remove();
       try {
@@ -287,11 +310,20 @@ export class WindowImpl extends ComponentImpl {
 
   set parentWindow(value: unknown) {
     if (this.parentRef) {
-      const list = this.parentRef.#childWindows;
-      list.splice(list.indexOf(this), 1);
+      // by index: destroy() sets it, also when the content stops
+      const siblings = this.parentRef.#childWindows;
+      let found = false;
+      for (let index = 0; index < siblings.length; index++) {
+        if (found) siblings[index - 1] = siblings[index];
+        else found = siblings[index] === this;
+      }
+      if (found) siblings.length -= 1;
     }
     this.parentRef = isWindow(value) && value !== this ? value : null;
-    if (this.parentRef) this.parentRef.#childWindows.push(this);
+    if (this.parentRef) {
+      const siblings = this.parentRef.#childWindows;
+      siblings[siblings.length] = this;
+    }
   }
 
   get childWindows(): WindowImpl[] {
@@ -299,7 +331,7 @@ export class WindowImpl extends ComponentImpl {
   }
 
   get hitRegion(): Rect[] | null {
-    return this.hit ? this.hit.map((rect) => ({ ...rect })) : null;
+    return this.hit ? copyRects(this.hit) : null;
   }
 
   set hitRegion(value: unknown) {
@@ -308,7 +340,7 @@ export class WindowImpl extends ComponentImpl {
   }
 
   get dragRegion(): Rect[] | null {
-    return this.drag ? this.drag.map((rect) => ({ ...rect })) : null;
+    return this.drag ? copyRects(this.drag) : null;
   }
 
   set dragRegion(value: unknown) {
@@ -321,7 +353,9 @@ export class WindowImpl extends ComponentImpl {
     const centerX = this.frameRect.x + this.frameRect.width / 2;
     const centerY = this.frameRect.y + this.frameRect.height / 2;
     const inside = (rect: Rect) => centerX >= rect.x && centerY >= rect.y && centerX < rect.x + rect.width && centerY < rect.y + rect.height;
-    return state.screens.find((screen) => inside(screen.bounds)) ?? state.screens[0];
+    const screens = state.screens;
+    for (let index = 0; index < screens.length; index++) if (inside(screens[index].bounds)) return screens[index];
+    return screens[0];
   }
 
   /** widget and overlay windows stay below the menu bar and cover at most half of a display */
@@ -332,11 +366,11 @@ export class WindowImpl extends ComponentImpl {
     let { width, height } = frame;
     const limit = (screen.bounds.width * screen.bounds.height) / 2;
     if (width * height > limit) {
-      const scale = Math.sqrt(limit / (width * height));
-      width = Math.floor(width * scale);
-      height = Math.floor(height * scale);
+      const scale = sqrt(limit / (width * height));
+      width = floor(width * scale);
+      height = floor(height * scale);
     }
-    return { x: frame.x, y: Math.max(frame.y, screen.visibleFrame.y), width, height };
+    return { x: frame.x, y: max(frame.y, screen.visibleFrame.y), width, height };
   }
 
   /** Where it is on the desktop */
@@ -346,15 +380,15 @@ export class WindowImpl extends ComponentImpl {
 
   private place(): void {
     const frame = this.globalFrame;
-    Object.assign(this.element.style, { left: `${frame.x}px`, top: `${frame.y}px`, width: `${frame.width}px`, height: `${frame.height}px` });
+    assign(this.element.style, { left: `${frame.x}px`, top: `${frame.y}px`, width: `${frame.width}px`, height: `${frame.height}px` });
     reportWindows();
   }
 
   /** The host moved it: the user dragged it */
   moveTo(x: number, y: number): void {
     this.frameRect = { ...this.frameRect, x, y };
-    this.styleValues.set('left', x);
-    this.styleValues.set('top', y);
+    apply(mapSet, this.styleValues, ['left', x]);
+    apply(mapSet, this.styleValues, ['top', y]);
     this.place();
     const frame = this.globalFrame;
     this.emit('move', { x: frame.x, y: frame.y });
@@ -362,7 +396,7 @@ export class WindowImpl extends ComponentImpl {
 
   show(): void {
     // as in the app: a destroyed window is gone for good
-    if (!windows.has(this)) throw new Error('This window was destroyed; make a new one to show it again');
+    if (!apply(setHas, windows, [this])) throw new Error('This window was destroyed; make a new one to show it again');
     if (this.shown) return;
     this.shown = true;
     if (!this.element.isConnected) document.body.appendChild(this.element);
@@ -381,8 +415,8 @@ export class WindowImpl extends ComponentImpl {
   }
 
   override destroy(): void {
-    if (!windows.has(this)) return;
-    windows.delete(this);
+    if (!apply(setHas, windows, [this])) return;
+    apply(setDelete, windows, [this]);
     this.shown = false;
     this.element.remove();
     this.parentWindow = null;
@@ -411,12 +445,14 @@ export class WindowImpl extends ComponentImpl {
 defineEvents(WindowImpl.prototype, ['show', 'hide', 'close', 'resize', 'move', 'focus', 'blur', 'keydown', 'keyup', 'devicepixelratiochange']);
 
 export function windowById(id: string): WindowImpl | undefined {
-  for (const win of windows) if (win.identifier === id) return win;
+  const all = allWindows();
+  for (let index = 0; index < all.length; index++) if (all[index].identifier === id) return all[index];
   return undefined;
 }
 
+/** The windows that aren't destroyed, in a list */
 export function allWindows(): WindowImpl[] {
-  return [...windows];
+  return itemsOf(windows);
 }
 
 // MARK: Canvas
@@ -749,7 +785,7 @@ export class VideoImpl extends ComponentImpl {
     this.video = video;
     video.playsInline = true;
     video.style.objectFit = 'contain';
-    videos.add(this);
+    apply(setAdd, videos, [this]);
     // not out of a window: the element emptying isn't the video's
     const emit = (name: string, payload?: () => unknown) => video.addEventListener(name, () => {
       if (name === 'pause') this.pausePending = false;
@@ -904,13 +940,14 @@ export class VideoImpl extends ComponentImpl {
       this.offscreen.playing = true;
       return;
     }
-    this.video.play().catch((error: Error) => {
+    // also when the content resumes: with the promise's then as it was before the content ran
+    apply(then, this.video.play(), [undefined, (error: Error) => {
       // browsers only play sound after the visitor did something: play silently instead
       if (error.name === 'NotAllowedError' && !this.video.muted) {
         this.video.muted = true;
-        this.video.play().catch(() => undefined);
+        apply(then, this.video.play(), [undefined, () => undefined]);
       }
-    });
+    }]);
   }
 
   pause(): void {
@@ -971,7 +1008,7 @@ export class VideoImpl extends ComponentImpl {
   }
 
   override destroy(): void {
-    videos.delete(this);
+    apply(setDelete, videos, [this]);
     this.video.pause();
     this.video.removeAttribute('src');
     super.destroy();
@@ -979,6 +1016,7 @@ export class VideoImpl extends ComponentImpl {
 }
 defineEvents(VideoImpl.prototype, ['waiting', 'progress', 'play', 'pause', 'ended', 'timeupdate', 'error']);
 
+/** The videos that aren't destroyed, in a list */
 export function allVideos(): VideoImpl[] {
-  return [...videos];
+  return itemsOf(videos);
 }

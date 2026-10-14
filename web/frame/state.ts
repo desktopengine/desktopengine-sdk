@@ -26,7 +26,11 @@ export function send(message: FrameMessage, transfer?: Transferable[]): void {
 }
 
 export function hasPermission(permission: string): boolean {
-  return state.launch?.permissions.includes(permission) ?? false;
+  const permissions = state.launch?.permissions;
+  if (!permissions) return false;
+  // by index: the content may have replaced Array.prototype.includes, the engine checks its permissions natively
+  for (let index = 0; index < permissions.length; index++) if (permissions[index] === permission) return true;
+  return false;
 }
 
 // what the content may replace, taken before it runs: an exception is reported whatever the content did to them
@@ -34,6 +38,23 @@ const { apply } = Reflect;
 const { indexOf, slice, trim } = String.prototype;
 const ErrorClass = Error;
 const toText = String;
+const { setPrototypeOf } = Object;
+const { forEach: setForEach } = Set.prototype;
+
+/**
+ * An array without a prototype, for the runtime's own lists: filled and read by index, so nothing the content put on
+ * Array.prototype (an iterator, a setter at an index) is used
+ */
+export const list = <T>(): T[] => setPrototypeOf([], null) as T[];
+
+/** The items of a set, in a list (Set.prototype.forEach as it was before the content ran) */
+export function itemsOf<T>(set: Set<T>): T[] {
+  const items = list<T>();
+  apply(setForEach, set, [(item: T) => {
+    items[items.length] = item;
+  }]);
+  return items;
+}
 
 /** The content's own frames (its code runs as desktopengine:///<name>/index.js), without the runtime's or the message */
 function contentStack(stack: unknown): string | undefined {
