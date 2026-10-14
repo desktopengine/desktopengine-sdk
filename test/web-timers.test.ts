@@ -99,7 +99,8 @@ interface Result {
  * Runs `code` as a content in a page that's `visibility` at first, until it calls Math.finish(report). Math.playback
  * suspends or resumes it as the host does, Math.hostFrame() sends it one of the host's display frames,
  * Math.later(callback, delay) calls back on the harness' own timer. With `wholeMilliseconds`, performance.now() counts
- * whole milliseconds, as WebKit's does, and Math.fineNow() is the clock it rounds down.
+ * whole milliseconds, as WebKit's does, and Math.fineNow() is the clock it rounds down: Math.holdClock(time) stops that
+ * at `time` (never back) until Math.releaseClock() lets it go on from there.
  */
 async function runContent(code: string, visibility: 'visible' | 'hidden' = 'visible', { wholeMilliseconds = false } = {}): Promise<Result> {
   const launch = {
@@ -110,7 +111,19 @@ async function runContent(code: string, visibility: 'visible' | 'hidden' = 'visi
   };
   const send = (message: string) => `for (const listener of listeners) listener({ source: globalThis.parent, data: ${message} });`;
   // the harness's own timers are node's, kept before the stand-in replaces them
-  const clock = wholeMilliseconds ? 'Math.fineNow = performance.now.bind(performance);\nperformance.now = () => Math.floor(Math.fineNow());\n' : '';
+  const clock = wholeMilliseconds ? `
+const realNow = performance.now.bind(performance);
+let heldAt = null;
+let clockOffset = 0;
+Math.fineNow = () => heldAt ?? realNow() + clockOffset;
+Math.holdClock = (time) => { heldAt = Math.max(time, Math.fineNow()); };
+Math.releaseClock = () => {
+  if (heldAt === null) return;
+  clockOffset = heldAt - realNow();
+  heldAt = null;
+};
+performance.now = () => Math.floor(Math.fineNow());
+` : '';
   const script = `const harnessTimer = globalThis.setTimeout;\n${browser(visibility)}\n${clock}${frameRuntime}\n`
     + 'const exceptions = () => sent.filter((m) => m.type === \'exception\');\n'
     + 'Math.finish = (report) => process.stdout.write(JSON.stringify({ report, exceptions: exceptions().map((m) => m.message), stacks: exceptions().map((m) => m.stack ?? null) }), () => process.exit(0));\n'
@@ -818,16 +831,18 @@ test('of the timers due at the same time, a 0 ms one runs first: with a clock of
     const rounds = [];
     const round = () => {
       const runs = [];
-      // late in a millisecond: due most of one after the 0 ms ones set once the clock ticks, but at the same time by it
-      while (Math.fineNow() % 1 < 0.8);
+      // set late in a millisecond: due most of one after the 0 ms ones set once the clock ticks, but at the same time by
+      // it; the clock is held, so that a busy machine doesn't let it tick in between more often than that
+      const start = Math.ceil(Math.fineNow());
+      Math.holdClock(start + 0.9);
       setTimeout(() => runs.push('1 ms'), 1);
-      const set = performance.now();
-      while (performance.now() === set);
+      Math.holdClock(start + 1.05);
       setTimeout(() => runs.push('0 ms'), 0);
       const { port1, port2 } = new MessageChannel();
       port2.onmessage = () => runs.push('message');
       port1.postMessage(0);
       setTimeout(() => runs.push('0 ms, set last'), 0);
+      Math.releaseClock();
       setTimeout(() => {
         rounds.push(runs.join(', '));
         if (rounds.length < 3) round();
