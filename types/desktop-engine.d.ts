@@ -910,7 +910,7 @@ declare namespace DesktopEngine {
    * default stays
    */
   interface VideoOptions extends ComponentOptions {
-    /** Video source: an http(s) URL or a path inside the package or sandbox */
+    /** Video source: an http(s) URL or a path inside the package or sandbox; a data: URL plays nothing (a console warning) */
     src?: string;
     /** Initial playback position (seconds); defaults to 0 */
     initialTime?: number;
@@ -6071,8 +6071,9 @@ declare var TimeRanges: DesktopEngine.IllegalConstructor<TimeRanges>;
  */
 interface HTMLMediaElement extends EventTarget {
   /**
-   * A package file (resolved like `require`) or, with the "network" permission, an http(s) URL; no data: URLs.
-   * Setting it loads
+   * A package file (resolved like `require`) or a defile:// one or, with the "network" permission, an http(s) URL;
+   * not data: or blob: URLs, which fail with a MEDIA_ERR_SRC_NOT_SUPPORTED error. Setting it loads; it reads back as
+   * it was set
    */
   src: string;
   readonly currentSrc: string;

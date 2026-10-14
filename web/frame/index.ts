@@ -13,7 +13,7 @@ import { readAppWindows, sameAppWindows, visibleTopEdges, type AppWindowInfo, ty
 import { CanvasImageImpl, CanvasImpl, ComponentImpl, componentOf, ImageImpl, VideoImpl, WindowImpl, allVideos, allWindows, reportWindows, unwrap, windowById } from './components.ts';
 import { Evented, defineEvents } from './events.ts';
 import { createFileSystem, loadPackage, requireFrom } from './files.ts';
-import { installNetwork } from './network.ts';
+import { audioURL, installNetwork } from './network.ts';
 import { createImageBitmapFunction } from './bitmap.ts';
 import { createChannels } from './channels.ts';
 import { createMessaging } from './clone.ts';
@@ -46,7 +46,7 @@ const { then } = Promise.prototype;
 const { resolve: promiseResolve, reject: promiseReject } = Promise;
 const { get: mapGet, set: mapSet, has: mapHas, delete: mapDelete, forEach: mapForEach } = Map.prototype;
 const { add: setAdd, delete: setDelete } = Set.prototype;
-const { get: weakMapGet, set: weakMapSet } = WeakMap.prototype;
+const { get: weakMapGet, set: weakMapSet, has: weakMapHas, delete: weakMapDelete } = WeakMap.prototype;
 const { has: weakSetHas, add: weakSetAdd } = WeakSet.prototype;
 const now = performance.now.bind(performance);
 const contains = <T>(items: T[], item: T): boolean => {
@@ -377,6 +377,10 @@ const heldPlays = new Map<HTMLAudioElement, HeldPlay[]>();
 const nativeMuted = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'muted')!;
 const nativePlay = HTMLMediaElement.prototype.play;
 const nativePause = HTMLMediaElement.prototype.pause;
+/** The src of each Audio element as the content set it: as in the app, what `src` reads */
+const audioSources = new WeakMap<HTMLMediaElement, string>();
+/** The error of an Audio element whose src the app wouldn't load, while that src is its own */
+const audioFailures = new WeakMap<HTMLMediaElement, MediaError>();
 
 function audioAllowed(): boolean {
   return hasPermission('audio') && !state.muted && !state.suspended;
@@ -467,8 +471,11 @@ function installAudio(): void {
     // with the language's functions as they were before the content ran: a Video's element plays through them too, also
     // when the content resumes
     const AudioElement = HTMLAudioElement;
+    installAudioSources(NativeAudio);
     HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
       if (!(this instanceof AudioElement)) return apply(nativePlay, this, []) as Promise<void>;
+      const failure = apply(weakMapGet, audioFailures, [this]) as MediaError | undefined;
+      if (failure) return apply(promiseReject, PromiseClass, [new DOMException(failure.message, 'NotSupportedError')]) as Promise<void>;
       if (!hasPermission('audio')) {
         return apply(promiseReject, PromiseClass, [new DOMException('playing sound needs the "audio" permission in manifest.json', 'NotAllowedError')]) as Promise<void>;
       }
@@ -506,6 +513,115 @@ function installAudio(): void {
       apply(nativePause, this, []);
     };
   }
+}
+
+/**
+ * Audio elements load their src as the app does (audioURL): the browser would take data: and blob: URLs, which the app
+ * doesn't, and resolve a package's path against the page. A src the app wouldn't load leaves the element empty, and
+ * then fails as in the app: an error event, `error` a MediaError of code 4 with the app's message, `networkState`
+ * NETWORK_NO_SOURCE, and play() rejected with a NotSupportedError. `src` reads back what was set; `new Audio(src)`,
+ * setAttribute('src') and load() go through it too.
+ */
+function installAudioSources(NativeAudio: typeof Audio): void {
+  // the browser's, taken before the content runs
+  const AudioElementPrototype = HTMLAudioElement.prototype;
+  const MediaErrorPrototype = MediaError.prototype;
+  const nativeSrc = getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src')!.set!;
+  const nativeError = getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'error')!.get!;
+  const nativeNetworkState = getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'networkState')!.get!;
+  const nativeLoad = HTMLMediaElement.prototype.load;
+  const { setAttribute: nativeSetAttribute, removeAttribute } = Element.prototype;
+  const { dispatchEvent } = EventTarget.prototype;
+  const EventClass = Event;
+  const DOMExceptionClass = DOMException;
+  const { toLowerCase } = String.prototype;
+  const objectCreate = Object.create;
+
+  const loadSource = (element: HTMLMediaElement, src: string): void => {
+    apply(weakMapSet, audioSources, [element, src]);
+    apply(weakMapDelete, audioFailures, [element]);
+    const target = src ? audioURL(src) : null;
+    if (target && 'url' in target) {
+      apply(nativeSrc, element, [target.url]);
+      return;
+    }
+    apply(removeAttribute, element, ['src']);
+    apply(nativeLoad, element, []);
+    if (!target) return;
+    // the browser makes no MediaError of its own message: one of its prototype, refused by structuredClone as the app's
+    const failure = standIn(objectCreate(MediaErrorPrototype, {
+      code: descriptor({ value: 4, enumerable: true }), // MEDIA_ERR_SRC_NOT_SUPPORTED
+      message: descriptor({ value: target.failure, enumerable: true }),
+    }) as MediaError);
+    apply(weakMapSet, audioFailures, [element, failure]);
+    const held = apply(mapGet, heldPlays, [element]) as HeldPlay[] | undefined;
+    apply(mapDelete, heldPlays, [element]);
+    apply(setDelete, audioElements, [element]);
+    if (held) {
+      for (let index = 0; index < held.length; index++) held[index].reject(new DOMExceptionClass(target.failure, 'NotSupportedError'));
+    }
+    setTimeout(() => {
+      if (apply(weakMapGet, audioFailures, [element]) === failure) apply(dispatchEvent, element, [new EventClass('error')]);
+    });
+  };
+
+  // `new Audio(src)` sets the src through the property, as in the app: the browser's sets the attribute
+  const AudioConstructor = function Audio(src?: unknown) {
+    if (!new.target) throw new TypeError('Constructor Audio requires \'new\'');
+    const element = new NativeAudio();
+    if (src !== undefined) loadSource(element, toText(src));
+    return element;
+  } as unknown as typeof Audio;
+  AudioConstructor.prototype = AudioElementPrototype;
+  // named and of the length the engine's is, whatever the bundler calls it
+  defineProperty(AudioConstructor, 'name', { value: 'Audio', configurable: true });
+  defineProperty(AudioConstructor, 'length', { value: 1, configurable: true });
+  scope.Audio = AudioConstructor;
+  Object.defineProperties(AudioElementPrototype, {
+    src: {
+      configurable: true,
+      enumerable: true,
+      get(this: HTMLAudioElement) {
+        return (apply(weakMapGet, audioSources, [this]) as string | undefined) ?? '';
+      },
+      set(this: HTMLAudioElement, value: unknown) {
+        loadSource(this, toText(value));
+      },
+    },
+    error: {
+      configurable: true,
+      enumerable: true,
+      get(this: HTMLAudioElement) {
+        return (apply(weakMapGet, audioFailures, [this]) as MediaError | undefined) ?? apply(nativeError, this, []);
+      },
+    },
+    networkState: {
+      configurable: true,
+      enumerable: true,
+      get(this: HTMLAudioElement) {
+        return apply(weakMapHas, audioFailures, [this]) ? 3 /* NETWORK_NO_SOURCE */ : apply(nativeNetworkState, this, []);
+      },
+    },
+    // loading again loads the src again, a src the app wouldn't load fails again
+    load: {
+      configurable: true,
+      writable: true,
+      value: function load(this: HTMLAudioElement) {
+        const src = apply(weakMapGet, audioSources, [this]) as string | undefined;
+        if (src !== undefined) loadSource(this, src);
+        else apply(nativeLoad, this, []);
+      },
+    },
+    // as the src: the app's elements take no other attribute that loads
+    setAttribute: {
+      configurable: true,
+      writable: true,
+      value: function setAttribute(this: HTMLAudioElement, name: string, value: string) {
+        if (apply(toLowerCase, toText(name), []) === 'src') loadSource(this, toText(value));
+        else apply(nativeSetAttribute, this, [name, value]);
+      },
+    },
+  });
 }
 
 /**

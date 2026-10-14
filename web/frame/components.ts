@@ -13,7 +13,7 @@ import { createContext2D } from './context2d.ts';
 import { defineEvents, Evented } from './events.ts';
 import { adaptWebGL } from './webgl.ts';
 import { applyStyle, BASE_CSS, createStyle, readStyle, STYLE_KEYS, stylePoints, styleValue, type StyleValue } from './style.ts';
-import { mediaURL } from './network.ts';
+import { isDataURL, mediaURL } from './network.ts';
 import { hasPermission, itemsOf, nextIdentifier, send, state } from './state.ts';
 import type { Rect, WindowState } from '../protocol.ts';
 
@@ -701,7 +701,7 @@ export class ImageImpl extends ComponentImpl {
       this.emit('error', { errMsg });
     };
     // the app loads no data: URL into an Image, only into a CanvasImage
-    const url = /^data:/i.test(value) ? null : mediaURL(value);
+    const url = isDataURL(value) ? null : mediaURL(value);
     if (!url) {
       const reason = /^https?:/i.test(value) && !hasPermission('network') ? 'the "network" permission is needed' : 'the image can\'t be read';
       setTimeout(() => fail(reason));
@@ -818,7 +818,10 @@ export class VideoImpl extends ComponentImpl {
     if (typeof value !== 'string' || !value) return;
     this.source = value;
     this.knownDuration = NaN;
-    if (!mediaURL(value)) {
+    if (isDataURL(value)) {
+      // as in the app, which takes it for a file of an unknown scheme: a warning, no error event, and nothing plays
+      console.warn(`Can't load ${value}: Unsupported scheme: ${value}`);
+    } else if (!mediaURL(value)) {
       setTimeout(() => this.emit('error', { errMsg: 'the video can\'t be read' }));
     }
     if (this.offscreen) {
@@ -829,7 +832,7 @@ export class VideoImpl extends ComponentImpl {
   }
 
   private load(time: number, play: boolean): void {
-    const url = this.source ? mediaURL(this.source) : null;
+    const url = this.source && !isDataURL(this.source) ? mediaURL(this.source) : null;
     this.loadTime = time;
     if (!url) {
       this.video.removeAttribute('src');

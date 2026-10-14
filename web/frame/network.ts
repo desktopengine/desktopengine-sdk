@@ -9,6 +9,7 @@
 // (CORS): the store's forwards GET and HEAD requests and WebSockets, dev --web's every method
 // (`proxySendsAnyMethod`). Paths and defile:// URLs read the package's and
 // the content's own files, as in the app. Images, videos and audio load remote files through the same rules.
+// Which srcs each of them takes is the app's too: only a CanvasImage reads data: URLs, and Audio no blob: ones.
 
 import { fileBytes, fileURL, mimeType } from './files.ts';
 import { hasPermission, state } from './state.ts';
@@ -67,7 +68,7 @@ function proxied(url: string): string {
   return `${proxy}${separator}url=${encodeURIComponent(url)}`;
 }
 
-/** What an Image, Video, CanvasImage or Audio loads for a src: a blob: URL for a file, the proxy for a remote one */
+/** What an Image, Video or CanvasImage loads for a src: a blob: URL for a file, the proxy for a remote one */
 export function mediaURL(src: string): string | null {
   if (!src) return null;
   if (/^(data|blob):/i.test(src)) return src;
@@ -80,6 +81,32 @@ export function mediaURL(src: string): string | null {
     }
   }
   return null;
+}
+
+/** As in the app, only a CanvasImage reads a data: URL: an Image, Video or Audio doesn't */
+export const isDataURL = (src: string): boolean => /^data:/i.test(src);
+
+/**
+ * What an Audio element plays for a src, as in the app: a file of the package or a defile:// one, or an http(s) URL
+ * the network rules let content reach; not a data: or blob: URL. Otherwise the app's reason, for its error.
+ */
+export function audioURL(src: string): { url: string } | { failure: string } {
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(src)?.[1].toLowerCase();
+  let remote: URL | null = null;
+  try {
+    if (scheme === 'http' || scheme === 'https') remote = new URL(src);
+  } catch {
+    // not a URL: refused as the app refuses one it can't parse
+  }
+  if (remote) {
+    const denial = networkDenial(remote);
+    return denial ? { failure: `Can't load ${src}: ${denial}` } : { url: proxied(src) };
+  }
+  if (scheme === 'http' || scheme === 'https' || scheme === 'data' || scheme === 'blob') {
+    return { failure: `Can't load ${src.length > 64 ? `${src.slice(0, 64)}…` : src}: only package files and http(s) URLs are supported` };
+  }
+  const url = isLocal(src) ? fileURL(src) : null;
+  return url ? { url } : { failure: `Can't load ${src}: the file doesn't exist` };
 }
 
 const methodDenial = (method: string): string => `the web preview sends only GET and HEAD requests (the app and dev --web send ${method} too)`;
