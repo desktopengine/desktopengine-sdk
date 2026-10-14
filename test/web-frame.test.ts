@@ -6,8 +6,9 @@
 // The web runtime gives content the app's globals as the app makes them: DesktopEngine.systemAudio and
 // DesktopEngine.windows are the one object of their class, which content may construct first; a BroadcastChannel
 // refuses the runtime's stand-ins for the engine's objects (a screen, localStorage) as the app refuses the engine's;
-// launchOptions.permissions lists only what the content gets. The frame runtime runs here in a node process of its own
-// with stand-ins for the few browser globals it needs, the desktop's code without a DOM.
+// launchOptions.permissions lists only what the content gets; a canvas reads getContext's options as the app does. The
+// frame runtime runs here in a node process of its own with stand-ins for the few browser globals it needs, the
+// desktop's code without a DOM.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -39,7 +40,7 @@ globalThis.createImageBitmap = async () => ({});
 `;
 
 /** Runs `code` as a content launched with `launch`: what it posts to the host, and its exceptions */
-async function runContent(launch: Partial<LaunchMessage>, code: string): Promise<unknown[]> {
+async function runContent(launch: Partial<LaunchMessage>, code: string, browser = ''): Promise<unknown[]> {
   const message: LaunchMessage = {
     type: 'launch',
     name: 'test',
@@ -59,7 +60,7 @@ async function runContent(launch: Partial<LaunchMessage>, code: string): Promise
     appWindows: [],
     ...launch,
   };
-  const script = `${BROWSER}\n${frameRuntime}\n`
+  const script = `${BROWSER}\n${browser}\n${frameRuntime}\n`
     + `for (const listener of listeners) listener({ source: globalThis.parent, data: ${JSON.stringify(message)} });\n`
     + `process.stdout.write(JSON.stringify(sent.filter((m) => m.type === 'host-message' || m.type === 'exception')), () => process.exit(0));\n`;
   // on stdin, not with -e: Linux takes no single argument over 128 KB, and the bundled runtime is more
@@ -171,6 +172,50 @@ function givenPermissions(spec: Record<string, unknown>, keyActivity = false): s
   const content = Object.assign(Object.create(host.WebContent.prototype) as { givenPermissions: string[] }, { desktop, spec });
   return content.givenPermissions;
 }
+
+/** A document whose elements take anything; a canvas's getContext posts the attributes it's asked for, and makes none */
+const RECORDING_CANVAS = `
+const anything = () => new Proxy(function () {}, {
+  get: (target, key) => key === Symbol.toPrimitive ? () => 0
+    : key === 'getContext' ? (kind, attributes) => { sent.push({ type: 'host-message', message: [kind, attributes] }); return null; }
+    : anything(),
+  set: () => true,
+  apply: () => anything(),
+  construct: () => anything(),
+});
+globalThis.document = anything();
+globalThis.ResizeObserver = class { observe() {} disconnect() {} };
+`;
+
+test('getContext reads alpha and antialias as the app does: undefined is the default, anything else converts to a boolean', async () => {
+  const options = `[
+    undefined, null, 5, 'x', true,
+    {}, { alpha: undefined, antialias: undefined }, { alpha: null, antialias: null }, { alpha: {}, antialias: [] },
+    { alpha: [], antialias: {} }, { alpha: 0, antialias: 1 }, { alpha: 'x', antialias: 'x' }, { alpha: '', antialias: '' },
+    { alpha: false, antialias: true }, { alpha: Object.create(null), antialias: Object.create(null) },
+  ]`;
+  const sent = await runContent({}, `
+    for (const option of ${options}) new DesktopEngine.Canvas().getContext('webgl', option);
+    let order = [];
+    const recorded = { get antialias() { order.push('antialias'); return true; }, get alpha() { order.push('alpha'); return false; } };
+    new DesktopEngine.Canvas().getContext('2d', recorded);
+    postMessage('host', order);
+    let thrown;
+    try { new DesktopEngine.Canvas().getContext('2d', { get alpha() { throw new RangeError('no'); } }); } catch (error) { thrown = error.name; }
+    postMessage('host', thrown);
+  `, RECORDING_CANVAS);
+  const attributes = (alpha: boolean, antialias: boolean) => ['webgl', { alpha, antialias, premultipliedAlpha: true, preserveDrawingBuffer: false }];
+  assert.deepEqual(sent, [
+    // not an object: the defaults
+    attributes(true, false), attributes(true, false), attributes(true, false), attributes(true, false), attributes(true, false),
+    attributes(true, false), attributes(true, false), attributes(false, false), attributes(true, true),
+    attributes(true, true), attributes(false, true), attributes(true, true), attributes(false, false),
+    attributes(false, true), attributes(true, true),
+    ['2d', { alpha: false, antialias: true, premultipliedAlpha: true, preserveDrawingBuffer: false }],
+    ['alpha', 'antialias'],
+    'RangeError',
+  ]);
+});
 
 test('launchOptions.permissions lists only what the content gets, as in the app', () => {
   const manifest = (id: string, permissions: string[]) => ({ name: id, code: '', manifest: { id, type: 'widget', permissions } });

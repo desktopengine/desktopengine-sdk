@@ -552,17 +552,25 @@ export class CanvasImpl extends ComponentImpl {
     else resize();
   }
 
-  getContext(type: unknown, options?: Record<string, unknown>): object | null {
+  getContext(type: unknown, options?: unknown): object | null {
     const name = String(type);
     const kind = name === '2d' ? '2d' : name === 'webgl2' ? 'webgl2' : /webgl/.test(name) && !/webgl2/.test(name) ? 'webgl' : null;
     if (!kind) return null;
     if (this.contextType) return this.contextType === kind ? this.context : null;
-    const attributes = {
-      alpha: options?.alpha !== false,
-      antialias: options?.antialias === true,
-      premultipliedAlpha: true,
-      preserveDrawingBuffer: false,
-    };
+    // As the engine reads them: only from an object, in the order of their names; a member that's undefined is the
+    // default (antialiasing is off), any other value is converted to a boolean, so `{ alpha: null }` is opaque
+    let alpha = true;
+    let antialias = false;
+    if ((typeof options === 'object' && options !== null) || typeof options === 'function') {
+      const record = options as Record<string, unknown>;
+      const alphaValue = record.alpha;
+      const antialiasValue = record.antialias;
+      if (alphaValue !== undefined) alpha = !!alphaValue;
+      if (antialiasValue !== undefined) antialias = !!antialiasValue;
+      // a getter made one meanwhile
+      if (this.contextType) return this.contextType === kind ? this.context : null;
+    }
+    const attributes = { alpha, antialias, premultipliedAlpha: true, preserveDrawingBuffer: false };
     const context = this.canvas.getContext(kind, attributes);
     if (!context) return null;
     this.contextType = kind;

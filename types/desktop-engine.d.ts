@@ -1074,7 +1074,7 @@ declare namespace DesktopEngine {
 
   /** Optional options for getContext */
   interface CanvasContextOptions {
-    /** Whether to enable multisample antialiasing (up to 4x) */
+    /** Whether to enable multisample antialiasing (up to 4x), off by default (unlike WebGL on the web) */
     antialias?: boolean;
     /** Whether the canvas has an alpha channel, true by default (as on the web); full-screen wallpapers pass false,
      * an opaque layer composites with less power */
