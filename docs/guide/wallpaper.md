@@ -35,7 +35,7 @@ Use PixiJS 8 through the project's `src/pixi/`: `import * as PIXI from './pixi'`
 
 - What needs the DOM, such as `HTMLText`, doesn't work: draw text with `Text` or `BitmapText`.
 - Paths such as `Assets.load('assets/a.png')` start at the package root. Loading `https://` assets needs the `network` permission (see [Network](./network)).
-- For interaction with `eventMode` / `on('pointerdown')`, call `PIXI.bindPointerEvents(app)` to give the canvas's mouse events to PixiJS; see [Windows](./windows) for the events desktop windows don't get.
+- For interaction with `eventMode` / `on('pointerdown')`, call `PIXI.bindPointerEvents(app)` to give the canvas's mouse events to PixiJS (until then its event system listens to nothing); see [Windows](./windows) for the events desktop windows don't get.
 
 ## Spanning displays
 

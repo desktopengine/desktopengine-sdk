@@ -35,7 +35,7 @@ PixiJS 8 要通过项目里的 `src/pixi/` 使用：`import * as PIXI from './pi
 
 - `HTMLText` 这类依赖 DOM 的功能不能用，文字用 `Text` 或 `BitmapText`。
 - `Assets.load('assets/a.png')` 这类路径以包的根目录为起点；加载 `https://` 地址的资源要声明 `network` 权限（见[网络](./network)）。
-- 需要 `eventMode` / `on('pointerdown')` 这类交互时调用 `PIXI.bindPointerEvents(app)`，把画布的鼠标事件交给 PixiJS；桌面窗口收不到的事件见[窗口](./windows)。
+- 需要 `eventMode` / `on('pointerdown')` 这类交互时调用 `PIXI.bindPointerEvents(app)`，把画布的鼠标事件交给 PixiJS（不调用时它的事件系统什么都不监听）；桌面窗口收不到的事件见[窗口](./windows)。
 
 ## 跨显示器
 

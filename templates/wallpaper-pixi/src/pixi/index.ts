@@ -2,7 +2,7 @@
 // so the engine is set up before pixi runs.
 
 import { eventTarget, MouseEvent } from './globals';
-import { DOMAdapter, extensions, browserExt } from 'pixi.js';
+import { DOMAdapter, EventSystem, extensions, browserExt } from 'pixi.js';
 import type { Application } from 'pixi.js';
 // the extensions pixi would load for a browser, minus the DOM ones (accessibility, DOM containers)
 import 'pixi.js/webworker';
@@ -39,6 +39,13 @@ DOMAdapter.set({
 
 // The browser environment would load its DOM extensions when an Application starts
 extensions.remove(browserExt);
+
+// pixi's event system would listen on the app's canvas itself, but a canvas's mouse events aren't DOM events:
+// it listens to nothing until bindPointerEvents gives it a stand-in element
+const { setTargetElement } = EventSystem.prototype;
+EventSystem.prototype.setTargetElement = function (this: EventSystem, element) {
+  setTargetElement.call(this, (element instanceof DesktopEngine.Canvas ? null : element) as typeof element);
+};
 
 const POINTER_EVENTS = { mousedown: 'mousedown', mouseup: 'mouseup', mousemove: 'mousemove', mouseenter: 'mouseover', mouseleave: 'mouseout', wheel: 'wheel' } as const;
 type PointerEventName = keyof typeof POINTER_EVENTS;
