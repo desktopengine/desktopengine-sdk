@@ -3933,6 +3933,62 @@ declare namespace DesktopEngine {
   }
 
   // ---------------------------------------------------------------------------
+  // Synced storage (DesktopEngine.syncStorage)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * `DesktopEngine.syncStorage`: keys and values (strings) like `localStorage`'s, kept between launches and shared by
+   * all the content's instances, that also go to the user's other Macs signed in to the same DesktopEngine account
+   * (with the library syncing). Not signed in, they stay on this Mac, and go when the user signs in. They stay in the
+   * account when the content is removed from one Mac, and are there again when it's installed again. Content run by
+   * `desktopengine dev` has its own, which stays on the Mac.
+   *
+   * Each key is synced on its own: when two Macs change the same key, the change made last wins; changes of
+   * different keys never get in each other's way. So keep items that change separately under keys of their own (e.g.
+   * a key for each to-do, `todo:<id>`), rather than one big value. Changes reach the other Macs within seconds, not
+   * right away: don't use it for what changes every second.
+   *
+   * Limits, over which `setItem` throws a "QuotaExceededError" DOMException: 1024 items; 1024 × 1024 UTF-16 code
+   * units of keys and values together; 61,440 for a key and its value together, as JSON writes them (a `"`, `\`
+   * or line break counts 2, another control character 6). Lone surrogates in keys and values become U+FFFD, and keys
+   * are stored in Unicode's NFC form: `"cafe\u0301"` and `"caf\u00e9"` are the same key.
+   *
+   * Items aren't properties (use `getItem`), and it isn't a `Storage`.
+   */
+  interface SyncStorageEventMap {
+    change: SyncStorageEvent;
+  }
+
+  interface SyncStorage extends EventTarget<SyncStorageEventMap> {
+    /** The number of items */
+    readonly length: number;
+    /** The key at the index, in the order they were added; null past the end */
+    key(index: number): string | null;
+    /** The value, null when there's no such key */
+    getItem(key: string): string | null;
+    /** Stores the value as a string */
+    setItem(key: string, value: string): void;
+    removeItem(key: string): void;
+    /** Removes every item, on the other Macs too */
+    clear(): void;
+    /**
+     * An item changed on another Mac (a `change` event for each). Not for the content's own changes, on this Mac or
+     * by its other instances, which see them right away
+     */
+    onchange: ((this: SyncStorage, event: SyncStorageEvent) => void) | null;
+  }
+
+  /** An item of `DesktopEngine.syncStorage` another Mac changed */
+  interface SyncStorageEvent extends Event {
+    readonly type: 'change';
+    readonly key: string;
+    /** Null when it's new */
+    readonly oldValue: string | null;
+    /** Null when it was removed */
+    readonly newValue: string | null;
+  }
+
+  // ---------------------------------------------------------------------------
   // File system (DesktopEngine.fs)
   // ---------------------------------------------------------------------------
 
@@ -4165,6 +4221,11 @@ declare namespace DesktopEngine {
     /** The file system: package files, and the content's own files that are kept between launches */
     readonly fs: FileSystem;
     /**
+     * Keys and values that follow the user to their other Macs signed in to the same DesktopEngine account, e.g. a
+     * to-do list or a counter, unlike `localStorage` (API 7). See {@link SyncStorage}
+     */
+    readonly syncStorage: SyncStorage;
+    /**
      * Read-only options passed in by the app at launch (size, display, position, user settings, etc.), injected before index.js runs.
      * `parameters` follow the user's changes (`DesktopEngine.system`'s `parameterschange`): read them from here each time.
      * Provided when the DesktopEngine app launches the content; `desktopengine dev` simulates them from its command-line arguments; {} when loaded directly from the Develop menu.
@@ -4231,6 +4292,8 @@ declare namespace DesktopEngine {
     readonly FileSystem: PlainConstructor<unknown>;
     /** Native side of `localStorage` (a singleton, internal: use the global) */
     readonly LocalStorage: SingletonConstructor<unknown> | undefined;
+    /** Native side of `DesktopEngine.syncStorage` (a singleton, internal: use `DesktopEngine.syncStorage`) */
+    readonly SyncStorage: SingletonConstructor<unknown> | undefined;
     /** Native side of fetch, WebSocket, blob URLs and TextDecoder (a singleton, internal: use the globals) */
     readonly Network: SingletonConstructor<unknown> | undefined;
     /** Native side of Web Audio and `Audio` (a singleton, internal: use the globals) */

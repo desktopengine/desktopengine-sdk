@@ -187,6 +187,69 @@ globalThis.document = anything();
 globalThis.ResizeObserver = class { observe() {} disconnect() {} };
 `;
 
+test('DesktopEngine.syncStorage has the app\'s limits and errors (recorded in the app)', async () => {
+  const [result] = await runContent({}, `
+    const s = DesktopEngine.syncStorage;
+    const error = (action) => { try { action(); return 'none'; } catch (e) { return e.name + ': ' + e.message; } };
+    const results = {
+      tag: Object.prototype.toString.call(s), eventTarget: s instanceof EventTarget, same: s === DesktopEngine.syncStorage,
+      order: Object.keys(DesktopEngine).slice(16, 19), onchange: s.onchange,
+      constructor: error(() => new s.constructor()),
+      invocation: error(() => Object.getPrototypeOf(s).getItem.call({}, 'a')),
+      arguments: error(() => s.getItem()),
+      clone: error(() => structuredClone(s)),
+    };
+    s.setItem('a', 1);
+    results.number = s.getItem('a');
+    s.setItem('lone', '\\uD800x');
+    results.lone = escape(s.getItem('lone'));
+    s.setItem('\\uDC00k', 'v');
+    results.loneKey = [s.getItem('\\uFFFDk'), s.getItem('\\uDBFFk')];
+    s.removeItem('\\uFFFDk');
+    s.setItem('caf\\u00e9', 'composed');
+    s.setItem('cafe\\u0301', 'decomposed');
+    results.nfc = [s.getItem('caf\\u00e9'), s.length, escape(s.key(s.length - 1))];
+    s.removeItem('cafe\\u0301');
+    results.big = error(() => s.setItem('b', 'x'.repeat(61439)));
+    results.tooBig = error(() => s.setItem('b', 'x'.repeat(61440)));
+    results.quotes = error(() => s.setItem('q', '"'.repeat(30720)));
+    s.removeItem('b');
+    let n = 0;
+    results.keys = error(() => { for (; n < 2000; n++) s.setItem('k' + n, 'v'); });
+    results.keyCount = s.length;
+    for (let i = 0; i < n; i++) s.removeItem('k' + i);
+    let m = 0;
+    results.quota = error(() => { for (; m < 100; m++) s.setItem('big' + m, 'y'.repeat(60000)); });
+    results.quotaCount = m;
+    for (let i = 0; i < m; i++) s.removeItem('big' + i);
+    results.items = Array.from({ length: s.length }, (_, i) => [s.key(i), s.getItem(s.key(i))]);
+    postMessage('host', results);
+  `);
+  assert.deepEqual(result, {
+    tag: '[object SyncStorage]',
+    eventTarget: true,
+    same: true,
+    order: ['ScreenManager', 'syncStorage', 'system'],
+    onchange: null,
+    constructor: 'TypeError: Illegal constructor',
+    invocation: 'TypeError: Illegal invocation',
+    arguments: 'TypeError: Failed to execute \'getItem\' on \'SyncStorage\': 1 argument required, but only 0 present.',
+    clone: 'DataCloneError: A SyncStorage can\'t be cloned',
+    number: '1',
+    lone: '%uFFFDx',
+    loneKey: ['v', 'v'],
+    nfc: ['decomposed', 3, 'caf%E9'],
+    big: 'none',
+    tooBig: 'QuotaExceededError: Failed to execute \'setItem\' on \'SyncStorage\': The key and value of \'b\' are too long.',
+    quotes: 'QuotaExceededError: Failed to execute \'setItem\' on \'SyncStorage\': The key and value of \'q\' are too long.',
+    keys: 'QuotaExceededError: Failed to execute \'setItem\' on \'SyncStorage\': Setting \'k1022\' exceeded the maximum number of items.',
+    keyCount: 1024,
+    quota: 'QuotaExceededError: Failed to execute \'setItem\' on \'SyncStorage\': Setting the value of \'big17\' exceeded the quota.',
+    quotaCount: 17,
+    items: [['a', '1'], ['lone', '\uFFFDx']],
+  });
+});
+
 test('getContext reads alpha and antialias as the app does: undefined is the default, anything else converts to a boolean', async () => {
   const options = `[
     undefined, null, 5, 'x', true,

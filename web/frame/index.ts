@@ -21,7 +21,7 @@ import { installMessageEvent } from './message-event.ts';
 import { createPath2D } from './path2d.ts';
 import { cancelAnimationFrame, clearTimer, hostFrame, requestAnimationFrame, setInterval, setTimeout, startStats } from './scheduler.ts';
 import { guard, hasPermission, itemsOf, list, report, send, state } from './state.ts';
-import { installStorage } from './storage.ts';
+import { createSyncStorage, installStorage } from './storage.ts';
 import { engineConstructor, standIn } from './stand-ins.ts';
 import { RESTRICTED_BAND_COUNT, RESTRICTED_QUANTUM, FINE_BAND_COUNT, emptySnapshot, isAudible, mergeBands, normalizedLevel, restrictedRefresh, syntheticSnapshot, type Snapshot } from '../system-audio.ts';
 
@@ -878,6 +878,9 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
   for (const key of ['fs', 'launchOptions', 'apiVersion']) {
     Object.defineProperty(desktopEngine, key, { value: desktopEngine[key], writable: false, enumerable: true });
   }
+  // a getter, as the app's polyfill has it
+  const syncStorage = createSyncStorage();
+  Object.defineProperty(desktopEngine, 'syncStorage', { get: () => syncStorage, enumerable: true, configurable: true });
   // as the app's polyfills: made the first time they're read, null when the constructor refuses (without the
   // permission); content may construct the one there is first (settleSingleton)
   for (const [key, make] of [['systemAudio', () => new SystemAudioImpl()], ['windows', () => new WindowsImpl()]] as const) {
@@ -910,7 +913,7 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
 const DESKTOP_ENGINE_ORDER = [
   'setTimeout', 'clearTimeout', 'base64Encode', 'clearInterval', 'base64Decode', 'applyNew', 'setInterval', 'preferredFramesPerSecond',
   'Canvas', 'WebGLRenderingContext', 'WebGL2RenderingContext', 'CanvasImage', 'Component', 'fs', 'Image', 'input', 'ScreenManager',
-  'system', 'systemAudio', 'Video', 'Window', 'windows', 'apiVersion', 'launchOptions',
+  'syncStorage', 'system', 'systemAudio', 'Video', 'Window', 'windows', 'apiVersion', 'launchOptions',
 ];
 
 // MARK: Launch
@@ -982,7 +985,7 @@ function launch(message: LaunchMessage): void {
     Object.defineProperty(runtimeScope, name, { get: () => value });
   }
   // the app's singletons, made by DesktopEngine's globals: there's no second one
-  for (const name of ['AnimationFrameManager', 'FileSystem', 'LocalStorage', 'Network', 'Audio']) {
+  for (const name of ['AnimationFrameManager', 'FileSystem', 'LocalStorage', 'SyncStorage', 'Network', 'Audio']) {
     Object.defineProperty(runtimeScope, name, { value: undefined, writable: true, configurable: true });
   }
   const coreScope = Object.defineProperties({}, {
