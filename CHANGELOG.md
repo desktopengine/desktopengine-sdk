@@ -2,6 +2,14 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 4.3.0 (2026-10-16)
+
+API version 7 (was 6): packages with `"apiVersion": 7` need an app that has it.
+
+### Features
+
+- add DesktopEngine.syncStorage (API 7)
+
 ## 4.2.0 (2026-10-14)
 
 API version 6 (was 5): packages with `"apiVersion": 6` need an app that has it.
