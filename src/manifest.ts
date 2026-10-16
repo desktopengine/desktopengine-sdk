@@ -76,7 +76,11 @@ export interface Manifest {
   /** The preview in dark mode, for content that follows the appearance; `preview` is then the one in light mode */
   previewDark?: string;
   widget?: { sizes: WidgetSize[] };
-  wallpaper?: { span?: boolean };
+  wallpaper?: {
+    span?: boolean;
+    /** `false` when it isn't made to be the screen saver: the app doesn't offer it there */
+    screenSaver?: boolean;
+  };
   permissions?: string[];
   /** With the `network` permission: the only hosts it may reach, `api.example.com` or `*.example.com` */
   network?: { domains: string[] };
@@ -285,8 +289,12 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
   if (wallpaper !== undefined) {
     if (!isPlainObject(wallpaper)) {
       errors.push('"wallpaper" must be an object');
-    } else if (wallpaper.span !== undefined && typeof wallpaper.span !== 'boolean') {
-      errors.push('"wallpaper.span" must be true or false');
+    } else {
+      for (const key of ['span', 'screenSaver']) {
+        if (wallpaper[key] !== undefined && typeof wallpaper[key] !== 'boolean') {
+          errors.push(`"wallpaper.${key}" must be true or false`);
+        }
+      }
     }
     if (manifest.type !== 'wallpaper') {
       warnings.push('Only wallpapers (type wallpaper) use "wallpaper"');
