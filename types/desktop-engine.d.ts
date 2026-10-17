@@ -759,6 +759,32 @@ declare namespace DesktopEngine {
     activechange: void;
   }
 
+  /** `DesktopEngine.systemStatus` event map */
+  interface SystemStatusEventMap {
+    /** A new reading came, about once a second: read the properties. No payload */
+    change: void;
+    /** The Mac was plugged in or unplugged, the battery started or stopped charging or became full, or Low Power Mode turned on or off. No payload: read `power` */
+    powerchange: void;
+    /** `thermal` changed. No payload */
+    thermalchange: void;
+    /** The Mac went online or offline, or changed how it connects (Wi-Fi, Ethernet…). No payload: read `network` */
+    networkchange: void;
+    /** `memory.pressure` changed. No payload */
+    memorypressurechange: void;
+    /** The content runs again after it was suspended (the Mac or its displays slept, or the user paused all content) */
+    resume: SystemResumePayload;
+  }
+
+  /** `resume` event payload */
+  interface SystemResumePayload {
+    /** When the content was suspended, ms since the epoch (like Date.now()) */
+    readonly suspendedAt: number;
+    /** When it runs again, ms since the epoch */
+    readonly resumedAt: number;
+    /** Why: the Mac slept at some time meanwhile, else its displays slept, else it was paused (e.g. the user paused all content) */
+    readonly reason: 'sleep' | 'displaysleep' | 'paused';
+  }
+
   /** ScreenManager event map */
   interface ScreenManagerEventMap {
     /** The screen configuration changed: displays connected, disconnected or arranged, a resolution, or the menu bar or the Dock moved, resized or hid */
@@ -3978,6 +4004,173 @@ declare namespace DesktopEngine {
   }
 
   // ---------------------------------------------------------------------------
+  // System status (DesktopEngine.systemStatus)
+  // ---------------------------------------------------------------------------
+
+  /** How hot the Mac runs, as macOS reports it: from `nominal` to `critical`, where macOS slows the Mac down to cool it */
+  type ThermalState = 'nominal' | 'fair' | 'serious' | 'critical';
+
+  /** How short of memory the Mac is, as the Memory Pressure graph in Activity Monitor shows it */
+  type MemoryPressure = 'normal' | 'warning' | 'critical';
+
+  /** One logical core in `CPUStatus.cores` */
+  interface CPUCoreStatus {
+    /** How busy it was over the last reading, 0...1 */
+    readonly usage: number;
+    /** An efficiency core (Apple silicon); false for performance cores and on Intel Macs */
+    readonly efficiency: boolean;
+  }
+
+  /** The processor, in `SystemStatus.cpu` */
+  interface CPUStatus {
+    /** How busy the whole processor was over the last reading, 0...1 */
+    readonly usage: number;
+    /** Every logical core, efficiency cores first. How many depends on the Mac */
+    readonly cores: readonly CPUCoreStatus[];
+  }
+
+  /** Memory, in `SystemStatus.memory`; sizes in bytes, as Activity Monitor's Memory tab shows them */
+  interface MemoryStatus {
+    /** Physical memory */
+    readonly total: number;
+    /** Memory Used: `app` + `wired` + `compressed` */
+    readonly used: number;
+    /** App Memory */
+    readonly app: number;
+    /** Wired Memory */
+    readonly wired: number;
+    /** Compressed */
+    readonly compressed: number;
+    /** Cached Files: memory macOS gives back when something needs it */
+    readonly cached: number;
+    /** Swap Used: memory written out to the disk */
+    readonly swapUsed: number;
+    /** Memory pressure */
+    readonly pressure: MemoryPressure;
+    /** Whether macOS wrote memory out to the disk in the last 10 seconds */
+    readonly swapping: boolean;
+  }
+
+  /** The network, in `SystemStatus.network`; never which network, nor any address */
+  interface NetworkStatus {
+    /** Whether the Mac can reach the internet */
+    readonly online: boolean;
+    /** How it connects; null while offline */
+    readonly interface: 'wifi' | 'ethernet' | 'cellular' | 'other' | null;
+    /** The connection costs money or data, e.g. a phone's Personal Hotspot */
+    readonly expensive: boolean;
+    /** Bytes per second received over the last reading, all connections together */
+    readonly receivedPerSecond: number;
+    /** Bytes per second sent over the last reading */
+    readonly sentPerSecond: number;
+    /**
+     * Bytes received, as the network interfaces count them: each from when it came up (usually when the Mac started) for
+     * the ones there at the first reading, and all that the ones that came later received
+     */
+    readonly received: number;
+    /** Bytes sent, counted as `received` is */
+    readonly sent: number;
+  }
+
+  /** The battery, in `PowerStatus.battery` */
+  interface BatteryStatus {
+    /** How full, 0...1 */
+    readonly level: number;
+    /** Whether it's charging now */
+    readonly charging: boolean;
+    /** Whether it's full (or macOS holds it below full to keep it healthy) while plugged in */
+    readonly full: boolean;
+    /** Minutes until empty on battery; null while plugged in and while macOS is still estimating, which takes a minute or two after unplugging */
+    readonly timeToEmpty: number | null;
+    /** Minutes until full while charging; null otherwise and while macOS is still estimating */
+    readonly timeToFull: number | null;
+  }
+
+  /** Power, in `SystemStatus.power` */
+  interface PowerStatus {
+    /** What the Mac runs on now */
+    readonly source: 'battery' | 'ac';
+    /** The built-in battery; null on Macs without one */
+    readonly battery: BatteryStatus | null;
+    /** What the power adapter can give, in watts; null on battery and when the Mac doesn't know */
+    readonly adapterWatts: number | null;
+    /**
+     * What the whole Mac draws now, in watts; null when the Mac doesn't tell (some Macs never do). How often it changes
+     * depends on the Mac: from every reading to about once a minute
+     */
+    readonly systemWatts: number | null;
+    /** Whether Low Power Mode is on */
+    readonly lowPowerMode: boolean;
+  }
+
+  /** The startup disk, in `SystemStatus.disk`; bytes */
+  interface DiskStatus {
+    /** Its capacity, to a gigabyte (10^9 bytes) */
+    readonly total: number;
+    /** What's available for new files, as Finder shows it */
+    readonly available: number;
+  }
+
+  /**
+   * How the Mac is doing (DesktopEngine.systemStatus): processor, memory, network, power, temperature and disk, e.g. for
+   * a widget that shows them. Needs the "system-info" permission (and `"apiVersion": 8`); `DesktopEngine.systemStatus`
+   * is null without it. It never tells which apps run, which network the Mac is on, or any address.
+   *
+   * The app takes a reading about once a second while the content reads the properties or listens to the events (but
+   * `resume`), and stops 2 seconds after the last read once nothing listens. Each property is a frozen object that's replaced by the
+   * next reading, so keep a reference to compare with the next one. Nothing comes while the content is suspended: the
+   * `resume` event says for how long it was.
+   */
+  interface SystemStatus extends EventedObject<SystemStatusEventMap> {
+    /** The processor */
+    readonly cpu: Readonly<CPUStatus>;
+    /** Memory */
+    readonly memory: Readonly<MemoryStatus>;
+    /** The network */
+    readonly network: Readonly<NetworkStatus>;
+    /** Power and the battery */
+    readonly power: Readonly<PowerStatus>;
+    /**
+     * How hard the Mac is working to stay cool, as macOS tells it: it goes up when the Mac has to slow down to cool
+     * itself. It isn't a temperature: a Mac can run hot and still be `nominal`
+     */
+    readonly thermal: ThermalState;
+    /**
+     * The processor's temperature in °C, the average of its cores' sensors; null when the Mac doesn't let the app read
+     * it. It moves with the work the Mac does; `thermal` tells when the heat slows the Mac down
+     */
+    readonly temperature: number | null;
+    /** The startup disk */
+    readonly disk: Readonly<DiskStatus>;
+    /** When the Mac started, ms since the epoch, to the minute */
+    readonly bootTime: number;
+    /** change callback */
+    onchange: EventHandler<this, SystemStatusEventMap['change']> | null | undefined;
+    /** Removes the onchange callback */
+    offchange(): void;
+    /** powerchange callback */
+    onpowerchange: EventHandler<this, SystemStatusEventMap['powerchange']> | null | undefined;
+    /** Removes the onpowerchange callback */
+    offpowerchange(): void;
+    /** thermalchange callback */
+    onthermalchange: EventHandler<this, SystemStatusEventMap['thermalchange']> | null | undefined;
+    /** Removes the onthermalchange callback */
+    offthermalchange(): void;
+    /** networkchange callback */
+    onnetworkchange: EventHandler<this, SystemStatusEventMap['networkchange']> | null | undefined;
+    /** Removes the onnetworkchange callback */
+    offnetworkchange(): void;
+    /** memorypressurechange callback */
+    onmemorypressurechange: EventHandler<this, SystemStatusEventMap['memorypressurechange']> | null | undefined;
+    /** Removes the onmemorypressurechange callback */
+    offmemorypressurechange(): void;
+    /** resume callback */
+    onresume: EventHandler<this, SystemStatusEventMap['resume']> | null | undefined;
+    /** Removes the onresume callback */
+    offresume(): void;
+  }
+
+  // ---------------------------------------------------------------------------
   // Other apps' windows (DesktopEngine.windows)
   // ---------------------------------------------------------------------------
 
@@ -4335,6 +4528,8 @@ declare namespace DesktopEngine {
     input: Input;
     /** What the Mac plays, as an analysis for music visualizers; null without the "system-audio" permission (API 6) */
     readonly systemAudio: SystemAudio | null;
+    /** How the Mac is doing: processor, memory, network, power, temperature, disk; null without the "system-info" permission (API 8) */
+    readonly systemStatus: SystemStatus | null;
     /** Where other apps' windows are; null without the "window-positions" permission (API 6) */
     readonly windows: Windows | null;
     /**
@@ -4406,6 +4601,12 @@ declare namespace DesktopEngine {
      * Throws without the "system-audio" permission, and DesktopEngine.systemAudio is null then
      */
     readonly SystemAudio: SingletonConstructor<SystemAudio>;
+    /**
+     * SystemStatus constructor, a singleton: use DesktopEngine.systemStatus. Content may construct it before reading
+     * DesktopEngine.systemStatus, which is then that object; constructing another throws TypeError "Illegal constructor".
+     * Throws without the "system-info" permission, and DesktopEngine.systemStatus is null then
+     */
+    readonly SystemStatus: SingletonConstructor<SystemStatus>;
     /**
      * Windows constructor, a singleton: use DesktopEngine.windows. Content may construct it before reading
      * DesktopEngine.windows, which is then that object; constructing another throws TypeError "Illegal constructor".

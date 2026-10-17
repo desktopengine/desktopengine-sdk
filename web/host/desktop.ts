@@ -12,15 +12,16 @@
 //   const content = desktop.launch({ name: 'Clock', code, manifest, files });
 //   content.on('console', ({ level, message }) => …);
 
-import { API_VERSION, frameDocument, type AppWindowInfo, type ChannelScope, type FrameMessage, type HostMessage, type ParameterValue, type Rect, type WebScreen, type WindowState } from '../protocol.ts';
+import { API_VERSION, frameDocument, type AppWindowInfo, type ChannelScope, type FrameMessage, type HostMessage, type ParameterValue, type Rect, type SuspendReason, type SystemStatusOverrides, type SystemStatusReading, type WebScreen, type WindowState } from '../protocol.ts';
 import { ANALYSIS_RATE, analyseSpectrum, emptySnapshot } from '../system-audio.ts';
+import { SystemStatusSimulation, strongerReason, systemStatusChanges } from '../system-status.ts';
 
 /** The id prefix the store reserves */
 const OFFICIAL_ID_PREFIX = 'app.desktopengine.official.';
 
 declare const __FRAME_RUNTIME__: string;
 
-export type { AppWindowInfo, Rect, WebScreen, WindowState, ParameterValue };
+export type { AppWindowInfo, Rect, WebScreen, WindowState, ParameterValue, SuspendReason, SystemStatusOverrides, SystemStatusReading };
 
 /**
  * The page to serve at `DesktopOptions.frameURL`, on a site of its own: the frame runtime with a Content Security Policy
@@ -175,6 +176,8 @@ export class WebContent {
   wantsKeys = false;
   /** The BroadcastChannels its frame has open, by scope and name ("<scope>\n<name>") */
   readonly channels = new Set<string>();
+  /** @internal: it was last told it's suspended */
+  suspendedPlayback = false;
   private listeners = new Map<string, Set<(value: never) => void>>();
   private ready = false;
   private stopped = false;
@@ -251,6 +254,11 @@ export class WebContent {
   /** It's told where the pretend app windows are: DesktopEngine.windows */
   get seesAppWindows(): boolean {
     return (this.spec.permissions ?? this.spec.manifest?.permissions ?? []).includes('window-positions');
+  }
+
+  /** It's told how the pretend Mac is doing: DesktopEngine.systemStatus */
+  get seesSystemStatus(): boolean {
+    return (this.spec.permissions ?? this.spec.manifest?.permissions ?? []).includes('system-info');
   }
 
   /** It's told how many keys are pressed on the page: it declares key-activity and DesktopOptions.keyActivity gives it */
@@ -606,6 +614,11 @@ export class WebDesktop {
   private activeAppWindow: number | null = null;
   private appPress: AppWindowPress | null = null;
   private nextAppWindowId = 1;
+  /** DesktopEngine.systemStatus: the made-up Mac all contents see, and the timer of its readings */
+  private readonly statusSimulation = new SystemStatusSimulation();
+  private statusTimer = 0;
+  /** A suspension `simulateSuspension` started: its reason, the timer that ends it and what waits for that */
+  private simulatedSuspension: { reason: SuspendReason; timer: number; ended: (() => void)[] } | null = null;
   private readonly resizeObserver: ResizeObserver;
   private readonly intersectionObserver: IntersectionObserver;
   private readonly onMessage = (event: MessageEvent) => {
@@ -832,6 +845,7 @@ export class WebDesktop {
     if (this.press?.content === content) this.press = null;
     content.detach();
     this.updateInputWatching();
+    this.updateStatusTimer();
   }
 
   /** The appearance contents are told, light or dark */
@@ -921,15 +935,114 @@ export class WebDesktop {
     this.systemAudio = { element, source, input: stereo, timer };
   }
 
-  /** Pauses every content, like the app does when the desktop can't be seen */
+  /** Pauses every content, like the app does when the desktop can't be seen; they get `resume` with the reason 'paused' */
   setPaused(paused: boolean): void {
     this.paused = paused;
     this.updateAllPlayback();
   }
 
+  // MARK: DesktopEngine.systemStatus
+
+  /** The made-up system status contents with the system-info permission see now */
+  get systemStatus(): SystemStatusReading {
+    return this.statusSimulation.current;
+  }
+
+  /** What the page set over the made-up system status (`setSystemStatus`) */
+  get systemStatusOverrides(): SystemStatusOverrides {
+    return { ...this.statusSimulation.overrides };
+  }
+
+  /**
+   * Sets parts of the made-up system status, over what was set before; a key set to undefined goes back to the
+   * simulation. What the app hears of at once from macOS (the power source, charging, Low Power Mode, the thermal
+   * state, the network, memory pressure) comes to contents at once, the rest with the next reading.
+   *
+   *   desktop.setSystemStatus({ power: 'ac', batteryLevel: 0.08 });
+   *   desktop.setSystemStatus({ online: false });
+   *   desktop.setSystemStatus({ batteryLevel: undefined });
+   */
+  setSystemStatus(overrides: SystemStatusOverrides): void {
+    const merged: Record<string, unknown> = { ...this.statusSimulation.overrides };
+    for (const [key, value] of Object.entries(overrides)) {
+      if (value === undefined) delete merged[key];
+      else merged[key] = value;
+    }
+    this.applySystemStatus(merged as SystemStatusOverrides);
+  }
+
+  /** Back to the made-up system status, nothing set over it */
+  resetSystemStatus(): void {
+    this.applySystemStatus({});
+  }
+
+  private applySystemStatus(overrides: SystemStatusOverrides): void {
+    const previous = this.statusSimulation.current;
+    this.statusSimulation.overrides = overrides;
+    const next = this.statusSimulation.sample();
+    // a notification of macOS's in the app: a new reading at once, the next one a second later
+    if (systemStatusChanges(previous, next).length) {
+      this.sendSystemStatus(next);
+      if (this.statusTimer) {
+        clearInterval(this.statusTimer);
+        this.statusTimer = 0;
+        this.updateStatusTimer();
+      }
+    }
+  }
+
+  /**
+   * Suspends every content for `ms` as the app does when the Mac sleeps ('sleep'), its displays sleep ('displaysleep')
+   * or the user pauses all content ('paused'): no drawing, no system status readings, timers once a second. Then they
+   * run again and get DesktopEngine.systemStatus's `resume` with the reason, and a new reading. A suspension already
+   * on goes on to the new end, with the stronger reason (sleep, then displaysleep, then paused). Resolves when they run again.
+   */
+  simulateSuspension(reason: SuspendReason = 'sleep', ms = 5000): Promise<void> {
+    const current = this.simulatedSuspension;
+    if (current) clearTimeout(current.timer);
+    const timer = window.setTimeout(() => this.endSuspension(), Math.max(0, ms));
+    const suspension = { reason: strongerReason(reason, current?.reason), timer, ended: current?.ended ?? [] };
+    this.simulatedSuspension = suspension;
+    const ended = new Promise<void>((resolve) => suspension.ended.push(resolve));
+    this.updateAllPlayback();
+    return ended;
+  }
+
+  /** Ends a suspension `simulateSuspension` started, before its time */
+  endSuspension(): void {
+    const suspension = this.simulatedSuspension;
+    if (!suspension) return;
+    clearTimeout(suspension.timer);
+    this.simulatedSuspension = null;
+    this.updateAllPlayback();
+    for (const resolve of suspension.ended) resolve();
+  }
+
+  /** Why the contents are suspended, null when they aren't: a simulated suspension, the page hidden or paused */
+  private get suspendReason(): SuspendReason | null {
+    const paused = document.visibilityState === 'hidden' || this.paused ? 'paused' : null;
+    return this.simulatedSuspension ? strongerReason(this.simulatedSuspension.reason, paused) : paused;
+  }
+
+  /** A reading to the contents that see the system status */
+  private sendSystemStatus(reading: SystemStatusReading): void {
+    for (const content of this.contents) if (content.seesSystemStatus) content.post({ type: 'system-status', reading });
+  }
+
+  /** Readings about once a second while a content sees them */
+  private updateStatusTimer(): void {
+    const wanted = [...this.contents].some((content) => content.seesSystemStatus);
+    if (wanted && !this.statusTimer) {
+      this.statusTimer = window.setInterval(() => this.sendSystemStatus(this.statusSimulation.sample()), 1000);
+    } else if (!wanted && this.statusTimer) {
+      clearInterval(this.statusTimer);
+      this.statusTimer = 0;
+    }
+  }
+
   /** Whether contents draw: what `playback` tells them (suspended or rendering paused otherwise) */
   private get playing(): boolean {
-    return document.visibilityState !== 'hidden' && !this.paused && this.visible;
+    return this.suspendReason === null && this.visible;
   }
 
   /** @internal: a content asked for frames, or the desktop can be seen again */
@@ -939,6 +1052,12 @@ export class WebDesktop {
 
   destroy(): void {
     this.setSystemAudioSource(null);
+    clearInterval(this.statusTimer);
+    this.statusTimer = 0;
+    if (this.simulatedSuspension) clearTimeout(this.simulatedSuspension.timer);
+    const suspension = this.simulatedSuspension;
+    this.simulatedSuspension = null;
+    for (const resolve of suspension?.ended ?? []) resolve();
     this.audioContext?.close().catch(() => undefined);
     cancelAnimationFrame(this.frameRequest);
     this.frameRequest = 0;
@@ -960,6 +1079,7 @@ export class WebDesktop {
     const spec = content.spec;
     const manifest = spec.manifest ?? {};
     const permissions = content.givenPermissions;
+    this.updateStatusTimer();
     return {
       type: 'launch',
       name: spec.name,
@@ -982,6 +1102,7 @@ export class WebDesktop {
       namespaceChannels: content.channelGroup('namespace') !== null,
       systemAudio: content.systemAudio,
       appWindows: content.seesAppWindows ? this.appWindows : [],
+      systemStatus: content.seesSystemStatus ? this.statusSimulation.current : undefined,
     };
   }
 
@@ -1060,13 +1181,20 @@ export class WebDesktop {
 
   /** @internal */
   updatePlayback(content: WebContent): void {
-    const hidden = document.visibilityState === 'hidden';
+    const reason = this.suspendReason;
+    const suspended = reason !== null;
+    // a content running again gets a fresh reading after `resume`, as in the app
+    if (content.suspendedPlayback && !suspended && content.seesSystemStatus) {
+      content.post({ type: 'system-status', reading: this.statusSimulation.fresh() });
+    }
+    content.suspendedPlayback = suspended;
     content.post({
       type: 'playback',
-      suspended: hidden || this.paused,
+      suspended,
       renderingPaused: !this.visible,
       muted: this.options.muted ?? true,
       maxFramesPerSecond: this.options.maxFramesPerSecond ?? 0,
+      ...(reason ? { suspendReason: reason } : {}),
     });
   }
 

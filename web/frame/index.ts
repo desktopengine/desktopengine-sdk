@@ -9,7 +9,7 @@
 // the pointer, and tells the host where its windows are.
 
 import { contentFunction } from './realm.ts';
-import { readAppWindows, sameAppWindows, visibleTopEdges, type AppWindowInfo, type FrameMessage, type HostMessage, type LaunchMessage, type ParameterValue, type TopEdge, type WebScreen } from '../protocol.ts';
+import { readAppWindows, sameAppWindows, visibleTopEdges, type AppWindowInfo, type FrameMessage, type HostMessage, type LaunchMessage, type ParameterValue, type SuspendReason, type SystemStatusReading, type TopEdge, type WebScreen } from '../protocol.ts';
 import { CanvasImageImpl, CanvasImpl, ComponentImpl, componentOf, ImageImpl, VideoImpl, WindowImpl, allVideos, allWindows, reportWindows, unwrap, windowById } from './components.ts';
 import { Evented, defineEvents } from './events.ts';
 import { createFileSystem, loadPackage, requireFrom } from './files.ts';
@@ -24,6 +24,7 @@ import { guard, hasPermission, itemsOf, list, report, send, state } from './stat
 import { createSyncStorage, installStorage } from './storage.ts';
 import { engineConstructor, standIn } from './stand-ins.ts';
 import { RESTRICTED_BAND_COUNT, RESTRICTED_QUANTUM, FINE_BAND_COUNT, emptySnapshot, isAudible, mergeBands, normalizedLevel, restrictedRefresh, syntheticSnapshot, type Snapshot } from '../system-audio.ts';
+import { readSuspendReason, readSystemStatus, restingSystemStatus, strongerReason, systemStatusChanges } from '../system-status.ts';
 
 const scope = globalThis as unknown as Record<string, unknown> & typeof globalThis;
 
@@ -49,6 +50,7 @@ const { add: setAdd, delete: setDelete } = Set.prototype;
 const { get: weakMapGet, set: weakMapSet, has: weakMapHas, delete: weakMapDelete } = WeakMap.prototype;
 const { has: weakSetHas, add: weakSetAdd } = WeakSet.prototype;
 const now = performance.now.bind(performance);
+const dateNow = Date.now;
 const contains = <T>(items: T[], item: T): boolean => {
   for (let index = 0; index < items.length; index++) if (items[index] === item) return true;
   return false;
@@ -194,7 +196,7 @@ let systemAudio: SystemAudioImpl | null = null;
  * As in the app: the one SystemAudio or Windows, made by DesktopEngine's getter or by content before it read that,
  * becomes the property's value (the getter would only try to make another)
  */
-function settleSingleton(key: 'systemAudio' | 'windows', value: object): void {
+function settleSingleton(key: 'systemAudio' | 'windows' | 'systemStatus', value: object): void {
   const desktopEngine = scope.DesktopEngine;
   if (typeof desktopEngine !== 'object' || desktopEngine === null) return;
   if (reflectDelete(desktopEngine, key)) {
@@ -354,6 +356,195 @@ function updateAppWindows(value: unknown): void {
   appWindows = next;
   windows?.emit('change');
 }
+
+// MARK: System status
+
+/** The events that come with readings: listening to any of them keeps the readings coming (`resume` alone doesn't) */
+const STATUS_READING_EVENTS = ['change', 'powerchange', 'thermalchange', 'networkchange', 'memorypressurechange'];
+/** A read keeps the readings coming for this long, ms */
+const STATUS_READ_WINDOW = 2000;
+
+/** One reading as the content sees it: frozen objects, the same ones until the next reading */
+interface StatusView {
+  reading: SystemStatusReading;
+  cpu: object;
+  memory: object;
+  network: object;
+  power: object;
+  disk: object;
+}
+
+/** The page's latest reading, which the next reading the content gets is taken from */
+let pageStatus: SystemStatusReading | null = null;
+/** What the content reads: the latest reading it got; null before the first */
+let statusView: StatusView | null = null;
+/** The reading the next one's discrete events compare with: the last `change`'s, or what it read before it listened */
+let statusBaseline: SystemStatusReading | null = null;
+/** The reading the content last read or was told about with `change` */
+let statusLastRead: SystemStatusReading | null = null;
+let statusReadAt = -Infinity;
+/** Whether the content listens to any of the events that come with readings */
+let statusListening = false;
+/** Since when the content is suspended (Date.now()) and why, the strongest reason during it */
+let suspension: { at: number; reason: SuspendReason } | null = null;
+/** DesktopEngine.systemStatus, the only one there is: as in the app, the constructor works once */
+let systemStatus: SystemStatusImpl | null = null;
+
+/** A frozen copy, deep as the reading's objects are */
+function frozenStatus(reading: SystemStatusReading): StatusView {
+  const cores: object[] = [];
+  for (let index = 0; index < reading.cpu.cores.length; index++) {
+    const core = reading.cpu.cores[index];
+    const usage = core.usage;
+    // defined, not assigned: nothing the content put on Array.prototype is called
+    reflectDefine(cores, index, descriptor({ value: freeze({ usage, efficiency: core.efficiency }), writable: true, enumerable: true, configurable: true }));
+  }
+  freeze(cores);
+  const { memory, network, power, disk } = reading;
+  const battery = power.battery;
+  return {
+    reading,
+    cpu: freeze({ usage: reading.cpu.usage, cores }),
+    memory: freeze({
+      total: memory.total, used: memory.used, app: memory.app, wired: memory.wired, compressed: memory.compressed, cached: memory.cached,
+      swapUsed: memory.swapUsed, pressure: memory.pressure, swapping: memory.swapping,
+    }),
+    network: freeze({
+      online: network.online, interface: network.interface, expensive: network.expensive,
+      receivedPerSecond: network.receivedPerSecond, sentPerSecond: network.sentPerSecond,
+      received: network.received, sent: network.sent,
+    }),
+    power: freeze({
+      source: power.source,
+      battery: battery && freeze({
+        level: battery.level, charging: battery.charging, full: battery.full, timeToEmpty: battery.timeToEmpty, timeToFull: battery.timeToFull,
+      }),
+      adapterWatts: power.adapterWatts,
+      systemWatts: power.systemWatts,
+      lowPowerMode: power.lowPowerMode,
+    }),
+    disk: freeze({ total: disk.total, available: disk.available }),
+  };
+}
+
+/** Whether readings come: while the content listens to an event that comes with them, or read in the last 2 seconds */
+function statusSampling(): boolean {
+  return systemStatus !== null && (statusListening || now() - statusReadAt < STATUS_READ_WINDOW);
+}
+
+/**
+ * A new reading of the page's latest: `change`, then the discrete events for what differs from the last `change`'s
+ * (or, for the first since the content listened, from what it read before)
+ */
+function takeStatusReading(): void {
+  const status = systemStatus;
+  const reading = pageStatus;
+  if (!status || !reading) return;
+  // measured since the reading before, or over a moment before it after readings stopped, as the app's sampler does
+  statusView = frozenStatus(reading);
+  if (!statusListening) return;
+  const previous = statusBaseline;
+  statusBaseline = reading;
+  statusLastRead = reading;
+  status.emit('change');
+  if (!previous) return;
+  const changes = systemStatusChanges(previous, reading);
+  for (let index = 0; index < changes.length; index++) status.emit(changes[index]);
+}
+
+/** One of the page's readings: the content gets it while readings come, and never while it's suspended */
+function pageSystemStatus(value: unknown): void {
+  if (!hasPermission('system-info')) return;
+  const reading = readSystemStatus(value);
+  if (!reading) return;
+  pageStatus = reading;
+  if (statusSampling() && !state.suspended) takeStatusReading();
+}
+
+/** The content suspended, or running again: `resume` says for how long and why, then a new reading comes */
+function statusSuspended(suspended: boolean, reason: SuspendReason): void {
+  if (suspended) {
+    if (suspension) suspension.reason = strongerReason(suspension.reason, reason);
+    else suspension = { at: dateNow(), reason };
+    return;
+  }
+  const ended = suspension;
+  suspension = null;
+  if (!ended || !systemStatus) return;
+  systemStatus.emit('resume', freeze({ suspendedAt: ended.at, resumedAt: dateNow(), reason: ended.reason }));
+  // a listener may have suspended it again
+  if (!state.suspended && statusSampling()) takeStatusReading();
+}
+
+/**
+ * DesktopEngine.systemStatus: a browser can't see the Mac, so the page makes up how it's doing, one reading about once a
+ * second for all its contents (WebDesktop.setSystemStatus sets any of it). A reading comes in a message of the page's,
+ * so the properties never change while the content's JS runs; while it listens, they change along with `change`.
+ */
+class SystemStatusImpl extends Evented {
+  constructor() {
+    if (systemStatus) throw new TypeError('Illegal constructor');
+    if (!hasPermission('system-info')) throw new Error('DesktopEngine.systemStatus needs the "system-info" permission in manifest.json, and the user\'s consent');
+    super();
+    systemStatus = this;
+    settleSingleton('systemStatus', this);
+  }
+
+  /**
+   * The reading the content reads now: while readings come, the one it has; otherwise a fresh one, taken at once, as the
+   * app's sampler starts again (the same one until the running JS returns, the page's readings come between)
+   */
+  #view(): StatusView {
+    if (!statusView || !statusSampling()) {
+      const reading = pageStatus ?? restingSystemStatus();
+      if (!statusView || statusView.reading !== reading) statusView = frozenStatus(reading);
+    }
+    statusReadAt = now();
+    statusLastRead = statusView.reading;
+    return statusView;
+  }
+
+  protected override listenersChanged(_name: string): void {
+    let listening = false;
+    for (let index = 0; index < STATUS_READING_EVENTS.length && !listening; index++) listening = this.listens(STATUS_READING_EVENTS[index]);
+    // the first change after it starts listening compares with what it read or was told about before, if anything
+    if (listening && !statusListening) statusBaseline = statusLastRead;
+    statusListening = listening;
+  }
+
+  get cpu(): object {
+    return this.#view().cpu;
+  }
+
+  get memory(): object {
+    return this.#view().memory;
+  }
+
+  get network(): object {
+    return this.#view().network;
+  }
+
+  get power(): object {
+    return this.#view().power;
+  }
+
+  get thermal(): string {
+    return this.#view().reading.thermal;
+  }
+
+  get temperature(): number | null {
+    return this.#view().reading.temperature;
+  }
+
+  get disk(): object {
+    return this.#view().disk;
+  }
+
+  get bootTime(): number {
+    return this.#view().reading.bootTime;
+  }
+}
+defineEvents(SystemStatusImpl.prototype, [...STATUS_READING_EVENTS, 'resume']);
 
 const system = new SystemImpl();
 const screenManager = new ScreenManagerImpl();
@@ -883,7 +1074,7 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
   Object.defineProperty(desktopEngine, 'syncStorage', { get: () => syncStorage, enumerable: true, configurable: true });
   // as the app's polyfills: made the first time they're read, null when the constructor refuses (without the
   // permission); content may construct the one there is first (settleSingleton)
-  for (const [key, make] of [['systemAudio', () => new SystemAudioImpl()], ['windows', () => new WindowsImpl()]] as const) {
+  for (const [key, make] of [['systemAudio', () => new SystemAudioImpl()], ['systemStatus', () => new SystemStatusImpl()], ['windows', () => new WindowsImpl()]] as const) {
     let made: Evented | null | undefined;
     Object.defineProperty(desktopEngine, key, {
       get: () => {
@@ -915,7 +1106,7 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
 const DESKTOP_ENGINE_ORDER = [
   'setTimeout', 'clearTimeout', 'base64Encode', 'clearInterval', 'base64Decode', 'applyNew', 'setInterval', 'preferredFramesPerSecond',
   'Canvas', 'WebGLRenderingContext', 'WebGL2RenderingContext', 'CanvasImage', 'Component', 'fs', 'files', 'Image', 'input',
-  'ScreenManager', 'syncStorage', 'system', 'systemAudio', 'Video', 'Window', 'windows', 'apiVersion', 'launchOptions',
+  'ScreenManager', 'syncStorage', 'system', 'systemAudio', 'systemStatus', 'Video', 'Window', 'windows', 'apiVersion', 'launchOptions',
 ];
 
 // MARK: Launch
@@ -950,6 +1141,7 @@ function launch(message: LaunchMessage): void {
   state.muted = message.muted;
   state.hostMaxFramesPerSecond = message.maxFramesPerSecond;
   if (hasPermission('window-positions')) appWindows = readAppWindows(message.appWindows);
+  if (hasPermission('system-info')) pageStatus = readSystemStatus(message.systemStatus);
   loadPackage(message.files, message.code);
   installNetwork(scope);
   installStorage(scope);
@@ -980,8 +1172,8 @@ function launch(message: LaunchMessage): void {
   for (const [name, value] of Object.entries({
     Window: WindowImpl, Component: ComponentImpl, Video: VideoImpl, Image: ImageImpl, Canvas: CanvasImpl, CanvasImage: CanvasImageImpl,
     ScreenManager: ScreenManagerImpl, System: SystemImpl, Input: InputImpl,
-    // one each, as in the app: content may make it before DesktopEngine.systemAudio or .windows does
-    SystemAudio: named(SystemAudioImpl, 'SystemAudio'), Windows: named(WindowsImpl, 'Windows'),
+    // one each, as in the app: content may make it before DesktopEngine.systemAudio, .systemStatus or .windows does
+    SystemAudio: named(SystemAudioImpl, 'SystemAudio'), SystemStatus: named(SystemStatusImpl, 'SystemStatus'), Windows: named(WindowsImpl, 'Windows'),
   })) {
     engineConstructor(value);
     Object.defineProperty(runtimeScope, name, { get: () => value });
@@ -1135,6 +1327,9 @@ scope.addEventListener('message', (event: MessageEvent) => {
     case 'app-windows':
       if (state.launch) updateAppWindows(message.windows);
       break;
+    case 'system-status':
+      if (state.launch) pageSystemStatus(message.reading);
+      break;
     case 'cursor':
       document.documentElement.style.cursor = toText(message.cursor);
       break;
@@ -1165,6 +1360,7 @@ scope.addEventListener('message', (event: MessageEvent) => {
       break;
     case 'playback': {
       const wasVisible = !state.suspended && !state.renderingPaused;
+      const wasSuspended = state.suspended;
       state.suspended = message.suspended;
       state.renderingPaused = message.renderingPaused;
       state.muted = message.muted;
@@ -1177,6 +1373,8 @@ scope.addEventListener('message', (event: MessageEvent) => {
       const videos = allVideos();
       for (let index = 0; index < videos.length; index++) videos[index].suspend(state.suspended);
       applyAudio();
+      // the suspension's reason noted from its start, `resume` once it's over (after the rest is handled)
+      if (state.launch && (state.suspended || wasSuspended)) statusSuspended(state.suspended, readSuspendReason(message.suspendReason));
       break;
     }
     case 'broadcast':

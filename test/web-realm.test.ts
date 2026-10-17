@@ -20,6 +20,7 @@ import { promisify } from 'node:util';
 import * as esbuild from 'esbuild';
 
 import type { LaunchMessage } from '../web/protocol.ts';
+import { SystemStatusSimulation } from '../web/system-status.ts';
 
 /** The frame runtime, bundled as the SDK bundles it (web/build.mjs) */
 const { frameOptions } = await import(pathToFileURL(path.join(import.meta.dirname, '..', 'web', 'build.mjs')).href) as { frameOptions: esbuild.BuildOptions };
@@ -474,4 +475,53 @@ test('content\'s global object inherits Object.prototype', async () => {
     deleted: [true, 'undefined', false, true, 'undefined'],
   }]);
   assert.deepEqual(exceptions, []);
+});
+
+test('DesktopEngine.systemStatus\'s readings, events and resume work whatever the content did to the language\'s builtins', async () => {
+  const simulation = new SystemStatusSimulation();
+  const first = simulation.sample(0);
+  simulation.overrides = { thermal: 'serious', online: false };
+  const second = simulation.sample(1000);
+  simulation.overrides = { thermal: 'serious', online: false, power: 'ac', memoryPressure: 'warning' };
+  const third = simulation.sample(2000);
+  const { posted, exceptions, calls, events } = await runContent(`
+    const s = DesktopEngine.systemStatus;
+    const replaced = [...${REPLACED}, [Date, 'now', 'Date.now']];
+    for (let index = 0; index < replaced.length; index++) Math.replaced(replaced[index][0], replaced[index][1], replaced[index][2]);
+    const events = [];
+    const note = (text) => {
+      events[events.length] = text;
+    };
+    Math.events = events;
+    const before = s.cpu;
+    note('read ' + s.thermal + ' ' + s.network.receivedPerSecond + ' ' + (s.cpu === before) + ' ' + s.cpu.cores[0].efficiency);
+    s.onchange = () => note('change ' + s.thermal + ' ' + s.network.online + ' ' + (s.cpu !== before));
+    s.addEventListener('thermalchange', () => note('thermalchange'));
+    s.addEventListener('onnetworkchange', () => note('networkchange'));
+    s.onpowerchange = () => note('powerchange ' + s.power.source);
+    s.onmemorypressurechange = () => note('memorypressurechange ' + s.memory.pressure);
+    s.onresume = (payload) => note('resume ' + payload.reason + ' ' + (payload.resumedAt >= payload.suspendedAt));
+    postMessage('host', { status: typeof s });
+  `, {
+    launch: { permissions: ['system-info'], systemStatus: first },
+    messages: [
+      `{ type: 'system-status', reading: ${JSON.stringify(second)} }`,
+      '{ type: \'playback\', suspended: true, renderingPaused: true, muted: true, maxFramesPerSecond: 0, suspendReason: \'sleep\' }',
+      `{ type: 'system-status', reading: ${JSON.stringify(third)} }`,
+      '{ type: \'playback\', suspended: false, renderingPaused: false, muted: true, maxFramesPerSecond: 0 }',
+    ],
+  });
+  assert.deepEqual(calls, []);
+  assert.deepEqual(exceptions, []);
+  assert.deepEqual(posted, [{ status: 'object' }]);
+  assert.deepEqual(events, [
+    `read nominal ${first.network.receivedPerSecond} true true`,
+    'change serious false true',
+    'thermalchange',
+    'networkchange',
+    'resume sleep true',
+    'change serious false true',
+    'powerchange ac',
+    'memorypressurechange warning',
+  ]);
 });

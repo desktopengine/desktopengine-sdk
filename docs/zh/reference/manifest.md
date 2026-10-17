@@ -105,7 +105,7 @@
 | --- | --- |
 | `network` | 连接 `network.domains` 里的域名 |
 | `audio` | 播放声音 |
-| `system-info` | CPU 和内存用量 |
+| `system-info` | Mac 的状况：CPU 和内存用量，以及 [`DesktopEngine.systemStatus`](/zh/guide/system-status)（处理器、内存、网络、电源、温度、磁盘） |
 | `mouse` | 指针的位置和点击，在任何应用里（需要 `"apiVersion": 3`），见[跟随鼠标](/zh/guide/input) |
 | `system-audio` | 其他应用在 Mac 上播放的声音整体和从低到高各个频带有多响，只有分析结果，从不给声音本身（需要 `"apiVersion": 6`）；有它的内容不能同时有 `network`，见[Mac 正在播放的声音](/zh/guide/audio#mac-正在播放的声音) |
 | `window-positions` | 其他应用窗口的位置、大小和前后顺序，以及哪些属于正在用的应用；不包括它们的标题和窗口里显示的东西（需要 `"apiVersion": 6`），见[其他应用的窗口](/zh/guide/app-windows) |
@@ -130,7 +130,7 @@ if (permissions.includes('network')) {
 "network": { "domains": ["api.example.com", "*.tile.example.org"] }
 ```
 
-由运行时强制执行的权限：`network`（没有它不能联网，有它也只能连列出的域名，见[网络](/zh/guide/network#域名)）、`audio`（没有它不能发出声音，见[音频](/zh/guide/audio)）、`system-info`（没有它 `cpuUsage()` / `memoryUsage()` 抛出错误）、`mouse`（没有它收不到 `DesktopEngine.input` 的鼠标事件）、`window-positions`（没有它 `DesktopEngine.windows` 为 `null`）和 `system-audio`（没有它 `DesktopEngine.systemAudio` 为 `null`）。同时声明 `system-audio` 和 `network` 是错误：`desktopengine validate` 会报出来，应用和商店也不接受这样的包。`desktopengine dev` 和「开发」菜单载入的内容由开发者自己运行，不询问，按和已安装内容相同的规则得到声明的全部权限（例如 `network` 同样只能连列出的域名）；没有声明的同样用不了。
+由运行时强制执行的权限：`network`（没有它不能联网，有它也只能连列出的域名，见[网络](/zh/guide/network#域名)）、`audio`（没有它不能发出声音，见[音频](/zh/guide/audio)）、`system-info`（没有它 `cpuUsage()` / `memoryUsage()` 抛出错误，`DesktopEngine.systemStatus` 为 `null`）、`mouse`（没有它收不到 `DesktopEngine.input` 的鼠标事件）、`window-positions`（没有它 `DesktopEngine.windows` 为 `null`）和 `system-audio`（没有它 `DesktopEngine.systemAudio` 为 `null`）。同时声明 `system-audio` 和 `network` 是错误：`desktopengine validate` 会报出来，应用和商店也不接受这样的包。`desktopengine dev` 和「开发」菜单载入的内容由开发者自己运行，不询问，按和已安装内容相同的规则得到声明的全部权限（例如 `network` 同样只能连列出的域名）；没有声明的同样用不了。
 
 ## API 版本
 
@@ -145,6 +145,6 @@ if (permissions.includes('network')) {
 | 5 | 2D 画布的 `ellipse()`、`roundRect()`、`getTransform()`、`createConicGradient()`、`letterSpacing` 和 `wordSpacing`，`setTransform()` 可以传矩阵，混合模式（`multiply`…`luminosity`）、`TextMetrics` 的其余字段、`Path2D`、`isPointInPath` 和 `isPointInStroke`；`createImageBitmap` 和 `new ImageData()`；`structuredClone`、`MessageChannel`、`FileReader`、`CustomEvent` 和 `navigator`，见[全局对象](/zh/guide/runtime#全局对象) |
 | 6 | `BroadcastChannel`，范围有 `package` 和 `namespace`，见[内容之间的消息](/zh/guide/messaging)；`DesktopEngine.systemAudio` 和 `system-audio` 权限，见[Mac 正在播放的声音](/zh/guide/audio#mac-正在播放的声音)；`DesktopEngine.windows`（`list()`、`visibleTopEdges()` 和 `change`）和 `window-positions` 权限，见[其他应用的窗口](/zh/guide/app-windows)；`Image` 还没加进组件时就加载 `src`，可以先等它的 `load` 再加进去 |
 | 7 | `DesktopEngine.syncStorage`，跟着用户到其他 Mac 上的键和值，见[同步的存储](/zh/guide/storage#同步的存储-desktopengine-syncstorage) |
-| 8 | 选项的 `showWhen`，只在另一个选项取某些值时显示，见[选项](#选项-parameters) |
+| 8 | 选项的 `showWhen`，只在另一个选项取某些值时显示，见[选项](#选项-parameters)；`DesktopEngine.systemStatus`：处理器、内存、网络、电源和电池、温度和磁盘，变化时有事件，内容暂停后有 `resume`，见[系统状态](/zh/guide/system-status)（`system-info` 权限） |
 
 版本 4 还按浏览器的样子改了一些 API：双击事件是 `dblclick`（原来是 `dbclick`），`click` 和 `dblclick` 的参数和鼠标事件一样是 `{ x, y, … }`（原来是 `{ position: { x, y } }`）。去掉了 WebGL 上下文的 `wxBindCanvasTexture` 和 `blBindCanvasTexture`、全局的 `mixin` 和 `promisify`，以及没有对应 API 的 `files`、`now-playing`、`window-positions` 权限（版本 6 随 `DesktopEngine.windows` 重新加入了 `window-positions`）。用到它们的内容改好后要写上 `"apiVersion": 4`。

@@ -3,7 +3,7 @@
 Content runs in JavaScriptCore, not in a browser. The type declarations (the [API reference](/api/)) are compiled from the engine's source, with only the APIs that really exist. The main points:
 
 - There is no DOM and no Node.js: no `document`, no `window`; see [Network](./network) for the network, [Storage and Files](./storage) for `localStorage` and files, and [Audio](./audio) for sound. Modules in the runtime are CommonJS `require()`; to use `import`, put your code in `src/` and let the SDK bundle it (see [Projects and Builds](./project)).
-- `DesktopEngine.system.cpuUsage()` / `memoryUsage()` give CPU and memory usage; they need the `system-info` permission and throw without it.
+- `DesktopEngine.system.cpuUsage()` / `memoryUsage()` give CPU and memory usage; they need the `system-info` permission and throw without it. [`DesktopEngine.systemStatus`](./system-status) tells much more, with events.
 - `DesktopEngine.input` follows the mouse anywhere on screen with the `mouse` permission, see [Following the Mouse](./input).
 - `DesktopEngine.windows` tells where other apps' windows are with the `window-positions` permission, see [Other Apps' Windows](./app-windows).
 - `DesktopEngine.systemAudio` analyses the sound other apps play on the Mac, overall and in bands from low to high, for music visualizers, with the `system-audio` permission, see [What the Mac plays](./audio#what-the-mac-plays).

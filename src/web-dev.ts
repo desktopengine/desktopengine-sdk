@@ -659,6 +659,13 @@ function desktopPage(token: string, proxyToken: string): string {
     background: var(--dock); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.18); pointer-events: none; }
   #banner { position: fixed; z-index: 11; top: 32px; right: 12px; max-width: 420px; padding: 10px 12px; border-radius: 10px; background: #b3261e; color: #fff;
     white-space: pre-wrap; font: 12px ui-monospace, Menlo, monospace; display: none; }
+  #status-panel { position: fixed; z-index: 12; top: 30px; right: 12px; width: 240px; padding: 10px 12px; border-radius: 10px; display: grid; gap: 6px;
+    font-size: 12px; background: var(--bar); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25); }
+  #status-panel[hidden] { display: none; }
+  #status-panel label, #status-panel .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  #status-panel label.check { justify-content: flex-start; }
+  #status-panel select, #status-panel button { font: inherit; color: inherit; }
+  #status-panel .readout { opacity: 0.6; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -672,7 +679,22 @@ function desktopPage(token: string, proxyToken: string): string {
   <button id="sound" title="Sound">🔇</button>
   <button id="music" title="What systemAudio hears: a made-up signal, or an audio file you choose" hidden>♫</button>
   <input id="music-file" type="file" accept="audio/*,video/*" hidden>
+  <button id="system-status" title="What systemStatus shows: set the Mac's state, or let it sleep for a moment" hidden>⚡&#xFE0E;</button>
   <button id="restart" title="Start again">↻</button>
+</div>
+<div id="status-panel" hidden>
+  <label>Thermal state <select id="st-thermal"><option>nominal</option><option>fair</option><option>serious</option><option>critical</option></select></label>
+  <label>Network <select id="st-network"><option value="wifi">Wi-Fi</option><option value="ethernet">Ethernet</option><option value="cellular">Cellular</option><option value="other">Other</option><option value="offline">Offline</option></select></label>
+  <label class="check"><input type="checkbox" id="st-expensive"> Expensive connection</label>
+  <label>Memory pressure <select id="st-pressure"><option>normal</option><option>warning</option><option>critical</option></select></label>
+  <label class="check"><input type="checkbox" id="st-swapping"> Swapping</label>
+  <label>Power <select id="st-power"><option value="battery">On battery</option><option value="ac">Plugged in</option><option value="full">Plugged in, full</option><option value="none">No battery</option></select></label>
+  <label class="check"><input type="checkbox" id="st-low-battery"> Low battery</label>
+  <label class="check"><input type="checkbox" id="st-low-power"> Low Power Mode</label>
+  <label class="check"><input type="checkbox" id="st-watts"> Power draw unknown</label>
+  <label class="check"><input type="checkbox" id="st-temperature"> Temperature unknown</label>
+  <div class="row"><select id="st-reason" title="Why the content is suspended: what resume tells"><option value="sleep">The Mac sleeps</option><option value="displaysleep">The displays sleep</option><option value="paused">Content paused</option></select><button id="st-suspend">Suspend 5 s</button></div>
+  <div class="row"><span class="readout" id="st-readout"></span><button id="st-reset" title="Back to the made-up values">Reset</button></div>
 </div>
 <div id="dock"></div>
 <div id="banner"></div>
@@ -748,6 +770,9 @@ async function run() {
     content.on('host-message', (message) => log({ kind: 'host-message', message: JSON.stringify(message) }));
     content.on('stats', ({ framesPerSecond }) => { document.getElementById('status').textContent = framesPerSecond + ' fps'; });
   }
+  // the system status controls for content that reads it
+  statusButton.hidden = !permissions.includes('system-info');
+  if (statusButton.hidden) statusPanel.hidden = true;
   // the ♫ button while the content hears something: with network too, it doesn't
   const hears = content.systemAudio !== 'none';
   if (!hears && player.src) stopMusic();
@@ -819,6 +844,58 @@ musicFile.onchange = () => {
 player.onplay = player.onpause = showMusic;
 // one that stops playing midway too
 player.onerror = () => { if (player.getAttribute('src')) stopMusic(); };
+// DesktopEngine.systemStatus shows a made-up Mac: any of it can be set here, and the content suspended for a moment
+const statusButton = document.getElementById('system-status');
+const statusPanel = document.getElementById('status-panel');
+const statusField = (id) => document.getElementById('st-' + id);
+const showStatus = () => {
+  const status = desktop.systemStatus;
+  const battery = status.power.battery;
+  const watts = status.power.systemWatts;
+  const temperature = status.temperature;
+  statusField('readout').textContent = 'CPU ' + Math.round(status.cpu.usage * 100) + '%'
+    + (temperature === null ? '' : ' · ' + Math.round(temperature) + ' °C')
+    + (battery ? ' · battery ' + Math.round(battery.level * 100) + '%' : '') + (watts === null ? '' : ' · ' + watts.toFixed(1) + ' W');
+  statusField('low-battery').disabled = statusField('power').value === 'none';
+  statusField('expensive').disabled = statusField('network').value === 'offline';
+};
+const applyStatus = () => {
+  const network = statusField('network').value;
+  desktop.setSystemStatus({
+    thermal: statusField('thermal').value,
+    online: network !== 'offline',
+    networkInterface: network === 'offline' ? undefined : network,
+    expensive: statusField('expensive').checked,
+    memoryPressure: statusField('pressure').value,
+    swapping: statusField('swapping').checked,
+    power: statusField('power').value,
+    batteryLevel: statusField('low-battery').checked ? 0.08 : undefined,
+    lowPowerMode: statusField('low-power').checked,
+    systemWatts: statusField('watts').checked ? null : undefined,
+    temperature: statusField('temperature').checked ? null : undefined,
+  });
+  showStatus();
+};
+for (const id of ['thermal', 'network', 'expensive', 'pressure', 'swapping', 'power', 'low-battery', 'low-power', 'watts', 'temperature']) statusField(id).onchange = applyStatus;
+statusButton.onclick = () => {
+  statusPanel.hidden = !statusPanel.hidden;
+  if (!statusPanel.hidden) showStatus();
+};
+statusField('reset').onclick = () => {
+  desktop.resetSystemStatus();
+  for (const [id, value] of [['thermal', 'nominal'], ['network', 'wifi'], ['pressure', 'normal'], ['power', 'battery']]) statusField(id).value = value;
+  for (const id of ['expensive', 'swapping', 'low-battery', 'low-power', 'watts', 'temperature']) statusField(id).checked = false;
+  showStatus();
+};
+statusField('suspend').onclick = async () => {
+  const button = statusField('suspend');
+  button.disabled = true;
+  button.textContent = 'Suspended…';
+  await desktop.simulateSuspension(statusField('reason').value, 5000);
+  button.disabled = false;
+  button.textContent = 'Suspend 5 s';
+};
+setInterval(() => { if (!statusPanel.hidden) showStatus(); }, 1000);
 let revision = 0;
 new EventSource(api('/events')).addEventListener('revision', (event) => {
   const next = Number(event.data);

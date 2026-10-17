@@ -95,6 +95,7 @@ function guideSidebar(): DefaultTheme.SidebarItem[] {
         { text: 'Audio', link: '/guide/audio' },
         { text: 'Following the Mouse', link: '/guide/input' },
         { text: "Other Apps' Windows", link: '/guide/app-windows' },
+        { text: 'System Status', link: '/guide/system-status' },
       ],
     },
     {
@@ -144,6 +145,7 @@ const chineseGuide: DefaultTheme.SidebarItem[] = [
       { text: '音频', link: '/zh/guide/audio' },
       { text: '跟随鼠标', link: '/zh/guide/input' },
       { text: '其他应用的窗口', link: '/zh/guide/app-windows' },
+      { text: '系统状态', link: '/zh/guide/system-status' },
     ],
   },
   {

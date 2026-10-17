@@ -74,6 +74,8 @@ export interface LaunchMessage {
   systemAudio: 'none' | 'restricted' | 'detailed';
   /** DesktopEngine.windows.list() at launch: the page's pretend app windows, only with the window-positions permission */
   appWindows: AppWindowInfo[];
+  /** The page's latest system status, only with the system-info permission (`system-status` messages bring the next ones) */
+  systemStatus?: SystemStatusReading;
 }
 
 /** Another app's window, as DesktopEngine.windows lists it: on the web, one of the page's pretend app windows */
@@ -83,6 +85,80 @@ export interface AppWindowInfo {
   isActiveApp: boolean;
   isFullScreen: boolean;
   isFloating: boolean;
+}
+
+export type ThermalState = 'nominal' | 'fair' | 'serious' | 'critical';
+export type MemoryPressure = 'normal' | 'warning' | 'critical';
+export type NetworkInterface = 'wifi' | 'ethernet' | 'cellular' | 'other';
+/** Why contents were suspended, as DesktopEngine.systemStatus's `resume` tells it: the strongest first */
+export type SuspendReason = 'sleep' | 'displaysleep' | 'paused';
+
+/**
+ * How the Mac is doing, as the page makes it up (WebDesktop's simulation and its overrides): what DesktopEngine.systemStatus
+ * shows, a new one about once a second. Sizes in bytes, rates in bytes a second, times in ms since the epoch.
+ */
+export interface SystemStatusReading {
+  cpu: { usage: number; cores: { usage: number; efficiency: boolean }[] };
+  memory: {
+    total: number;
+    used: number;
+    app: number;
+    wired: number;
+    compressed: number;
+    cached: number;
+    swapUsed: number;
+    pressure: MemoryPressure;
+    swapping: boolean;
+  };
+  network: {
+    online: boolean;
+    interface: NetworkInterface | null;
+    expensive: boolean;
+    receivedPerSecond: number;
+    sentPerSecond: number;
+    received: number;
+    sent: number;
+  };
+  power: {
+    source: 'battery' | 'ac';
+    battery: { level: number; charging: boolean; full: boolean; timeToEmpty: number | null; timeToFull: number | null } | null;
+    adapterWatts: number | null;
+    systemWatts: number | null;
+    lowPowerMode: boolean;
+  };
+  thermal: ThermalState;
+  /** The processor's temperature, °C; null when the Mac doesn't let the app read it */
+  temperature: number | null;
+  disk: { total: number; available: number };
+  bootTime: number;
+}
+
+/**
+ * What a page may set over WebDesktop's made-up system status, e.g. to try a widget in every state
+ * (`WebDesktop.setSystemStatus`). Anything left out, or undefined, is the simulation's.
+ */
+export interface SystemStatusOverrides {
+  thermal?: ThermalState;
+  /** false: offline (no interface, no traffic) */
+  online?: boolean;
+  /** How the Mac connects while online; Wi-Fi by default */
+  networkInterface?: NetworkInterface;
+  /** The connection costs money or data, e.g. a phone's Personal Hotspot */
+  expensive?: boolean;
+  memoryPressure?: MemoryPressure;
+  swapping?: boolean;
+  /**
+   * `battery`: on battery, discharging (the default); `ac`: plugged in, charging until the battery is full, then full;
+   * `full`: plugged in, the battery full (or held below full, with batteryLevel); `none`: a Mac without a battery
+   */
+  power?: 'battery' | 'ac' | 'full' | 'none';
+  /** The battery's level, 0...1, held there: e.g. 0.08 for a low battery */
+  batteryLevel?: number;
+  lowPowerMode?: boolean;
+  /** What the Mac draws, in watts; null: the Mac doesn't tell */
+  systemWatts?: number | null;
+  /** The processor's temperature, °C; null: the Mac doesn't let the app read it */
+  temperature?: number | null;
 }
 
 /** A part of a window's top edge that no window in front covers, as DesktopEngine.windows.visibleTopEdges() gives it */
@@ -194,8 +270,16 @@ export type HostMessage =
   | { type: 'appearance'; appearance: 'light' | 'dark' }
   | { type: 'parameters'; parameters: Record<string, ParameterValue>; changed: string[] }
   | { type: 'screens'; screens: WebScreen[] }
-  /** suspended: everything stops (timers once a second); renderingPaused: only drawing */
-  | { type: 'playback'; suspended: boolean; renderingPaused: boolean; muted: boolean; maxFramesPerSecond: number }
+  /**
+   * suspended: everything stops (timers once a second), for `suspendReason` ('paused' when there's none);
+   * renderingPaused: only drawing
+   */
+  | { type: 'playback'; suspended: boolean; renderingPaused: boolean; muted: boolean; maxFramesPerSecond: number; suspendReason?: SuspendReason }
+  /**
+   * DesktopEngine.systemStatus: the page's system status, about once a second, and at once when something the app hears
+   * of from macOS changes (power, thermal state, network, memory pressure); only to content with the system-info permission
+   */
+  | { type: 'system-status'; reading: SystemStatusReading }
   /**
    * A display frame, sent while the frame asked for them (`frames`). Browsers slow requestAnimationFrame down in
    * cross-origin frames the visitor hasn't interacted with (Safari to about 20–30 a second), and contents' frames never
