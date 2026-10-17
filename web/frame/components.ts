@@ -376,8 +376,13 @@ export class WindowImpl extends ComponentImpl {
 
   /** The screen its center is on */
   screen(): (typeof state.screens)[number] | undefined {
-    const centerX = this.frameRect.x + this.frameRect.width / 2;
-    const centerY = this.frameRect.y + this.frameRect.height / 2;
+    return this.screenOf(this.frameRect);
+  }
+
+  /** The screen the center of `frame` is on */
+  private screenOf(frame: Rect): (typeof state.screens)[number] | undefined {
+    const centerX = frame.x + frame.width / 2;
+    const centerY = frame.y + frame.height / 2;
     const inside = (rect: Rect) => centerX >= rect.x && centerY >= rect.y && centerX < rect.x + rect.width && centerY < rect.y + rect.height;
     const screens = state.screens;
     for (let index = 0; index < screens.length; index++) if (inside(screens[index].bounds)) return screens[index];
@@ -447,11 +452,15 @@ export class WindowImpl extends ComponentImpl {
    */
   private settle(): void {
     const sizing = state.launch?.widgetSizing;
-    const screen = this.screen();
-    if (!sizing || !this.widgetSize || !screen) return;
     const differs = (a: number, b: number) => a - b >= 0.5 || b - a >= 0.5;
     const told = this.toldFrame;
     const asked = this.frameRect;
+    // it stays on the display it's on unless it's moved there at the same size: one changing its size, keeping an edge
+    // or a corner where it is, may reach onto another display, which is no reason to change displays
+    const movedOnly = !!told && !differs(asked.width, told.width) && !differs(asked.height, told.height)
+      && (differs(asked.x, told.x) || differs(asked.y, told.y));
+    const screen = this.widgetRect && !movedOnly ? this.screenOf(this.widgetRect) : this.screen();
+    if (!sizing || !this.widgetSize || !screen) return;
     if (!this.dragged && (!told || differs(asked.x, told.x) || differs(asked.y, told.y) || differs(asked.width, told.width) || differs(asked.height, told.height))) {
       const sameSize = told && !differs(asked.width, told.width) && !differs(asked.height, told.height);
       const offset = this.pushOffset;

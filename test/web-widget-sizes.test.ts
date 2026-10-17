@@ -141,18 +141,20 @@ globalThis.document = anything();
 globalThis.ResizeObserver = class { observe() {} disconnect() {} };
 `;
 
+const MAIN_SCREEN: LaunchMessage['screens'] = [{ id: 1, name: 'Main', bounds: { x: 0, y: 0, width: 1440, height: 900 }, visibleFrame: visible, scale: 2 }];
+
 /**
  * Runs `code` as a widget with `sizing`, then sends the host's `messages` one task after the other: what it posts to
  * the host, its exceptions, and the frames it reports for its windows
  */
-async function runWidget(sizing: WidgetSizing, code: string, messages: HostMessage[] = []): Promise<unknown[]> {
+async function runWidget(sizing: WidgetSizing, code: string, messages: HostMessage[] = [], screens: LaunchMessage['screens'] = MAIN_SCREEN): Promise<unknown[]> {
   const launch: LaunchMessage = {
     type: 'launch',
     name: 'test',
     code,
     files: {},
     options: { permissions: [], windowType: 'widget', width: sizing.size.width, height: sizing.size.height },
-    screens: [{ id: 1, name: 'Main', bounds: { x: 0, y: 0, width: 1440, height: 900 }, visibleFrame: visible, scale: 2 }],
+    screens,
     contentType: 'widget',
     allowedWindowType: 'widget',
     permissions: [],
@@ -391,6 +393,36 @@ test('a widget pushed in from an edge as it grew goes back to its place once it 
   assert.deepEqual(await runWidget(sizing, grow('{ x: 1200, y: 300 }', 'top', '700')), [
     { event: 'grown', left: 1100, top: 300, width: 340, height: 240 },
     { event: 'shrunk', left: 700, top: 300, width: 200, height: 140 },
+  ]);
+});
+
+test('a widget the content resizes stays on its display, however far down it reaches; a move of its own takes it to another', async () => {
+  const sizing = widgetSizing({ widget: { resize: { by: ['content'], minWidth: 40, minHeight: 40 } } }, { width: 200, height: 140 });
+  // a display above the main one
+  const screens: LaunchMessage['screens'] = [
+    ...MAIN_SCREEN,
+    { id: 2, name: 'Above', bounds: { x: 0, y: -1080, width: 1920, height: 1080 }, visibleFrame: { x: 0, y: -1080, width: 1920, height: 1080 }, scale: 2 },
+  ];
+  const content = (then: string) => `
+    const win = new DesktopEngine.Window({ type: 'widget', style: { left: 1500, top: -200, width: 200, height: 140 } });
+    const report = (event) => postMessage('host', { event, left: win.style.left, top: win.style.top, width: win.style.width, height: win.style.height });
+    win.show();
+    setTimeout(() => {
+      // keeping its top where it is: most of it would be on the main display
+      win.style.height = 600;
+      setTimeout(() => {
+        report('grown');
+        ${then}
+      }, 5);
+    }, 5);
+  `;
+  assert.deepEqual(await runWidget(sizing, content(''), [], screens), [
+    { event: 'grown', left: 1500, top: -600, width: 200, height: 600 },
+  ]);
+  // moved there at the same size, it goes
+  assert.deepEqual(await runWidget(sizing, content(`win.style.top = 300; setTimeout(() => report('moved'), 5);`), [], screens), [
+    { event: 'grown', left: 1500, top: -600, width: 200, height: 600 },
+    { event: 'moved', left: 1240, top: 300, width: 200, height: 600 },
   ]);
 });
 
