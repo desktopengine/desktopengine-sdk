@@ -424,6 +424,27 @@ test('a widget the content resizes stays on its display, however far down it rea
     { event: 'grown', left: 1500, top: -600, width: 200, height: 600 },
     { event: 'moved', left: 1240, top: 300, width: 200, height: 600 },
   ]);
+  // moved there with another size too (from where it was told it is, 400 above its place: kept inside at the bottom)
+  assert.deepEqual(await runWidget(sizing, content(`win.style.top = 300; win.style.height = 300; setTimeout(() => report('moved'), 5);`), [], screens), [
+    { event: 'grown', left: 1500, top: -600, width: 200, height: 600 },
+    { event: 'moved', left: 1240, top: 600, width: 200, height: 300 },
+  ]);
+  // its window reaching mostly onto the main display, transparent below its body: it stays where its body is
+  const hanging = `
+    const win = new DesktopEngine.Window({ type: 'widget', style: { left: 1500, top: -300, width: 200, height: 140 } });
+    const report = (event) => postMessage('host', { event, left: win.style.left, top: win.style.top, width: win.style.width, height: win.style.height });
+    win.hitRegion = [{ x: 0, y: 0, width: 200, height: 100 }];
+    win.show();
+    setTimeout(() => {
+      // a body 100 high at the top of a window 800 high: most of the window below the display's bottom edge
+      win.style.height = 800;
+      win.hitRegion = [{ x: 0, y: 0, width: 200, height: 100 }];
+      setTimeout(() => report('grown'), 5);
+    }, 5);
+  `;
+  assert.deepEqual(await runWidget(sizing, hanging, [], screens), [
+    { event: 'grown', left: 1500, top: -300, width: 200, height: 800 },
+  ]);
 });
 
 test('the user drops a widget pushed in from an edge: where it\'s dropped is its place, also once it shrinks', async () => {

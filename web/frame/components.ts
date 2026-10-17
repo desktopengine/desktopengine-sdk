@@ -17,7 +17,7 @@ import { applyStyle, BASE_CSS, createStyle, readStyle, STYLE_KEYS, stylePoints, 
 import { isDataURL, mediaURL } from './network.ts';
 import { hasPermission, itemsOf, nextIdentifier, send, state } from './state.ts';
 import type { Rect, WindowState } from '../protocol.ts';
-import { CORNER_MEASURE, measureCorner, widgetFrame, type CornerShape, type Size } from '../widget-sizes.ts';
+import { CORNER_MEASURE, hitMargins, measureCorner, widgetFrame, type CornerShape, type Size } from '../widget-sizes.ts';
 
 // what the content may replace, taken before it runs: what the runtime does on its own (the host's messages, telling
 // it where the windows are, destroying them when the content stops) uses nothing the content can change, as the
@@ -379,10 +379,14 @@ export class WindowImpl extends ComponentImpl {
     return this.screenOf(this.frameRect);
   }
 
-  /** The screen the center of `frame` is on */
+  /**
+   * The screen the center of `frame` is on; for the widget's window, of its body, where it takes the mouse (the frame
+   * less the margins round its hit region), which is kept inside its display while the margins may be on another one
+   */
   private screenOf(frame: Rect): (typeof state.screens)[number] | undefined {
-    const centerX = frame.x + frame.width / 2;
-    const centerY = frame.y + frame.height / 2;
+    const margins = this.widgetSize ? hitMargins(this.hit, frame) : { left: 0, right: 0, bottom: 0 };
+    const centerX = frame.x + margins.left + (frame.width - margins.left - margins.right) / 2;
+    const centerY = frame.y + (frame.height - margins.bottom) / 2;
     const inside = (rect: Rect) => centerX >= rect.x && centerY >= rect.y && centerX < rect.x + rect.width && centerY < rect.y + rect.height;
     const screens = state.screens;
     for (let index = 0; index < screens.length; index++) if (inside(screens[index].bounds)) return screens[index];
@@ -455,11 +459,11 @@ export class WindowImpl extends ComponentImpl {
     const differs = (a: number, b: number) => a - b >= 0.5 || b - a >= 0.5;
     const told = this.toldFrame;
     const asked = this.frameRect;
-    // it stays on the display it's on unless it's moved there at the same size: one changing its size, keeping an edge
-    // or a corner where it is, may reach onto another display, which is no reason to change displays
-    const movedOnly = !!told && !differs(asked.width, told.width) && !differs(asked.height, told.height)
-      && (differs(asked.x, told.x) || differs(asked.y, told.y));
-    const screen = this.widgetRect && !movedOnly ? this.screenOf(this.widgetRect) : this.screen();
+    // a placed widget's display: where the content puts it when it moves it (its own frame, also with another size),
+    // else the one it's on, as in the engine. Not its place at the new size: one changing its size, keeping an edge or
+    // a corner where it is, may have its place off its display, which is no reason to change displays
+    const moved = !!told && (differs(asked.x, told.x) || differs(asked.y, told.y));
+    const screen = this.widgetRect && !moved ? this.screenOf(this.widgetRect) : this.screen();
     if (!sizing || !this.widgetSize || !screen) return;
     if (!this.dragged && (!told || differs(asked.x, told.x) || differs(asked.y, told.y) || differs(asked.width, told.width) || differs(asked.height, told.height))) {
       const sameSize = told && !differs(asked.width, told.width) && !differs(asked.height, told.height);
