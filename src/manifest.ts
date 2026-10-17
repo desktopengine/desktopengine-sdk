@@ -13,18 +13,18 @@ export const TYPE_ALIASES: Readonly<Record<string, ContentType>> = { pet: 'compa
 /** The API version that introduced each type's current name, for types newer than API 1 */
 export const TYPE_API_VERSIONS: Readonly<Partial<Record<ContentType, number>>> = { companion: 2 };
 export const WIDGET_SIZES = ['small', 'medium', 'large'] as const;
-export const PERMISSIONS = ['network', 'audio', 'system-info', 'mouse', 'key-activity', 'system-audio', 'window-positions'] as const;
+export const PERMISSIONS = ['network', 'audio', 'system-info', 'mouse', 'key-activity', 'system-audio', 'window-positions', 'user-files'] as const;
 /** The API version that introduced each permission's API, for permissions newer than API 1 */
-export const PERMISSION_API_VERSIONS: Readonly<Partial<Record<Permission, number>>> = { mouse: 3, 'key-activity': 3, 'system-audio': 6, 'window-positions': 6 };
-/** Permissions content can't get: declaring one is a warning */
-export const BUILTIN_ONLY_PERMISSIONS: readonly Permission[] = ['key-activity'];
+export const PERMISSION_API_VERSIONS: Readonly<Partial<Record<Permission, number>>> = { mouse: 3, 'key-activity': 3, 'system-audio': 6, 'window-positions': 6, 'user-files': 8 };
+/** Permissions content doesn't get: declaring one is a warning */
+export const RESERVED_PERMISSIONS: readonly Permission[] = ['key-activity', 'user-files'];
 /** The id prefix the store reserves */
 const OFFICIAL_ID_PREFIX = 'app.desktopengine.official.';
 export const PARAMETER_TYPES = ['toggle', 'number', 'text', 'color', 'choice'] as const;
 export const MANIFEST_FILE = 'manifest.json';
 export const ENTRY_FILE = 'index.js';
 /** `DesktopEngine.apiVersion` these types and rules describe. */
-export const API_VERSION = 7;
+export const API_VERSION = 8;
 /** The most domains `network.domains` may list */
 export const MAX_NETWORK_DOMAINS = 32;
 
@@ -51,6 +51,12 @@ export interface ParameterOption {
   title: LocalizedString;
 }
 
+/** When an option is shown: while an earlier `toggle` or `choice` option has one of `values` */
+export interface ParameterCondition {
+  key: string;
+  values: Scalar[];
+}
+
 export interface Parameter {
   key: string;
   title: LocalizedString;
@@ -60,6 +66,7 @@ export interface Parameter {
   min?: number;
   max?: number;
   step?: number;
+  showWhen?: ParameterCondition;
 }
 
 /** `manifest.json`, the same as `ContentManifest` in the app. */
@@ -311,10 +318,10 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
           errors.push(`"permissions[${index}]" must be a string`);
         } else if (!isOneOf(PERMISSIONS, permission)) {
           // the permissions content can get: one it never gets isn't suggested
-          const known = PERMISSIONS.filter((name) => !BUILTIN_ONLY_PERMISSIONS.includes(name));
+          const known = PERMISSIONS.filter((name) => !RESERVED_PERMISSIONS.includes(name));
           errors.push(`Unknown permission "${permission}", the known ones are ${known.join(', ')}`);
         } else {
-          const neverGiven = BUILTIN_ONLY_PERMISSIONS.includes(permission) && !String(manifest.id ?? '').startsWith(OFFICIAL_ID_PREFIX);
+          const neverGiven = RESERVED_PERMISSIONS.includes(permission) && !String(manifest.id ?? '').startsWith(OFFICIAL_ID_PREFIX);
           if (neverGiven) {
             warnings.push(`Content doesn't get the "${permission}" permission: remove it from "permissions", the store doesn't take packages that declare it`);
           }
@@ -368,8 +375,13 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
       errors.push('"parameters" must be an array');
     } else {
       const keys = new Set<string>();
+      const earlier = new Map<string, Record<string, unknown>>();
       parameters.forEach((parameter: unknown, index) => {
         validateParameter(parameter, `parameters[${index}]`, keys, errors, warnings);
+        if (isPlainObject(parameter)) {
+          validateCondition(parameter.showWhen, `parameters[${index}].showWhen`, earlier, errors);
+          if (typeof parameter.key === 'string' && !earlier.has(parameter.key)) earlier.set(parameter.key, parameter);
+        }
       });
     }
   }
@@ -380,6 +392,45 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
     .forEach((key) => warnings.push(`The app ignores the unknown field "${key}"`));
 
   return { errors, warnings };
+}
+
+/**
+ * `showWhen` of a parameter: an earlier `toggle` or `choice` parameter (`earlier`, by key) and the values of it that
+ * show this one, each one it can take
+ */
+function validateCondition(condition: unknown, where: string, earlier: Map<string, Record<string, unknown>>, errors: string[]): void {
+  if (condition === undefined) return;
+  if (!isPlainObject(condition)) {
+    errors.push(`"${where}" must be an object with "key" and "values"`);
+    return;
+  }
+  const target = typeof condition.key === 'string' ? earlier.get(condition.key) : undefined;
+  if (typeof condition.key !== 'string' || condition.key === '') {
+    errors.push(`"${where}.key" must be the key of an earlier parameter`);
+    return;
+  }
+  if (!target) {
+    errors.push(`"${where}.key" must be the key of an earlier parameter: ${condition.key} isn't one`);
+    return;
+  }
+  if (target.type !== 'toggle' && target.type !== 'choice') {
+    errors.push(`"${where}.key" must be a toggle or a choice: ${condition.key} is a ${String(target.type)}`);
+    return;
+  }
+  const { values } = condition;
+  if (!Array.isArray(values) || values.length === 0) {
+    errors.push(`"${where}.values" must be a non-empty array`);
+    return;
+  }
+  const options = Array.isArray(target.options) ? target.options : [];
+  values.forEach((value: unknown, index) => {
+    const known = target.type === 'toggle'
+      ? typeof value === 'boolean'
+      : options.some((option: unknown) => isPlainObject(option) && option.value === value);
+    if (!known) {
+      errors.push(`"${where}.values[${index}]" must be ${target.type === 'toggle' ? 'true or false' : `one of the values of ${condition.key}'s options`}`);
+    }
+  });
 }
 
 function validateParameter(parameter: unknown, where: string, keys: Set<string>, errors: string[], warnings: string[]): void {

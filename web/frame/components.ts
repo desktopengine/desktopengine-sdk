@@ -439,7 +439,7 @@ export class WindowImpl extends ComponentImpl {
     if (this.shown) this.emit(visible ? 'show' : 'hide');
   }
 }
-defineEvents(WindowImpl.prototype, ['show', 'hide', 'close', 'resize', 'move', 'focus', 'blur', 'keydown', 'keyup', 'devicepixelratiochange']);
+defineEvents(WindowImpl.prototype, ['show', 'hide', 'close', 'resize', 'move', 'focus', 'blur', 'keydown', 'keyup', 'devicepixelratiochange', 'dragenter', 'dragover', 'dragleave', 'drop']);
 
 export function windowById(id: string): WindowImpl | undefined {
   const all = allWindows();

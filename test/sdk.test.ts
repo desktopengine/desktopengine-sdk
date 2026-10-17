@@ -11,7 +11,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { validateManifest, validatePackage, englishText, isValidNetworkDomain, BUILTIN_ONLY_PERMISSIONS, PERMISSIONS, TYPES } from '../src/manifest.ts';
+import { validateManifest, validatePackage, englishText, isValidNetworkDomain, RESERVED_PERMISSIONS, PERMISSIONS, TYPES } from '../src/manifest.ts';
 import { createZip, readZip, crc32 } from '../src/zip.ts';
 import { createProject, packProject, listPackageFiles, defaultId, RENDERERS } from '../src/project.ts';
 import { buildProject } from '../src/build.ts';
@@ -115,6 +115,35 @@ test('parameters follow the rules of the app', () => {
   expected.forEach((fragment) => assert.ok(errors.some((message) => message.includes(fragment)), `expected an error about ${fragment}\n${errors.join('\n')}`));
 });
 
+test('an option is shown for values of an earlier toggle or choice', () => {
+  const style = { key: 'style', title: 'Style', type: 'choice', options: [{ value: 'digital', title: 'Digital' }, { value: 'analog', title: 'Analog' }] };
+  const dark = { key: 'dark', title: 'Dark', type: 'toggle' };
+  const size = { key: 'size', title: 'Size', type: 'number' };
+  const valid = validateManifest({
+    ...minimal,
+    parameters: [style, dark, size, { key: 'seconds', title: 'Seconds', type: 'toggle', showWhen: { key: 'style', values: ['analog'] } },
+      { key: 'glow', title: 'Glow', type: 'color', showWhen: { key: 'dark', values: [true] } }],
+  });
+  assert.deepEqual(valid.errors, []);
+
+  const shown = (showWhen: unknown) => ({ key: 'x', title: 'X', type: 'toggle', showWhen });
+  const cases: [unknown, string][] = [
+    ['analog', 'must be an object'],
+    [{ key: 'later', values: [true] }, "later isn't one"],
+    [{ key: 'size', values: [1] }, 'must be a toggle or a choice'],
+    [{ key: 'style', values: [] }, 'non-empty array'],
+    [{ key: 'style', values: ['round'] }, "one of the values of style's options"],
+    [{ key: 'dark', values: ['yes'] }, 'true or false'],
+  ];
+  for (const [showWhen, fragment] of cases) {
+    const { errors } = validateManifest({ ...minimal, parameters: [style, dark, size, shown(showWhen), { key: 'later', title: 'L', type: 'toggle' }] });
+    assert.ok(errors.some((message) => message.includes(fragment)), `expected an error about ${fragment}\n${errors.join('\n')}`);
+  }
+  // not itself either
+  const self = validateManifest({ ...minimal, parameters: [{ key: 'x', title: 'X', type: 'toggle', showWhen: { key: 'x', values: [true] } }] });
+  assert.ok(self.errors.some((message) => message.includes("x isn't one")));
+});
+
 test('unknown fields are warnings, unknown permissions errors', () => {
   const fields = validateManifest({ ...minimal, extra: true });
   assert.deepEqual(fields.errors, []);
@@ -138,7 +167,7 @@ test('the permissions are the ones the type declarations give launchOptions', ()
   const declarations = fs.readFileSync(path.join(import.meta.dirname, '..', 'types', 'desktop-engine.d.ts'), 'utf8');
   const union = /\n\s*type Permission =([^;]*);/.exec(declarations)?.[1] ?? '';
   // the ones content can get: launchOptions never lists the others
-  const given = PERMISSIONS.filter((permission) => !BUILTIN_ONLY_PERMISSIONS.includes(permission));
+  const given = PERMISSIONS.filter((permission) => !RESERVED_PERMISSIONS.includes(permission));
   assert.deepEqual([...given].sort(), [...union.matchAll(/'([^']+)'/g)].map((match) => match[1]).sort());
 });
 

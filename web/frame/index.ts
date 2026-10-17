@@ -900,6 +900,8 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
       configurable: true,
     });
   }
+  // never set here: there are no dropped files (and no drops)
+  Object.defineProperty(desktopEngine, 'files', { get: () => null, enumerable: true, configurable: true });
   // in the order the app's has its properties (Object.keys, for-in, JSON.stringify and structuredClone go by it)
   const ordered: Record<string, unknown> = {};
   for (const key of [...DESKTOP_ENGINE_ORDER, ...Object.keys(desktopEngine)]) {
@@ -912,8 +914,8 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
 /** The order of the properties of the app's DesktopEngine */
 const DESKTOP_ENGINE_ORDER = [
   'setTimeout', 'clearTimeout', 'base64Encode', 'clearInterval', 'base64Decode', 'applyNew', 'setInterval', 'preferredFramesPerSecond',
-  'Canvas', 'WebGLRenderingContext', 'WebGL2RenderingContext', 'CanvasImage', 'Component', 'fs', 'Image', 'input', 'ScreenManager',
-  'syncStorage', 'system', 'systemAudio', 'Video', 'Window', 'windows', 'apiVersion', 'launchOptions',
+  'Canvas', 'WebGLRenderingContext', 'WebGL2RenderingContext', 'CanvasImage', 'Component', 'fs', 'files', 'Image', 'input',
+  'ScreenManager', 'syncStorage', 'system', 'systemAudio', 'Video', 'Window', 'windows', 'apiVersion', 'launchOptions',
 ];
 
 // MARK: Launch

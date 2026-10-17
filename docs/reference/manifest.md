@@ -86,6 +86,17 @@ You only declare the options; the app draws them as a native form in the details
 | `color` | A color well | `#RRGGBB` |
 | `choice` | A pop-up menu, `options` is `[{ "value": …, "title": "…" }]` | One of the `value`s |
 
+An option that only matters for some values of another can be shown only then with `showWhen`: the `key` of an earlier `toggle` or `choice` option, and the `values` of it that show this one. A hidden option keeps its value and is still in `DesktopEngine.launchOptions.parameters`. Apps with an API older than 8 show every option.
+
+```json
+[
+  { "key": "style", "title": "Style", "type": "choice", "default": "digital",
+    "options": [{ "value": "digital", "title": "Digital" }, { "value": "analog", "title": "Analog" }] },
+  { "key": "seconds", "title": "Second Hand", "type": "toggle", "default": true,
+    "showWhen": { "key": "style", "values": ["analog"] } }
+]
+```
+
 When the user changes an option, the new values are in `DesktopEngine.launchOptions.parameters`. Content that listens to `parameterschange` applies them while it keeps running, see [When options change](/guide/launch-options#when-options-change); the app restarts other content (dragging a slider or typing is coalesced into one restart).
 
 ## Permissions
@@ -123,7 +134,7 @@ The runtime enforces `network` (no network without it, and only the listed domai
 
 ## API versions
 
-The runtime has an integer API version that goes up when APIs are added: `DesktopEngine.apiVersion` in JavaScript. This SDK describes version 7 (the first line of `desktopengine --help` shows it too). When you use an API added later, put its version in `"apiVersion"` and apps with an older API refuse to import the package and ask users to update; or leave it out and check `DesktopEngine.apiVersion` at run time to fall back.
+The runtime has an integer API version that goes up when APIs are added: `DesktopEngine.apiVersion` in JavaScript. This SDK describes version 8 (the first line of `desktopengine --help` shows it too). When you use an API added later, put its version in `"apiVersion"` and apps with an older API refuse to import the package and ask users to update; or leave it out and check `DesktopEngine.apiVersion` at run time to fall back.
 
 | Version | Added |
 | --- | --- |
@@ -134,5 +145,6 @@ The runtime has an integer API version that goes up when APIs are added: `Deskto
 | 5 | `ellipse()`, `roundRect()`, `getTransform()`, `createConicGradient()`, `letterSpacing` and `wordSpacing` of 2D canvases, `setTransform()` taking a matrix, the blend modes (`multiply`…`luminosity`), the rest of `TextMetrics`, `Path2D`, `isPointInPath` and `isPointInStroke`; `createImageBitmap` and `new ImageData()`; `structuredClone`, `MessageChannel`, `FileReader`, `CustomEvent` and `navigator`, see [Globals](/guide/runtime#globals) |
 | 6 | `BroadcastChannel`, with the scopes `package` and `namespace`, see [Messages Between Content](/guide/messaging); `DesktopEngine.systemAudio` and the `system-audio` permission, see [What the Mac plays](/guide/audio#what-the-mac-plays); `DesktopEngine.windows` (`list()`, `visibleTopEdges()` and `change`) and the `window-positions` permission, see [Other Apps' Windows](/guide/app-windows); an `Image` loads its `src` before it's in a component, so its `load` can be waited for before adding it |
 | 7 | `DesktopEngine.syncStorage`, keys and values that follow the user to their other Macs, see [Synced storage](/guide/storage#synced-storage-desktopengine-syncstorage) |
+| 8 | `showWhen` of options, shown only for some values of another, see [Options](#options-parameters) |
 
 Version 4 also changed APIs as in browsers: the double click event is `dblclick` (it was `dbclick`), and `click` and `dblclick` get the mouse events' payload, `{ x, y, … }` (it was `{ position: { x, y } }`). It removed `wxBindCanvasTexture` and `blBindCanvasTexture` of WebGL contexts, the global `mixin` and `promisify`, and the `files`, `now-playing` and `window-positions` permissions, which had no API (version 6 brings `window-positions` back with `DesktopEngine.windows`). Content that used them needs `"apiVersion": 4` once it's changed.

@@ -519,6 +519,109 @@ declare namespace DesktopEngine {
     keyup: KeyboardPayload;
     /** devicePixelRatio changed: the window moved to a display with another scale, or the display's scale changed */
     devicepixelratiochange: void;
+    /**
+     * Files dragged from another app came over the window (over its hit region, when it has one)
+     * @internal
+     */
+    dragenter: FileDragPayload;
+    /**
+     * Files dragged over the window moved
+     * @internal
+     */
+    dragover: FileDragPayload;
+    /**
+     * Files dragged over the window left it, or the drag was cancelled
+     * @internal
+     */
+    dragleave: Record<string, never>;
+    /**
+     * Files were dropped onto the window; they stay where they are, each has a `token`
+     * @internal
+     */
+    drop: FileDragPayload;
+  }
+
+  /**
+   * A file dragged over a window: what it is, never where
+   * @internal
+   */
+  interface DraggedFile {
+    /** Its name, with its extension */
+    name: string;
+    /** Its extension, lowercased; empty without one */
+    extension: string;
+    /** A folder (not a package such as an app) */
+    directory: boolean;
+    /** A package: a folder shown as a file, such as an app or a Keynote document */
+    package: boolean;
+    /** Bytes, when it's a file and can be read */
+    size?: number;
+    /** Its uniform type identifier, e.g. `public.png`, when it can be read */
+    type?: string;
+    /** When it was last modified, milliseconds since 1970, when it can be read */
+    modified?: number;
+    /** Only in `drop`: names the file to the app */
+    token?: string;
+  }
+
+  /**
+   * A file `DesktopEngine.files` moved to the Trash: what it is, never where
+   * @internal
+   */
+  interface TrashedFile {
+    /** Puts it back with `restore` */
+    id: string;
+    /** Its name where it was */
+    name: string;
+    /** A folder (not a package) */
+    directory: boolean;
+    /** Bytes, not for a folder */
+    size?: number;
+    /** Its uniform type identifier */
+    type?: string;
+    /** Milliseconds since 1970 */
+    trashedAt: number;
+  }
+
+  /**
+   * Why `DesktopEngine.files` didn't do it: the rejection's `reason`
+   * @internal
+   */
+  type UserFilesRefusal =
+    | 'missing' | 'system' | 'denied' | 'failed';
+
+  /**
+   * The user's files that were dropped onto the content's windows
+   * @internal
+   */
+  interface UserFiles {
+    /**
+     * Moves a dropped file (by the `token` of its `drop` event) to the Trash. Rejects with an `Error` whose `reason`
+     * says why not; the file stays where it is then. A token moves its file once: `trash` with it again rejects with
+     * `missing`
+     */
+    trash(token: string): Promise<TrashedFile>;
+    /**
+     * Puts a file `trash` moved back where it was, under another name if that one is taken, into its folder made again
+     * if that was deleted
+     */
+    restore(id: string): Promise<TrashedFile>;
+    /**
+     * The files `trash` moved that are still in the Trash, oldest first: one that was put back or whose Trash was
+     * emptied isn't there. A file that can't be looked at counts as still there
+     */
+    list(): Promise<TrashedFile[]>;
+  }
+
+  /**
+   * `dragenter`, `dragover` and `drop` of a window
+   * @internal
+   */
+  interface FileDragPayload {
+    /** Where the pointer is, in the window's coordinates */
+    x: number;
+    y: number;
+    files: DraggedFile[];
   }
 
   /** The integer typed arrays `crypto.getRandomValues` fills */
@@ -881,6 +984,22 @@ declare namespace DesktopEngine {
     offkeyup(): void;
     /** Removes the ondevicepixelratiochange callback */
     offdevicepixelratiochange(): void;
+    /** @internal */
+    ondragenter: EventHandler<this, FileDragPayload> | null | undefined;
+    /** @internal */
+    ondragover: EventHandler<this, FileDragPayload> | null | undefined;
+    /** @internal */
+    ondragleave: EventHandler<this, Record<string, never>> | null | undefined;
+    /** @internal */
+    ondrop: EventHandler<this, FileDragPayload> | null | undefined;
+    /** @internal */
+    offdragenter(): void;
+    /** @internal */
+    offdragover(): void;
+    /** @internal */
+    offdragleave(): void;
+    /** @internal */
+    offdrop(): void;
   }
 
   /** Window constructor */
@@ -4218,6 +4337,11 @@ declare namespace DesktopEngine {
     readonly systemAudio: SystemAudio | null;
     /** Where other apps' windows are; null without the "window-positions" permission (API 6) */
     readonly windows: Windows | null;
+    /**
+     * Files dropped onto the content's windows: moves them to the Trash and back; null when not available
+     * @internal
+     */
+    readonly files: UserFiles | null;
     /** The file system: package files, and the content's own files that are kept between launches */
     readonly fs: FileSystem;
     /**

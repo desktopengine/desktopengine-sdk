@@ -86,6 +86,17 @@
 | `color` | 颜色选择器 | `#RRGGBB` |
 | `choice` | 弹出菜单，`options` 为 `[{ "value": …, "title": "…" }]` | 某个 `value` |
 
+只对另一个选项的某些取值有意义的选项，可以用 `showWhen` 只在那时显示：`key` 是前面某个 `toggle` 或 `choice` 选项的 key，`values` 是它的哪些取值时显示这个选项。被隐藏的选项保留它的取值，仍然在 `DesktopEngine.launchOptions.parameters` 里。API 低于 8 的应用会显示所有选项。
+
+```json
+[
+  { "key": "style", "title": "样式", "type": "choice", "default": "digital",
+    "options": [{ "value": "digital", "title": "数字" }, { "value": "analog", "title": "指针" }] },
+  { "key": "seconds", "title": "秒针", "type": "toggle", "default": true,
+    "showWhen": { "key": "style", "values": ["analog"] } }
+]
+```
+
 用户修改选项后，新的取值在 `DesktopEngine.launchOptions.parameters` 里。监听了 `parameterschange` 的内容会在运行中应用它们，见[选项改变时](/zh/guide/launch-options#选项改变时)；其他内容由应用重新启动（连续拖动滑块或输入时会合并成一次）。
 
 ## 权限（permissions）
@@ -123,7 +134,7 @@ if (permissions.includes('network')) {
 
 ## API 版本
 
-运行时有一个整数的 API 版本，新增 API 时递增，JavaScript 里是 `DesktopEngine.apiVersion`，当前的 SDK 对应的版本是 7（`desktopengine --help` 的第一行也会显示）。用到之后新增的 API 时，在清单的 `"apiVersion"` 写上它的版本，API 版本更低的应用会拒绝导入并提示用户更新；也可以不写，在运行时判断 `DesktopEngine.apiVersion` 后降级。
+运行时有一个整数的 API 版本，新增 API 时递增，JavaScript 里是 `DesktopEngine.apiVersion`，当前的 SDK 对应的版本是 8（`desktopengine --help` 的第一行也会显示）。用到之后新增的 API 时，在清单的 `"apiVersion"` 写上它的版本，API 版本更低的应用会拒绝导入并提示用户更新；也可以不写，在运行时判断 `DesktopEngine.apiVersion` 后降级。
 
 | 版本 | 新增 |
 | --- | --- |
@@ -134,5 +145,6 @@ if (permissions.includes('network')) {
 | 5 | 2D 画布的 `ellipse()`、`roundRect()`、`getTransform()`、`createConicGradient()`、`letterSpacing` 和 `wordSpacing`，`setTransform()` 可以传矩阵，混合模式（`multiply`…`luminosity`）、`TextMetrics` 的其余字段、`Path2D`、`isPointInPath` 和 `isPointInStroke`；`createImageBitmap` 和 `new ImageData()`；`structuredClone`、`MessageChannel`、`FileReader`、`CustomEvent` 和 `navigator`，见[全局对象](/zh/guide/runtime#全局对象) |
 | 6 | `BroadcastChannel`，范围有 `package` 和 `namespace`，见[内容之间的消息](/zh/guide/messaging)；`DesktopEngine.systemAudio` 和 `system-audio` 权限，见[Mac 正在播放的声音](/zh/guide/audio#mac-正在播放的声音)；`DesktopEngine.windows`（`list()`、`visibleTopEdges()` 和 `change`）和 `window-positions` 权限，见[其他应用的窗口](/zh/guide/app-windows)；`Image` 还没加进组件时就加载 `src`，可以先等它的 `load` 再加进去 |
 | 7 | `DesktopEngine.syncStorage`，跟着用户到其他 Mac 上的键和值，见[同步的存储](/zh/guide/storage#同步的存储-desktopengine-syncstorage) |
+| 8 | 选项的 `showWhen`，只在另一个选项取某些值时显示，见[选项](#选项-parameters) |
 
 版本 4 还按浏览器的样子改了一些 API：双击事件是 `dblclick`（原来是 `dbclick`），`click` 和 `dblclick` 的参数和鼠标事件一样是 `{ x, y, … }`（原来是 `{ position: { x, y } }`）。去掉了 WebGL 上下文的 `wxBindCanvasTexture` 和 `blBindCanvasTexture`、全局的 `mixin` 和 `promisify`，以及没有对应 API 的 `files`、`now-playing`、`window-positions` 权限（版本 6 随 `DesktopEngine.windows` 重新加入了 `window-positions`）。用到它们的内容改好后要写上 `"apiVersion": 4`。
