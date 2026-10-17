@@ -322,6 +322,7 @@ test('what the host sends, the listeners, the console and the windows work whate
     win.addEventListener('mouseup', () => note('mouseup'));
     win.addEventListener('click', () => note('click'));
     win.addEventListener('mouseenter', () => note('mouseenter'));
+    win.addEventListener('wheel', (event) => note('wheel ' + event.deltaX + ',' + event.deltaY + ',' + event.deltaZ));
     win.onmove = (event) => note('move ' + event.x + ',' + event.y);
     win.addEventListener('hide', () => note('hide'));
     win.addEventListener('show', () => note('show'));
@@ -346,6 +347,7 @@ test('what the host sends, the listeners, the console and the windows work whate
       '{ type: \'pointer\', kind: \'move\', window: lastWindowId(), x: 110, y: 60, buttons: 0 }',
       '{ type: \'pointer\', kind: \'down\', window: lastWindowId(), x: 120, y: 70, button: 0, buttons: 1 }',
       '{ type: \'pointer\', kind: \'up\', window: lastWindowId(), x: 120, y: 70, button: 0, buttons: 0 }',
+      '{ type: \'pointer\', kind: \'wheel\', window: lastWindowId(), x: 120, y: 70, buttons: 0, deltaX: 0, deltaY: -3 }',
       '{ type: \'move-window\', window: lastWindowId(), x: 300, y: 200 }',
       '{ type: \'app-windows\', windows: [{ id: 7, frame: { x: 0, y: 30, width: 500, height: 400 }, isActiveApp: true, isFullScreen: false, isFloating: false }] }',
       '{ type: \'playback\', suspended: true, renderingPaused: true, muted: true, maxFramesPerSecond: 0 }',
@@ -367,6 +369,7 @@ test('what the host sends, the listeners, the console and the windows work whate
     'mousedown 20,20 0',
     'mouseup',
     'click',
+    'wheel 0,-3,0',
     'move 300,200',
     'windows change',
     'hide',

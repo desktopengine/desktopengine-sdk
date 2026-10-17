@@ -55,7 +55,7 @@ desktopengine dev [folder] [options]
 - 对 [`network.domains`](/zh/guide/network#域名) 里域名的请求（`fetch`、`XMLHttpRequest`、图片和视频）经过代理，不带 cookie；WebSocket 也经过它。`dev --web` 的代理会转发所有请求方法和它们的请求头、请求体，也把响应头传回来，和 App 一样；但商店的预览和审核只转发 GET 和 HEAD，请求头只带 Accept，响应头只传回 Content-Type。用了别的方法，或者带了浏览器要先问一下的请求头（Accept、Accept-Language、Content-Language 和纯文本或表单的 Content-Type 以外的，比如 Authorization、JSON 的 Content-Type）的请求，在那里会失败：内容发出这样的请求时，终端会提示。
 - 2D 画布里，`resetClip()` 和 `resetCurrentState()` 只去掉上一次 `save()` 之后的裁剪，App 里会全部去掉。文字由浏览器绘制，字形和宽度可能略有不同。
 - `defile://usr/` 里的文件、`localStorage` 和 `sessionStorage` 存在内存里，网页重新加载就没了。
-- 内容收不到滚轮事件，键盘事件也收不到（和 App 一样）。
+- 内容收不到键盘事件（和 App 一样）。滚轮和 App 一样给响应鼠标处的小组件和桌面伙伴；声音开着时，在可能出声的内容上滚动也可能让页面跟着滚动。
 - 一个组件或它的上层（包括窗口）监听了 `click` 时，App 对一次单击不发主按键的 `mousedown` 和 `mouseup`，只发 `click`；网页运行时三个都发。
 - 页面隐藏时（标签页在后台），内容和在 App 里一样被暂停，它的计时器改用浏览器自己的，浏览器可能放得比 App 更慢。
 - `DesktopEngine.systemStatus` 给的是一台模拟的 Mac 的读数：网页看不到电脑的数据（见[系统状态](/zh/guide/system-status#在网页上)）。

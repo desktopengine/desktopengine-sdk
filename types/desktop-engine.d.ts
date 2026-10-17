@@ -431,11 +431,14 @@ declare namespace DesktopEngine {
     buttons: number;
   }
 
-  /** wheel payload (fired only while the window is the key window) */
+  /**
+   * wheel payload: the scroll wheel or the trackpad turned while the pointer is over a `widget` or `overlay` window,
+   * where it takes the mouse (its `hitRegion`; API 8), or over a key window. The system's deltas, about lines
+   */
   interface WheelPayload {
-    /** Horizontal scroll delta */
+    /** Horizontal scroll delta, positive toward the left */
     deltaX: number;
-    /** Vertical scroll delta */
+    /** Vertical scroll delta, positive toward the top: with natural scrolling, fingers moving down the trackpad */
     deltaY: number;
     /** Z-axis scroll delta */
     deltaZ: number;
@@ -494,7 +497,7 @@ declare namespace DesktopEngine {
     mouseleave: MousePayload;
     /** Mouse moved */
     mousemove: MousePayload;
-    /** Scroll wheel */
+    /** Scroll wheel, see `WheelPayload` for which windows get it */
     wheel: WheelPayload;
   }
 

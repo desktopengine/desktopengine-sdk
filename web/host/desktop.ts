@@ -628,6 +628,14 @@ let hintMasks = 0;
 const FLOATING_Z = 100_000;
 
 /** What the desktop reads of a pointer event, from the page or passed back by a frame */
+/** A DOM wheel event's deltas as NSEvent's: about lines, positive toward the top and the left */
+function wheelDeltas(deltaX: number, deltaY: number, deltaMode: number): { deltaX: number; deltaY: number } {
+  // WheelEvent's DOM_DELTA_PIXEL (0), DOM_DELTA_LINE (1) and DOM_DELTA_PAGE (2)
+  const lines = deltaMode === 0 ? 10 : deltaMode === 2 ? 1 / 30 : 1;
+  // no -0 for a wheel that didn't turn that way
+  return { deltaX: -deltaX / lines || 0, deltaY: -deltaY / lines || 0 };
+}
+
 interface PointerInput {
   pointerId: number;
   button: number;
@@ -813,6 +821,10 @@ export class WebDesktop {
         this.updateHint(null, { x: 0, y: 0 });
       }
     });
+    // a wheel turned over a widget or a companion goes to its window instead of scrolling the page, as in the app
+    this.element.addEventListener('wheel', (event) => {
+      if (this.windowWheel(this.point(event), event, event.deltaX, event.deltaY, event.deltaMode)) event.preventDefault();
+    }, { passive: false });
     // a finger on a widget works it instead of scrolling the page
     this.element.addEventListener('touchstart', (event) => {
       const touch = event.changedTouches[0];
@@ -1309,8 +1321,37 @@ export class WebDesktop {
 
   /** A DOM wheel event as DesktopEngine.input's wheel: like NSEvent's deltas, about lines, positive toward the top and the left */
   private globalWheel(point: { x: number; y: number }, deltaX: number, deltaY: number, deltaMode: number): void {
-    const lines = deltaMode === WheelEvent.DOM_DELTA_PIXEL ? 10 : deltaMode === WheelEvent.DOM_DELTA_PAGE ? 1 / 30 : 1;
-    this.globalMouse('wheel', point, null, -deltaX / lines, -deltaY / lines);
+    const deltas = wheelDeltas(deltaX, deltaY, deltaMode);
+    this.globalMouse('wheel', point, null, deltas.deltaX, deltas.deltaY);
+  }
+
+  /**
+   * A wheel turned at a point, as the app gives it: to the widget's or companion's window that takes the mouse there,
+   * over its hit region (the edges a widget is resized by take the mouse but aren't part of it), never the key window
+   * as they are; a wallpaper or another window doesn't get it. Whether such a window is there, so the page doesn't scroll.
+   */
+  private windowWheel(point: { x: number; y: number }, event: Omit<PointerInput, 'pointerId' | 'button'>, deltaX: number, deltaY: number, deltaMode: number): boolean {
+    const hit = this.windowAt(point.x, point.y);
+    if (!hit || (hit.window.type !== 'widget' && hit.window.type !== 'overlay')) return false;
+    const { frame, hitRegion } = hit.window;
+    if (hitRegion && !hitRegion.some((rect) => inside(rect, point.x - frame.x, point.y - frame.y))) return true;
+    const deltas = wheelDeltas(deltaX, deltaY, deltaMode);
+    hit.content.post({
+      type: 'pointer',
+      kind: 'wheel',
+      window: hit.window.id,
+      x: point.x,
+      y: point.y,
+      ctrlKey: event.ctrlKey,
+      altKey: event.altKey,
+      metaKey: event.metaKey,
+      shiftKey: event.shiftKey,
+      button: 0,
+      buttons: event.buttons,
+      deltaX: deltas.deltaX,
+      deltaY: deltas.deltaY,
+    });
+    return true;
   }
 
   /** @internal: watches the page's pointer while a content follows the mouse, and counts its key presses while one listens to keyactivity */
@@ -1909,6 +1950,14 @@ export class WebDesktop {
       if (this.windowAt(x, y)?.content !== content) return;
       const delta = (value: unknown) => (Number.isFinite(Number(value)) ? Number(value) : 0);
       this.globalWheel(point, delta(message.deltaX), delta(message.deltaY), delta(message.deltaMode));
+      const modifiers = {
+        buttons: Number(message.buttons) || 0,
+        ctrlKey: message.ctrlKey === true,
+        altKey: message.altKey === true,
+        metaKey: message.metaKey === true,
+        shiftKey: message.shiftKey === true,
+      };
+      this.windowWheel(point, modifiers, delta(message.deltaX), delta(message.deltaY), delta(message.deltaMode));
       return;
     }
     const event: PointerInput = {

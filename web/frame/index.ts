@@ -1281,9 +1281,14 @@ function pointer(message: Extract<HostMessage, { type: 'pointer' }>): void {
     case 'click':
       click(chain, message);
       break;
-    case 'wheel':
-      // the engine sends wheel only to the key window, which content windows on the desktop never are
+    case 'wheel': {
+      // the host sends it only over a widget's or companion's window, where it takes the mouse; up the components as
+      // the views pass it on, with NSEvent's deltas
+      const deltaX = toNumber(message.deltaX) || 0;
+      const deltaY = toNumber(message.deltaY) || 0;
+      for (let index = 0; index < chain.length; index++) chain[index].emit('wheel', { deltaX, deltaY, deltaZ: 0 });
       break;
+    }
   }
 }
 
