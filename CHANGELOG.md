@@ -2,6 +2,27 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 5.0.0 (2026-10-18)
+
+API version 8 (was 7): packages with `"apiVersion": 8` need an app that has it.
+
+### Breaking Changes
+
+- widget sizes of their own and widget.resize (API 8): users and content resize widgets, no half-display cap for a widget's window
+- remove DesktopEngine.system.cpuUsage() and memoryUsage(); DesktopEngine.systemStatus reads the processor and memory
+
+### Features
+
+- check that wallpaper.screenSaver is true or false
+- API 8, an option can be shown only for some values of another with showWhen
+- DesktopEngine.systemStatus, the Mac's processor, memory, network, power, temperature and disk, in the types and the web runtime (API 8)
+- widgets and companions get wheel events while the pointer is over their clickable area (API 8)
+
+### Bug Fixes
+
+- a widget that resizes itself in the web runtime stays on its display
+- a widget in the web runtime moves to another display when it moves itself there with a new size, and its display is where it takes the mouse
+
 ## 4.3.0 (2026-10-16)
 
 API version 7 (was 6): packages with `"apiVersion": 7` need an app that has it.
