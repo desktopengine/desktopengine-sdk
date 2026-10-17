@@ -30,7 +30,7 @@ declare namespace DesktopEngine {
 
   /** The display that shows the content; rectangles use the DesktopEngine.Window coordinate system: origin at the top-left of the main display, y pointing down */
   interface LaunchDisplay {
-    /** Display ID (CGDirectDisplayID) */
+    /** The display's ID, the same as its `Screen.identifier` */
     id: number;
     /** Display name, such as "Built-in Display" */
     name: string;
@@ -3869,7 +3869,11 @@ declare namespace DesktopEngine {
 
   /** Display information (each read of mainScreen/screens creates new objects) */
   interface Screen {
-    /** Display ID (CGDirectDisplayID) */
+    /**
+     * The display's ID on this Mac: the same each time the display is connected and across launches, and the same for
+     * all content, so content can tell whether it's on the same display as other content, or keep something for each
+     * display. Another Mac has other IDs.
+     */
     readonly identifier: number;
     /** Whether the display is active */
     readonly isActive: boolean;
