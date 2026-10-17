@@ -3,7 +3,7 @@
 内容运行在 JavaScriptCore 里，不是浏览器。类型声明（[API 参考](/zh/reference/api)）依据引擎源代码整理，只包含真实可用的 API。要点：
 
 - 没有 DOM 和 Node.js：没有 `document`、`window`，网络见[网络](./network)，`localStorage` 和文件见[存储和文件](./storage)，声音见[音频](./audio)。运行时的模块是 CommonJS 的 `require()`；要用 `import` 请放进 `src/` 由 SDK 打包（见[项目和构建](./project)）。
-- `DesktopEngine.system.cpuUsage()` / `memoryUsage()` 提供 CPU 和内存用量，需要 `system-info` 权限，没有时抛出错误。[`DesktopEngine.systemStatus`](./system-status) 提供的更多，还有事件。
+- [`DesktopEngine.systemStatus`](./system-status) 告诉你 Mac 的状况：处理器、内存、网络、电源和电池、温度和磁盘，还有事件，需要 `system-info` 权限。
 - `DesktopEngine.input` 在整个屏幕上跟随鼠标，需要 `mouse` 权限，见[跟随鼠标](./input)。
 - `DesktopEngine.windows` 告诉内容其他应用的窗口在哪里，需要 `window-positions` 权限，见[其他应用的窗口](./app-windows)。
 - `DesktopEngine.systemAudio` 分析其他应用在 Mac 上播放的声音：整体和从低到高各个频带有多响，用来做音乐可视化，需要 `system-audio` 权限，见[Mac 正在播放的声音](./audio#mac-正在播放的声音)。

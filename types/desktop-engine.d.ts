@@ -3920,10 +3920,6 @@ declare namespace DesktopEngine {
     offparameterschange(): void;
     /** Asks the runtime to run a garbage collection (asynchronously) */
     triggerGC(): void;
-    /** CPU usage of the whole system since the previous call (0–1); the first call returns the average since boot. Needs the system-info permission, throws without it */
-    cpuUsage(): number;
-    /** Memory usage in bytes; used matches Memory Used in Activity Monitor. Needs the system-info permission, throws without it */
-    memoryUsage(): { total: number; used: number; free: number };
   }
 
   // ---------------------------------------------------------------------------

@@ -70,19 +70,6 @@ class SystemImpl extends Evented {
   }
 
   triggerGC(): void {}
-
-  cpuUsage(): number {
-    if (!hasPermission('system-info')) throw new Error('cpuUsage() needs the "system-info" permission in manifest.json');
-    // the web can't see the Mac: a plausible, slowly wandering value
-    return Math.min(1, 0.08 + 0.06 * Math.sin(performance.now() / 7000) + 0.03 * Math.random());
-  }
-
-  memoryUsage(): { total: number; used: number; free: number } {
-    if (!hasPermission('system-info')) throw new Error('memoryUsage() needs the "system-info" permission in manifest.json');
-    const total = 16 * 1024 ** 3;
-    const used = total * (0.58 + 0.04 * Math.sin(performance.now() / 20000));
-    return { total, used, free: total - used };
-  }
 }
 defineEvents(SystemImpl.prototype, ['appearancechange', 'parameterschange']);
 

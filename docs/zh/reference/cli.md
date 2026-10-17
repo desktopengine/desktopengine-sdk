@@ -58,7 +58,7 @@ desktopengine dev [folder] [options]
 - 内容收不到滚轮事件，键盘事件也收不到（和 App 一样）。
 - 一个组件或它的上层（包括窗口）监听了 `click` 时，App 对一次单击不发主按键的 `mousedown` 和 `mouseup`，只发 `click`；网页运行时三个都发。
 - 页面隐藏时（标签页在后台），内容和在 App 里一样被暂停，它的计时器改用浏览器自己的，浏览器可能放得比 App 更慢。
-- `DesktopEngine.system.cpuUsage()` 和 `memoryUsage()` 返回缓慢变化的模拟值：网页看不到电脑的数据。
+- `DesktopEngine.systemStatus` 给的是一台模拟的 Mac 的读数：网页看不到电脑的数据（见[系统状态](/zh/guide/system-status#在网页上)）。
 - `DesktopEngine.windows` 列出的是页面上模拟的应用窗口：`dev --web` 给有 `window-positions` 权限的内容开一个，菜单栏的 New Window 可以再开（见[其他应用的窗口](/zh/guide/app-windows#在网页上)）；商店的预览里没有这些窗口。
 - `DesktopEngine.systemAudio` 听到的是一段像音乐的合成信号，或者你用 ♫ 播放的音频文件（见[Mac 正在播放的声音](/zh/guide/audio#mac-正在播放的声音)）；商店的预览里听到的是合成信号。
 
