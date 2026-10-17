@@ -11,7 +11,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { validateManifest, validatePackage, englishText, isValidNetworkDomain, RESERVED_PERMISSIONS, PERMISSIONS, TYPES } from '../src/manifest.ts';
+import { validateManifest, validatePackage, englishText, isValidNetworkDomain, declaredWidgetSizes, widgetSizesByArea, RESERVED_PERMISSIONS, PERMISSIONS, TYPES } from '../src/manifest.ts';
 import { createZip, readZip, crc32 } from '../src/zip.ts';
 import { createProject, packProject, listPackageFiles, defaultId, RENDERERS } from '../src/project.ts';
 import { buildProject } from '../src/build.ts';
@@ -95,6 +95,63 @@ test('a dark preview is a path in the package', () => {
   assert.ok(validateManifest({ ...widget, previewDark: '../dark.webp' }).errors.some((message) => message.includes('"previewDark"')));
   const { preview, ...darkOnly } = widget;
   assert.ok(validateManifest(darkOnly).warnings.some((message) => message.includes('without "preview"')));
+});
+
+test('a widget can declare sizes of its own with API 8, mixed with the presets', () => {
+  const wide = { id: 'wide', width: 440, height: 196, name: { en: 'Wide', 'zh-Hans': '宽' } };
+  const widget = { ...minimal, apiVersion: 8, widget: { sizes: ['small', wide] } };
+  assert.deepEqual(validateManifest(widget), { errors: [], warnings: [] });
+  assert.deepEqual(declaredWidgetSizes(widget), [{ id: 'small', width: 164, height: 164 }, { id: 'wide', width: 440, height: 196, name: wide.name }]);
+  // an older app can't decode them
+  assert.ok(validateManifest({ ...widget, apiVersion: 7 }).errors.some((message) => message.includes('"apiVersion": 8')));
+  assert.ok(validateManifest({ ...widget, apiVersion: undefined }).errors.some((message) => message.includes('"apiVersion": 8')));
+  const bad = (size: object) => validateManifest({ ...widget, widget: { sizes: ['small', { ...wide, ...size }] } }).errors;
+  assert.ok(bad({ id: 'Wide' }).some((message) => message.includes('.id')));
+  assert.ok(bad({ id: 'medium' }).some((message) => message.includes('preset')));
+  assert.ok(bad({ width: 31 }).some((message) => message.includes('.width')));
+  assert.ok(bad({ height: 100.5 }).some((message) => message.includes('.height')));
+  assert.ok(bad({ name: undefined }).some((message) => message.includes('.name" is missing')));
+  assert.ok(bad({ name: '' }).some((message) => message.includes('.name')));
+  assert.ok(validateManifest({ ...widget, widget: { sizes: [wide, { ...wide, width: 300 }] } }).errors.some((message) => message.includes('repeats wide')));
+  assert.ok(validateManifest({ ...widget, widget: { sizes: ['huge'] } }).errors.some((message) => message.includes('sizes[0]')));
+  // no upper limit, a warning when a small display can't show it whole
+  const big = validateManifest({ ...widget, widget: { sizes: [{ ...wide, width: 1400 }] } });
+  assert.deepEqual(big.errors, []);
+  assert.ok(big.warnings.some((message) => message.includes('small display')));
+  // a size the content doesn't declare (any more) isn't one: the first is used
+  assert.deepEqual(declaredWidgetSizes({ widget: { sizes: [{ id: 'x', width: 10, height: 10, name: 'X' }] } }).map((size) => size.id), ['small']);
+});
+
+test('sizes are listed to pick from by area, smallest first, the same area in the manifest\'s order', () => {
+  const ids = (sizes: unknown[]) => widgetSizesByArea(declaredWidgetSizes({ widget: { sizes } })).map((size) => size.id);
+  assert.deepEqual(ids(['medium', 'small']), ['small', 'medium']);
+  const compact = { id: 'compact', width: 300, height: 133, name: 'Compact' };
+  const wide = { id: 'wide', width: 440, height: 196, name: 'Wide' };
+  assert.deepEqual(ids(['large', wide, compact, 'small']), ['small', 'compact', 'wide', 'large']);
+  // tall has medium's area
+  const tall = { id: 'tall', width: 164, height: 344, name: 'Tall' };
+  assert.deepEqual(ids([tall, 'large', 'medium']), ['tall', 'medium', 'large']);
+  assert.deepEqual(ids(['medium', tall]), ['medium', tall.id]);
+  // the manifest's order is left alone: its first is the default
+  const sizes = declaredWidgetSizes({ widget: { sizes: ['medium', 'small'] } });
+  widgetSizesByArea(sizes);
+  assert.deepEqual(sizes.map((size) => size.id), ['medium', 'small']);
+});
+
+test('widget.resize says who may resize a widget and within what', () => {
+  const widget = (resize: unknown, apiVersion = 8) => validateManifest({ ...minimal, apiVersion, widget: { sizes: ['medium'], resize } });
+  assert.deepEqual(widget({ by: ['user'] }), { errors: [], warnings: [] });
+  assert.deepEqual(widget({ by: ['user', 'content'], minWidth: 200, minHeight: 100, maxWidth: 800, maxHeight: 600, aspectRatio: 'fixed' }), { errors: [], warnings: [] });
+  assert.ok(widget({ by: ['user'] }, 7).errors.some((message) => message.includes('"apiVersion": 8')));
+  assert.ok(widget({ by: [] }).errors.some((message) => message.includes('resize.by')));
+  assert.ok(widget({ by: ['visitor'] }).errors.some((message) => message.includes('resize.by[0]')));
+  assert.ok(widget({ by: ['user'], minWidth: 10 }).errors.some((message) => message.includes('minWidth')));
+  assert.ok(widget({ by: ['user'], minWidth: 400, maxWidth: 300 }).errors.some((message) => message.includes('more than maxWidth')));
+  assert.ok(widget({ by: ['user'], aspectRatio: 'free' }).errors.some((message) => message.includes('aspectRatio')));
+  assert.ok(widget(['user']).errors.some((message) => message.includes('"widget.resize"')));
+  // medium is 344 wide: outside the range, the app starts it inside
+  assert.ok(widget({ by: ['content'], maxWidth: 300 }).warnings.some((message) => message.includes('outside')));
+  assert.ok(widget({ by: ['content'], grow: true }).warnings.some((message) => message.includes('resize.grow')));
 });
 
 test('parameters follow the rules of the app', () => {

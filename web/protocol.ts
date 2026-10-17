@@ -10,6 +10,8 @@
 //
 // Coordinates are global points, as DesktopEngine.Window uses them: origin at the top left of the main screen, y down.
 
+import type { CornerShape, WidgetSizing } from './widget-sizes.ts';
+
 /** `DesktopEngine.apiVersion` on the web, the same as the SDK's `API_VERSION` (a test checks) */
 export const API_VERSION = 8;
 
@@ -76,6 +78,11 @@ export interface LaunchMessage {
   appWindows: AppWindowInfo[];
   /** The page's latest system status, only with the system-info permission (`system-status` messages bring the next ones) */
   systemStatus?: SystemStatusReading;
+  /**
+   * For a widget: how its window is sized. The first top-level widget or overlay window it shows is the widget's
+   * window, until it's closed (`WindowState.widget`)
+   */
+  widgetSizing?: WidgetSizing;
 }
 
 /** Another app's window, as DesktopEngine.windows lists it: on the web, one of the page's pretend app windows */
@@ -266,7 +273,15 @@ export type HostMessage =
   | { type: 'system-audio'; bands: Float32Array | null; level: number; peak: number }
   /** DesktopEngine.windows: the pretend app windows changed, front to back; only to content with the window-positions permission */
   | { type: 'app-windows'; windows: AppWindowInfo[] }
-  | { type: 'move-window'; window: string; x: number; y: number }
+  /**
+   * The user dragged a window there: `dragging` while the pointer still has it (where it's taken, not kept on its
+   * display), then once more where it stays
+   */
+  | { type: 'move-window'; window: string; x: number; y: number; dragging?: boolean }
+  /** The user resized the widget's window by its edges, to this frame (already in its range and on its display) */
+  | { type: 'resize-window'; window: string; x: number; y: number; width: number; height: number }
+  /** For the resize hint: what the window draws at the bottom right corner of `body` (in its coordinates), answered with `window-corner` */
+  | { type: 'measure-corner'; window: string; body: Rect }
   | { type: 'appearance'; appearance: 'light' | 'dark' }
   | { type: 'parameters'; parameters: Record<string, ParameterValue>; changed: string[] }
   | { type: 'screens'; screens: WebScreen[] }
@@ -308,6 +323,8 @@ export interface WindowState {
   dragRegion: Rect[] | null;
   /** widget and overlay windows move when dragged (by their dragRegion) */
   movable: boolean;
+  /** The widget's window (see `LaunchMessage.widgetSizing`): the user resizes it by its edges when the widget lets them */
+  widget?: boolean;
 }
 
 /** Frame → host */
@@ -333,6 +350,8 @@ export type FrameMessage =
   | { type: 'broadcast'; scope: ChannelScope; name: string; data: unknown; source: number; newest: number }
   /** Whether the content applied new parameters itself (it listens to parameterschange); the host restarts it otherwise */
   | { type: 'parameters-result'; handled: boolean }
+  /** What a window draws at the bottom right corner of its body (`measure-corner`); null: nothing there, or it can't be read */
+  | { type: 'window-corner'; window: string; shape: CornerShape | null }
   /**
    * The pointer's events in the frame itself, passed back to the host to handle as its own. Browsers let a frame play
    * sound only after the visitor pressed in it (Safari counts no events the host passes on), so while the pointer is

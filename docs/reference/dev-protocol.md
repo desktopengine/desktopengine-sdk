@@ -33,7 +33,7 @@ All messages on the WebSocket are UTF-8 JSON text messages, told apart by `type`
 
 | Field | Value |
 | --- | --- |
-| `size` | `small`, `medium` or `large`, for widgets only; the first of `widget.sizes` when it isn't one of them |
+| `size` | The id of a widget size, `small`, `medium`, `large` or one of its own, for widgets only; the first of `widget.sizes` when it isn't one of them |
 | `level` | For a widget, `desktop` (on the desktop, default) or `floating` (above all windows); desktop companions always float |
 | `display` | The number of the display, starting at 1; the main display by default |
 | `span` | `true` runs a wallpaper across all displays (`launchOptions.displays`), when its manifest declares `wallpaper.span`; `display` is then left out |

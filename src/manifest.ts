@@ -12,7 +12,24 @@ export const TYPES = ['wallpaper', 'widget', 'companion'] as const;
 export const TYPE_ALIASES: Readonly<Record<string, ContentType>> = { pet: 'companion' };
 /** The API version that introduced each type's current name, for types newer than API 1 */
 export const TYPE_API_VERSIONS: Readonly<Partial<Record<ContentType, number>>> = { companion: 2 };
+/** The preset widget sizes, as in WidgetKit; a manifest can also declare sizes of its own (API 8) */
 export const WIDGET_SIZES = ['small', 'medium', 'large'] as const;
+/** The presets' points */
+export const WIDGET_SIZE_POINTS: Readonly<Record<WidgetSize, { width: number; height: number }>> = {
+  small: { width: 164, height: 164 },
+  medium: { width: 344, height: 164 },
+  large: { width: 344, height: 344 },
+};
+/** Who may change a widget's size: the user by its edges, the content by its window's style */
+export const WIDGET_RESIZERS = ['user', 'content'] as const;
+/** The API version of custom widget sizes and `widget.resize` */
+export const WIDGET_SIZING_API_VERSION = 8;
+/** The smallest width and height of a widget, in points */
+export const MIN_WIDGET_EDGE = 32;
+/** The free area of a small display (1280×800 without the menu bar): a bigger widget is scaled down to fit there */
+export const SMALL_DISPLAY_AREA = { width: 1280, height: 776 } as const;
+/** A custom size's id: lowercase letters, digits and hyphens */
+const WIDGET_SIZE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 export const PERMISSIONS = ['network', 'audio', 'system-info', 'mouse', 'key-activity', 'system-audio', 'window-positions', 'user-files'] as const;
 /** The API version that introduced each permission's API, for permissions newer than API 1 */
 export const PERMISSION_API_VERSIONS: Readonly<Partial<Record<Permission, number>>> = { mouse: 3, 'key-activity': 3, 'system-audio': 6, 'window-positions': 6, 'user-files': 8 };
@@ -35,7 +52,11 @@ const COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
 
 export type ContentType = (typeof TYPES)[number];
 export type Permission = (typeof PERMISSIONS)[number];
+/** A preset widget size */
 export type WidgetSize = (typeof WIDGET_SIZES)[number];
+/** The id of a size in `widget.sizes`: a preset, or a custom size's `id` (API 8) */
+export type WidgetSizeId = WidgetSize | (string & {});
+export type WidgetResizer = (typeof WIDGET_RESIZERS)[number];
 export type ParameterType = (typeof PARAMETER_TYPES)[number];
 /** A value the app can decode as `JSONValue`. */
 export type Scalar = boolean | number | string | null;
@@ -82,7 +103,12 @@ export interface Manifest {
   preview?: string;
   /** The preview in dark mode, for content that follows the appearance; `preview` is then the one in light mode */
   previewDark?: string;
-  widget?: { sizes: WidgetSize[] };
+  widget?: {
+    /** Preset names and sizes of its own, the first is the default */
+    sizes: (WidgetSize | CustomWidgetSize)[];
+    /** Its size can change from the one picked: none, it keeps that size */
+    resize?: WidgetResize;
+  };
   wallpaper?: {
     span?: boolean;
     /** `false` when it isn't made to be the screen saver: the app doesn't offer it there */
@@ -92,6 +118,74 @@ export interface Manifest {
   /** With the `network` permission: the only hosts it may reach, `api.example.com` or `*.example.com` */
   network?: { domains: string[] };
   parameters?: Parameter[];
+}
+
+/** A widget size of its own, in `widget.sizes` (API 8) */
+export interface CustomWidgetSize {
+  /** Lowercase letters, digits and hyphens, not a preset's name: `launchOptions.size` gives it */
+  id: string;
+  /** Points, whole numbers, at least 32 */
+  width: number;
+  height: number;
+  /** Shown in the app's size picker */
+  name: LocalizedString;
+}
+
+/** `widget.resize` (API 8): who may change the widget's size, and within what */
+export interface WidgetResize {
+  by: WidgetResizer[];
+  minWidth?: number;
+  minHeight?: number;
+  maxWidth?: number;
+  maxHeight?: number;
+  /** `fixed`: the width and height keep the ratio of the size the user picked */
+  aspectRatio?: 'fixed';
+}
+
+/** A size in `widget.sizes` as the app offers it: its id (`launchOptions.size`) and points */
+export interface DeclaredWidgetSize {
+  id: WidgetSizeId;
+  width: number;
+  height: number;
+  name?: LocalizedString;
+}
+
+/**
+ * The sizes a widget's manifest declares that the app can use, in order: presets and custom sizes, the ones that
+ * aren't valid left out; small when there are none.
+ */
+export function declaredWidgetSizes(manifest: { widget?: { sizes?: unknown } } | null | undefined): DeclaredWidgetSize[] {
+  const sizes: DeclaredWidgetSize[] = [];
+  const entries = manifest?.widget?.sizes;
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    const size = readWidgetSize(entry);
+    if (size && !sizes.some((other) => other.id === size.id)) sizes.push(size);
+  }
+  return sizes.length ? sizes : [{ id: 'small', ...WIDGET_SIZE_POINTS.small }];
+}
+
+/**
+ * Sizes as the app lists them for the user to pick: by area, smallest first, presets and sizes of its own mixed; sizes
+ * of the same area keep their order. The default is still the first one the manifest declares.
+ */
+export function widgetSizesByArea<T extends { width: number; height: number }>(sizes: readonly T[]): T[] {
+  return sizes
+    .map((size, index) => ({ size, index }))
+    .sort((a, b) => a.size.width * a.size.height - b.size.width * b.size.height || a.index - b.index)
+    .map(({ size }) => size);
+}
+
+function readWidgetSize(entry: unknown): DeclaredWidgetSize | null {
+  if (isOneOf(WIDGET_SIZES, entry)) return { id: entry, ...WIDGET_SIZE_POINTS[entry] };
+  if (!isPlainObject(entry)) return null;
+  const { id, width, height, name } = entry;
+  if (typeof id !== 'string' || !WIDGET_SIZE_ID_PATTERN.test(id) || isOneOf(WIDGET_SIZES, id)) return null;
+  if (!isWidgetEdge(width) || !isWidgetEdge(height)) return null;
+  return { id, width, height, name: name as LocalizedString };
+}
+
+function isWidgetEdge(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= MIN_WIDGET_EDGE;
 }
 
 export interface Issues {
@@ -273,17 +367,8 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
   if (widget !== undefined) {
     if (!isPlainObject(widget)) {
       errors.push('"widget" must be an object');
-    } else if (!Array.isArray(widget.sizes)) {
-      errors.push('"widget.sizes" must be an array');
     } else {
-      widget.sizes.forEach((size: unknown, index) => {
-        if (!isOneOf(WIDGET_SIZES, size)) {
-          errors.push(`"widget.sizes[${index}]" must be one of ${WIDGET_SIZES.join(', ')}`);
-        }
-      });
-      if (widget.sizes.length === 0) {
-        warnings.push('"widget.sizes" is empty, the app uses small');
-      }
+      validateWidget(widget, apiVersion, errors, warnings);
     }
     if (manifest.type !== 'widget') {
       warnings.push('Only widgets (type widget) use "widget"');
@@ -431,6 +516,129 @@ function validateCondition(condition: unknown, where: string, earlier: Map<strin
       errors.push(`"${where}.values[${index}]" must be ${target.type === 'toggle' ? 'true or false' : `one of the values of ${condition.key}'s options`}`);
     }
   });
+}
+
+/** Checks `widget`: its sizes and how it may be resized */
+function validateWidget(widget: JSONObject, apiVersion: unknown, errors: string[], warnings: string[]): void {
+  const sizingAPI = typeof apiVersion === 'number' && apiVersion >= WIDGET_SIZING_API_VERSION;
+  const declared: DeclaredWidgetSize[] = [];
+  if (!Array.isArray(widget.sizes)) {
+    errors.push('"widget.sizes" must be an array');
+  } else {
+    const ids = new Set<string>();
+    widget.sizes.forEach((entry: unknown, index) => {
+      const where = `widget.sizes[${index}]`;
+      if (typeof entry === 'string') {
+        if (!isOneOf(WIDGET_SIZES, entry)) {
+          errors.push(`"${where}" must be one of ${WIDGET_SIZES.join(', ')}, or a size of its own like { "id": "wide", "width": 440, "height": 196, "name": "Wide" }`);
+        } else if (ids.has(entry)) {
+          warnings.push(`"${where}" repeats ${entry}`);
+        } else {
+          ids.add(entry);
+          declared.push({ id: entry, ...WIDGET_SIZE_POINTS[entry] });
+        }
+        return;
+      }
+      if (!isPlainObject(entry)) {
+        errors.push(`"${where}" must be one of ${WIDGET_SIZES.join(', ')}, or a size of its own like { "id": "wide", "width": 440, "height": 196, "name": "Wide" }`);
+        return;
+      }
+      if (!sizingAPI) {
+        errors.push(`"${where}": sizes of its own need "apiVersion": ${WIDGET_SIZING_API_VERSION} or later, apps with an older API can't read them`);
+      }
+      const { id, width, height } = entry;
+      let valid = true;
+      if (typeof id !== 'string' || !WIDGET_SIZE_ID_PATTERN.test(id)) {
+        errors.push(`"${where}.id" must be lowercase letters, digits and hyphens, at most 64 (it is ${JSON.stringify(id)})`);
+        valid = false;
+      } else if (isOneOf(WIDGET_SIZES, id)) {
+        errors.push(`"${where}.id" ${id} is a preset's name: use "${id}" for the preset, or another id`);
+        valid = false;
+      } else if (ids.has(id)) {
+        errors.push(`"${where}.id" repeats ${id}: each size needs an id of its own`);
+        valid = false;
+      }
+      for (const [key, value] of [['width', width], ['height', height]] as const) {
+        if (!isWidgetEdge(value)) {
+          errors.push(`"${where}.${key}" must be a whole number of points, at least ${MIN_WIDGET_EDGE} (it is ${JSON.stringify(value)})`);
+          valid = false;
+        }
+      }
+      if (entry.name === undefined) {
+        errors.push(`"${where}.name" is missing: the app's size picker shows it`);
+      } else {
+        validateLocalizedString(entry.name, `${where}.name`, errors, warnings);
+      }
+      for (const key of Object.keys(entry)) {
+        if (!['id', 'width', 'height', 'name'].includes(key)) warnings.push(`The app ignores the unknown field "${where}.${key}"`);
+      }
+      if (valid) {
+        ids.add(id as string);
+        declared.push({ id: id as string, width: width as number, height: height as number });
+      }
+    });
+    if (widget.sizes.length === 0) {
+      warnings.push('"widget.sizes" is empty, the app uses small');
+    }
+  }
+
+  const { resize } = widget;
+  let range: { minWidth: number; minHeight: number; maxWidth: number; maxHeight: number } | null = null;
+  if (resize !== undefined) {
+    if (!sizingAPI) {
+      errors.push(`"widget.resize" needs "apiVersion": ${WIDGET_SIZING_API_VERSION} or later, apps with an older API can't read it`);
+    }
+    if (!isPlainObject(resize)) {
+      errors.push('"widget.resize" must be an object like { "by": ["user"] }');
+    } else {
+      const { by } = resize;
+      if (!Array.isArray(by) || by.length === 0) {
+        errors.push(`"widget.resize.by" must list who may resize it: ${WIDGET_RESIZERS.map((name) => `"${name}"`).join(', ')} or both`);
+      } else {
+        by.forEach((value: unknown, index) => {
+          if (!isOneOf(WIDGET_RESIZERS, value)) errors.push(`"widget.resize.by[${index}]" must be one of ${WIDGET_RESIZERS.join(', ')}`);
+        });
+        if (new Set(by).size !== by.length) warnings.push('"widget.resize.by" lists one twice');
+      }
+      const limits: Partial<Record<'minWidth' | 'minHeight' | 'maxWidth' | 'maxHeight', number>> = {};
+      for (const key of ['minWidth', 'minHeight', 'maxWidth', 'maxHeight'] as const) {
+        const value = resize[key];
+        if (value === undefined) continue;
+        if (!isWidgetEdge(value)) {
+          errors.push(`"widget.resize.${key}" must be a whole number of points, at least ${MIN_WIDGET_EDGE} (it is ${JSON.stringify(value)})`);
+        } else {
+          limits[key] = value;
+        }
+      }
+      if (limits.minWidth !== undefined && limits.maxWidth !== undefined && limits.minWidth > limits.maxWidth) {
+        errors.push('"widget.resize": minWidth must not be more than maxWidth');
+      }
+      if (limits.minHeight !== undefined && limits.maxHeight !== undefined && limits.minHeight > limits.maxHeight) {
+        errors.push('"widget.resize": minHeight must not be more than maxHeight');
+      }
+      if (resize.aspectRatio !== undefined && resize.aspectRatio !== 'fixed') {
+        errors.push('"widget.resize.aspectRatio" can only be "fixed": the width and height keep the ratio of the size picked');
+      }
+      for (const key of Object.keys(resize)) {
+        if (!['by', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight', 'aspectRatio'].includes(key)) warnings.push(`The app ignores the unknown field "widget.resize.${key}"`);
+      }
+      range = {
+        minWidth: limits.minWidth ?? MIN_WIDGET_EDGE,
+        minHeight: limits.minHeight ?? MIN_WIDGET_EDGE,
+        maxWidth: limits.maxWidth ?? Infinity,
+        maxHeight: limits.maxHeight ?? Infinity,
+      };
+    }
+  }
+
+  for (const size of declared) {
+    if (range && (size.width < range.minWidth || size.width > range.maxWidth || size.height < range.minHeight || size.height > range.maxHeight)) {
+      warnings.push(`The size ${size.id} (${size.width}×${size.height}) is outside "widget.resize"'s range: the app starts it at the nearest size inside`);
+    }
+    if (size.width > SMALL_DISPLAY_AREA.width || size.height > SMALL_DISPLAY_AREA.height) {
+      warnings.push(`The size ${size.id} (${size.width}×${size.height}) doesn't fit the free area of a small display (${SMALL_DISPLAY_AREA.width}×${SMALL_DISPLAY_AREA.height} points): the app scales it down there`);
+    }
+  }
 }
 
 function validateParameter(parameter: unknown, where: string, keys: Set<string>, errors: string[], warnings: string[]): void {

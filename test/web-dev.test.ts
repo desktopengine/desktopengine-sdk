@@ -273,11 +273,15 @@ test('dev --web serves the desktop page, the build, its files and the logs', asy
   assert.equal(page.status, 200);
   assert.match(await page.text(), /import \{ WebDesktop \} from '\.\/desktop\.js\?token=/);
 
-  const build = (await (await get('/package')).json()) as { revision: number; manifest: Manifest; code: string; files: string[]; launch: unknown };
+  const build = (await (await get('/package')).json()) as {
+    revision: number; manifest: Manifest; code: string; files: string[]; launch: unknown; sizes: unknown; defaultSize: unknown;
+  };
   assert.equal(build.revision, 1);
   assert.equal(build.manifest.id, manifest.id);
   assert.equal(build.code, 'console.log("hi");\n');
   assert.deepEqual(build.launch, { size: 'small' });
+  assert.deepEqual(build.sizes, [{ id: 'small', name: 'small' }]);
+  assert.equal(build.defaultSize, 'small');
   assert.ok(build.files.includes('assets/data.bin'));
   assert.ok(!build.files.includes('index.js'));
   assert.deepEqual([...new Uint8Array(await (await get('/files/assets/data.bin')).arrayBuffer())], [1, 2, 3]);
@@ -313,6 +317,17 @@ test('dev --web serves the desktop page, the build, its files and the logs', asy
   await until(/data: 2\n\n/);
   await reader.cancel();
   assert.equal(((await (await get('/package')).json()) as { code: string }).code, 'console.log("again");\n');
+
+  // the size picker lists sizes smallest first, as the app does; the default stays the first the manifest declares
+  const compact = { id: 'compact', width: 300, height: 133, name: { en: 'Compact', 'zh-Hans': '紧凑' } };
+  const tall = { id: 'tall', width: 164, height: 344, name: 'Tall' };
+  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ ...manifest, apiVersion: 8, widget: { sizes: ['large', tall, compact, 'medium', 'small'] } }));
+  await server.rebuild();
+  const sized = (await (await get('/package')).json()) as { sizes: unknown; defaultSize: unknown };
+  assert.deepEqual(sized.sizes, [
+    { id: 'small', name: 'small' }, { id: 'compact', name: 'Compact' }, { id: 'tall', name: 'Tall' }, { id: 'medium', name: 'medium' }, { id: 'large', name: 'large' },
+  ]);
+  assert.equal(sized.defaultSize, 'large');
 });
 
 test('the web runtime is built next to the command line', { skip: !fs.existsSync(path.join(import.meta.dirname, '..', 'dist', 'web', 'desktop.js')) && 'npm run build first' }, () => {

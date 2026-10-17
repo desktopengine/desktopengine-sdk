@@ -280,6 +280,17 @@ test('getContext reads alpha and antialias as the app does: undefined is the def
   ]);
 });
 
+test('a widget made for an API before widget sizing keeps the old window rules, as in the app', () => {
+  const sizing = (apiVersion?: number) => {
+    const spec = { name: 'w', code: '', size: 'medium', manifest: { id: 'com.example.w', type: 'widget', apiVersion, widget: { sizes: ['small', 'medium'] } } };
+    const content = Object.assign(Object.create(host.WebContent.prototype) as { widgetSizing: unknown }, { spec });
+    return content.widgetSizing;
+  };
+  assert.equal(sizing(), null);
+  assert.equal(sizing(7), null);
+  assert.notEqual(sizing(8), null);
+});
+
 test('launchOptions.permissions lists only what the content gets, as in the app', () => {
   const manifest = (id: string, permissions: string[]) => ({ name: id, code: '', manifest: { id, type: 'widget', permissions } });
   const official = manifest('app.desktopengine.official.meter', ['network', 'system-audio', 'key-activity', 'mouse']);

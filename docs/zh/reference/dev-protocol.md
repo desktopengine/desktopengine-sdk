@@ -33,7 +33,7 @@ WebSocket 上都是 UTF-8 的 JSON 文本消息，用 `type` 区分。
 
 | 字段 | 取值 |
 | --- | --- |
-| `size` | `small`、`medium`、`large`，只对小组件有效，不在 `widget.sizes` 里时用第一个 |
+| `size` | 小组件尺寸的 id：`small`、`medium`、`large` 或自己的尺寸，只对小组件有效，不在 `widget.sizes` 里时用第一个 |
 | `level` | 小组件用：`desktop`（贴在桌面上，缺省）或 `floating`（浮于所有窗口之上）；桌面伙伴总是浮在窗口之上 |
 | `display` | 从 1 开始的显示器序号，缺省为主显示器 |
 | `span` | 为 `true` 时壁纸跨所有显示器运行（`launchOptions.displays`），要求清单声明了 `wallpaper.span`；这时不看 `display` |

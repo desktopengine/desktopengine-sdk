@@ -6,8 +6,9 @@
 // The engine's components on the web: Component (a flex container), Window (a positioned box on the desktop), Canvas
 // (a real <canvas>: 2D and WebGL draw with the browser's contexts, which offer what the engine's have, see
 // context2d.ts and webgl.ts), CanvasImage, Image and Video. The rules of the engine hold: the content's type limits
-// the window types, at most 16 windows, widget and overlay windows below the menu bar and at most half a display,
-// drawImage and texImage2D take the engine's Canvas and CanvasImage.
+// the window types, at most 16 windows, widget and overlay windows below the menu bar and at most half a display (but
+// the widget's window, which keeps the widget's size and stays inside its display, see widget-sizes.ts), drawImage
+// and texImage2D take the engine's Canvas and CanvasImage.
 
 import { createContext2D } from './context2d.ts';
 import { defineEvents, Evented } from './events.ts';
@@ -16,6 +17,7 @@ import { applyStyle, BASE_CSS, createStyle, readStyle, STYLE_KEYS, stylePoints, 
 import { isDataURL, mediaURL } from './network.ts';
 import { hasPermission, itemsOf, nextIdentifier, send, state } from './state.ts';
 import type { Rect, WindowState } from '../protocol.ts';
+import { CORNER_MEASURE, measureCorner, widgetFrame, type CornerShape, type Size } from '../widget-sizes.ts';
 
 // what the content may replace, taken before it runs: what the runtime does on its own (the host's messages, telling
 // it where the windows are, destroying them when the content stops) uses nothing the content can change, as the
@@ -26,7 +28,7 @@ const { has: setHas, add: setAdd, delete: setDelete } = Set.prototype;
 const setSize = Object.getOwnPropertyDescriptor(Set.prototype, 'size')!.get!;
 const { set: mapSet } = Map.prototype;
 const { then } = Promise.prototype;
-const { max, floor, sqrt } = Math;
+const { max, min, floor, sqrt } = Math;
 const queueTask = queueMicrotask.bind(globalThis);
 
 const COMPONENT_EVENTS = ['framechange', 'click', 'dblclick', 'mousedown', 'mouseup', 'mouseenter', 'mouseleave', 'mousemove', 'wheel'];
@@ -216,6 +218,9 @@ function copyRects(rects: Rect[]): Rect[] {
   return copy;
 }
 
+/** The widget's window (`LaunchMessage.widgetSizing`): the first top-level widget or overlay window shown, until it's closed */
+let widgetWindow: WindowImpl | null = null;
+
 let reportScheduled = false;
 /** The host hit tests with the windows' frames and regions: tell it what changed, once per task */
 export function reportWindows(): void {
@@ -239,6 +244,28 @@ export class WindowImpl extends ComponentImpl {
   private drag: Rect[] | null = null;
   private frameRect: Rect = { x: 0, y: 0, width: 400, height: 300 };
   private parentRef: WindowImpl | null = null;
+  /** As the widget's window: the size the user picked or left it in, and where it is (its rules applied to frameRect) */
+  private widgetSize: Size | null = null;
+  private widgetRect: Rect | null = null;
+  /**
+   * As the widget's window: where its style or the user last put it, before it's kept on its display, and the frame its
+   * style was last given by its rules; kept there again when its hit region changes, e.g. one set after it was shown
+   */
+  private widgetPlace: { x: number; y: number } | null = null;
+  private toldFrame: Rect | null = null;
+  /**
+   * How far it is from its place, kept on its display (pushed in from an edge or down from the menu bar): its style has
+   * where it is, so a size the content gives later at a place from there is that far from its place, and it goes back
+   * there once it fits; a move at its size is a new place
+   */
+  private pushOffset = { x: 0, y: 0 };
+  /** The user drags it, or it slides back after: it stays where it's taken, kept on its display only once it's dropped */
+  private dragged = false;
+  /** As the widget's window: its style changed, its rules apply once the content's script returns, as the engine lays out */
+  private settleScheduled = false;
+  /** Events for the frame it got from the widget's rules or the user, after the script that's running */
+  private pendingResize = false;
+  private pendingMove = false;
   /** Private: content can't redefine it on a window it passes as a parent */
   readonly #childWindows: WindowImpl[] = [];
 
@@ -334,6 +361,8 @@ export class WindowImpl extends ComponentImpl {
   set hitRegion(value: unknown) {
     this.hit = positiveRects(value);
     reportWindows();
+    // the widget's window may go farther out or in, as only where it takes the mouse is kept on its display
+    if (this.widgetSize) this.place();
   }
 
   get dragRegion(): Rect[] | null {
@@ -372,29 +401,176 @@ export class WindowImpl extends ComponentImpl {
 
   /** Where it is on the desktop */
   get globalFrame(): Rect {
-    return this.restricted(this.frameRect);
+    return this.widgetRect ?? this.restricted(this.frameRect);
   }
 
   private place(): void {
-    const frame = this.globalFrame;
+    if (this.widgetSize) {
+      // laid out once the content's script returns: width and height set one after the other are one resize
+      if (this.settleScheduled) return;
+      this.settleScheduled = true;
+      queueTask(() => {
+        if (!this.settleScheduled) return;
+        this.settleScheduled = false;
+        if (this.widgetSize) this.settle();
+      });
+      return;
+    }
+    this.position(this.globalFrame);
+  }
+
+  // reading the widget's window's size lays it out at once, as in the engine: what its style just asked for applies
+  override get width(): number {
+    this.settleNow();
+    return super.width;
+  }
+
+  override get height(): number {
+    this.settleNow();
+    return super.height;
+  }
+
+  private settleNow(): void {
+    if (!this.settleScheduled || !this.widgetSize) return;
+    this.settleScheduled = false;
+    this.settle();
+  }
+
+  private position(frame: Rect): void {
     assign(this.element.style, { left: `${frame.x}px`, top: `${frame.y}px`, width: `${frame.width}px`, height: `${frame.height}px` });
     reportWindows();
   }
 
-  /** The host moved it: the user dragged it */
-  moveTo(x: number, y: number): void {
+  /**
+   * The widget's window takes the frame its rules give it, as the engine's does: its style says so when that isn't the
+   * one it asked for, and the content is told (resize, move)
+   */
+  private settle(): void {
+    const sizing = state.launch?.widgetSizing;
+    const screen = this.screen();
+    if (!sizing || !this.widgetSize || !screen) return;
+    const differs = (a: number, b: number) => a - b >= 0.5 || b - a >= 0.5;
+    const told = this.toldFrame;
+    const asked = this.frameRect;
+    if (!this.dragged && (!told || differs(asked.x, told.x) || differs(asked.y, told.y) || differs(asked.width, told.width) || differs(asked.height, told.height))) {
+      const sameSize = told && !differs(asked.width, told.width) && !differs(asked.height, told.height);
+      const offset = this.pushOffset;
+      this.widgetPlace = sameSize || !this.widgetPlace ? { x: asked.x, y: asked.y } : { x: asked.x + offset.x, y: asked.y + offset.y };
+    }
+    const place = this.widgetPlace ?? asked;
+    const frame = widgetFrame({ x: place.x, y: place.y, width: asked.width, height: asked.height }, sizing, this.widgetSize, screen.visibleFrame, this.hit);
+    if (this.dragged && this.widgetRect) {
+      // its size still applies, its top left corner where the pointer has it
+      frame.x = this.widgetRect.x;
+      frame.y = this.widgetRect.y;
+    }
+    if (!this.dragged) this.pushOffset = { x: place.x - frame.x, y: place.y - frame.y };
+    this.widgetRect = frame;
+    this.position(frame);
+    if (differs(frame.width, asked.width) || differs(frame.height, asked.height)) this.tell('resize');
+    if (differs(frame.x, asked.x) || differs(frame.y, asked.y)) this.tell('move');
+    this.takeFrame(frame);
+  }
+
+  /** Its style takes the frame */
+  private takeFrame(frame: Rect): void {
+    this.frameRect = { x: frame.x, y: frame.y, width: frame.width, height: frame.height };
+    this.toldFrame = { x: frame.x, y: frame.y, width: frame.width, height: frame.height };
+    apply(mapSet, this.styleValues, ['left', frame.x]);
+    apply(mapSet, this.styleValues, ['top', frame.y]);
+    apply(mapSet, this.styleValues, ['width', frame.width]);
+    apply(mapSet, this.styleValues, ['height', frame.height]);
+  }
+
+  /** Fires resize or move after the script that's running, once however often it changed */
+  private tell(event: 'resize' | 'move'): void {
+    const pending = this.pendingResize || this.pendingMove;
+    if (event === 'resize') this.pendingResize = true;
+    else this.pendingMove = true;
+    if (pending) return;
+    queueTask(() => {
+      const resize = this.pendingResize;
+      const move = this.pendingMove;
+      this.pendingResize = false;
+      this.pendingMove = false;
+      if (!apply(setHas, windows, [this])) return;
+      const frame = this.globalFrame;
+      if (resize) this.emit('resize');
+      if (move) this.emit('move', { x: frame.x, y: frame.y });
+    });
+  }
+
+  /** The host moved it: the user dragged it; `dragging` while the pointer has it, or it slides back after a drop */
+  moveTo(x: number, y: number, dragging = false): void {
     this.frameRect = { ...this.frameRect, x, y };
     apply(mapSet, this.styleValues, ['left', x]);
     apply(mapSet, this.styleValues, ['top', y]);
-    this.place();
+    this.dragged = dragging && !!this.widgetSize;
+    if (this.dragged) {
+      // where it's taken: the host puts it back on its display once it's dropped, sliding
+      const current = this.widgetRect ?? this.frameRect;
+      this.widgetRect = { x, y, width: current.width, height: current.height };
+      this.widgetPlace = { x, y };
+      this.pushOffset = { x: 0, y: 0 };
+      this.toldFrame = { ...this.widgetRect };
+      this.position(this.widgetRect);
+    } else if (this.widgetSize) {
+      const moving = this.pendingMove;
+      this.settle();
+      // the move below tells where it ended up, kept on its display or not: not one more after it
+      if (!moving) this.pendingMove = false;
+    } else {
+      this.place();
+    }
     const frame = this.globalFrame;
     this.emit('move', { x: frame.x, y: frame.y });
+  }
+
+  /** The host resized it: the user dragged an edge of the widget's window */
+  resizeTo(frame: Rect): void {
+    if (!this.widgetSize) return;
+    const before = this.globalFrame;
+    this.widgetSize = { width: frame.width, height: frame.height };
+    // by its left or top edge, the user puts it there; by its right or bottom edge, it keeps its place (it may be
+    // pushed in from an edge). Not a move of the content's own, nor a size it gives from where it was pushed to
+    const differs = (a: number, b: number) => a - b >= 0.5 || b - a >= 0.5;
+    if (differs(frame.x, before.x) || differs(frame.y, before.y)) {
+      this.widgetPlace = { x: frame.x, y: frame.y };
+      this.pushOffset = { x: 0, y: 0 };
+    }
+    this.frameRect = { ...frame };
+    this.toldFrame = { ...frame };
+    this.settle();
+    this.takeFrame(this.globalFrame);
+    const after = this.globalFrame;
+    if (after.width !== before.width || after.height !== before.height) this.tell('resize');
+    if (after.x !== before.x || after.y !== before.y) this.tell('move');
+  }
+
+  /** The first top-level widget or overlay window shown is the widget's, while it's shown */
+  private claimWidgetWindow(): void {
+    const sizing = state.launch?.widgetSizing;
+    if (!sizing || widgetWindow || this.parentRef || (this.type !== 'widget' && this.type !== 'overlay')) return;
+    widgetWindow = this;
+    this.widgetSize = { width: sizing.size.width, height: sizing.size.height };
+    this.settle();
+  }
+
+  private releaseWidgetWindow(): void {
+    if (widgetWindow !== this) return;
+    widgetWindow = null;
+    this.widgetSize = null;
+    this.widgetRect = null;
+    this.widgetPlace = null;
+    this.toldFrame = null;
+    this.pushOffset = { x: 0, y: 0 };
   }
 
   show(): void {
     // as in the app: a destroyed window is gone for good
     if (!apply(setHas, windows, [this])) throw new Error('This window was destroyed; make a new one to show it again');
     if (this.shown) return;
+    this.claimWidgetWindow();
     this.shown = true;
     if (!this.element.isConnected) document.body.appendChild(this.element);
     this.element.hidden = false;
@@ -407,6 +583,11 @@ export class WindowImpl extends ComponentImpl {
     this.destroy();
   }
 
+  /** Whether it's the widget's window */
+  get isWidgetWindow(): boolean {
+    return widgetWindow === this;
+  }
+
   override remove(): void {
     console.warn('Window doesn\'t support remove: use close() or destroy()');
   }
@@ -414,6 +595,7 @@ export class WindowImpl extends ComponentImpl {
   override destroy(): void {
     if (!apply(setHas, windows, [this])) return;
     apply(setDelete, windows, [this]);
+    this.releaseWidgetWindow();
     this.shown = false;
     this.element.remove();
     this.parentWindow = null;
@@ -431,6 +613,7 @@ export class WindowImpl extends ComponentImpl {
       hitRegion: this.hitRegion,
       dragRegion: this.dragRegion,
       movable: this.type === 'widget' || this.type === 'overlay',
+      widget: widgetWindow === this,
     };
   }
 
@@ -440,6 +623,53 @@ export class WindowImpl extends ComponentImpl {
   }
 }
 defineEvents(WindowImpl.prototype, ['show', 'hide', 'close', 'resize', 'move', 'focus', 'blur', 'keydown', 'keyup', 'devicepixelratiochange', 'dragenter', 'dragover', 'dragleave', 'drop']);
+
+/**
+ * The shape a window draws at the bottom right corner of `body` (in its coordinates), for the resize hint, measured as
+ * the app does: that corner of what it shows, its components' backgrounds and what they draw, drawn into a canvas whose
+ * opaque pixels are looked for. Null when nothing is drawn there, or it can't be read (e.g. a WebGL canvas, whose
+ * drawing buffer is gone once it's on screen).
+ */
+export function windowCorner(win: WindowImpl, body: Rect): CornerShape | null {
+  const side = floor(min(CORNER_MEASURE, body.width, body.height));
+  const scale = 2;
+  const count = side * scale;
+  if (!(count >= 8)) return null;
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = count;
+    canvas.height = count;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) return null;
+    context.scale(scale, scale);
+    context.translate(-(body.x + body.width - side), -(body.y + body.height - side));
+    const origin = win.element.getBoundingClientRect();
+    const descendants = win.element.getElementsByTagName('*');
+    for (let index = -1; index < descendants.length; index++) {
+      const element = index < 0 ? win.element : descendants[index];
+      if (!(element instanceof HTMLElement)) continue;
+      const rect = element.getBoundingClientRect();
+      const x = rect.left - origin.left;
+      const y = rect.top - origin.top;
+      if (element.style.backgroundColor) {
+        context.fillStyle = element.style.backgroundColor;
+        context.fillRect(x, y, rect.width, rect.height);
+      }
+      if (element instanceof HTMLCanvasElement || element instanceof HTMLImageElement || element instanceof HTMLVideoElement) {
+        try {
+          context.drawImage(element, x, y, rect.width, rect.height);
+        } catch {
+          // not loaded, or nothing to draw
+        }
+      }
+    }
+    const pixels = context.getImageData(0, 0, count, count).data;
+    // y goes down here: the corner is the last row's last pixel
+    return measureCorner((left, up) => pixels[((count - 1 - up) * count + (count - 1 - left)) * 4 + 3] >= 128, count, scale);
+  } catch {
+    return null;
+  }
+}
 
 export function windowById(id: string): WindowImpl | undefined {
   const all = allWindows();

@@ -29,7 +29,8 @@
 | `description` | | 一两句话的介绍，可以翻译 |
 | `icon`、`preview` | | 包内相对路径的图标和预览图 |
 | `previewDark` | | 深色模式下的预览图，包内相对路径：给跟随系统外观的内容用，这时 `preview` 是浅色模式下的。没有它时两种外观都显示 `preview` |
-| `widget.sizes` | | 小组件支持的尺寸：`small` 164×164、`medium` 344×164、`large` 344×344，缺省为 `small` |
+| `widget.sizes` | | 小组件支持的尺寸，第一个是默认的：`small` 164×164、`medium` 344×164、`large` 344×344，以及自己的尺寸（API 8），见[小组件尺寸](#小组件尺寸)；缺省为 `small` |
+| `widget.resize` | | 让用户或内容在一个范围内调整小组件的大小（API 8），见[小组件尺寸](#小组件尺寸) |
 | `wallpaper.span` | | 为 `true` 时壁纸可以跨显示器，见[跨显示器](/zh/guide/wallpaper#跨显示器) |
 | `permissions` | | 需要的权限，见[权限](#权限-permissions) |
 | `network.domains` | 有 `network` 时必填 | 要连接的域名，见[网络](/zh/guide/network#域名) |
@@ -46,6 +47,44 @@
 | `companion` | 桌面伙伴：角色、吉祥物、小车、小游戏……待在所有窗口之上，自己在屏幕上活动 |
 
 `companion` 需要 `"apiVersion": 2`。API 版本为 1 的应用只认识它的旧名称 `pet`：清单里还写着 `pet` 的包在哪里都能用，应用把它当作 `companion`，`validate` 只给出警告。`launchOptions.type` 是清单里写的类型。
+
+## 小组件尺寸
+
+`widget.sizes` 列出用户在应用里可选的尺寸，第一个是默认的。应用按面积从小到大列出它们，与这里的顺序无关。除了预设尺寸，小组件还可以声明自己的尺寸，和预设尺寸混在一起（需要 `"apiVersion": 8`）：
+
+```json
+"widget": {
+  "sizes": [
+    { "id": "standard", "width": 440, "height": 196, "name": { "en": "Standard", "zh-Hans": "标准" } },
+    { "id": "compact", "width": 300, "height": 133, "name": { "en": "Compact", "zh-Hans": "紧凑" } },
+    "medium"
+  ]
+}
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `id` | 小写字母、数字和连字符，不能是预设尺寸的名字，不能重复：`launchOptions.size` 给的就是它 |
+| `width`、`height` | 整数点，至少 32。没有上限：比所在显示器的可用区域大时，应用按原比例缩小（显示不全 1280×800 显示器时 `validate` 会给出警告） |
+| `name` | 显示在应用的尺寸选择里，可以像 `name` 一样翻译 |
+
+小组件保持用户选的尺寸，除非 `widget.resize` 允许改变（需要 `"apiVersion": 8`）：
+
+```json
+"widget": {
+  "sizes": ["medium"],
+  "resize": { "by": ["user"], "minWidth": 200, "minHeight": 120, "maxWidth": 800, "aspectRatio": "fixed" }
+}
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `by` | 谁来调整：`user`，用户像调整普通窗口一样拖桌面上小组件的边和角；`content`，内容通过窗口的样式调整；或者两者都有 |
+| `minWidth`、`minHeight` | 最小尺寸，整数点，缺省为 32 |
+| `maxWidth`、`maxHeight` | 最大尺寸，缺省没有上限 |
+| `aspectRatio` | `fixed`：宽高保持所选尺寸的比例 |
+
+所选的尺寸是起始尺寸。应用会记住小组件最后的大小，下次按这个大小启动；重新选一个尺寸则从那个尺寸开始。窗口的表现见[小组件的大小](/zh/guide/windows#小组件的大小)。
 
 ## JSON Schema
 
@@ -145,6 +184,6 @@ if (permissions.includes('network')) {
 | 5 | 2D 画布的 `ellipse()`、`roundRect()`、`getTransform()`、`createConicGradient()`、`letterSpacing` 和 `wordSpacing`，`setTransform()` 可以传矩阵，混合模式（`multiply`…`luminosity`）、`TextMetrics` 的其余字段、`Path2D`、`isPointInPath` 和 `isPointInStroke`；`createImageBitmap` 和 `new ImageData()`；`structuredClone`、`MessageChannel`、`FileReader`、`CustomEvent` 和 `navigator`，见[全局对象](/zh/guide/runtime#全局对象) |
 | 6 | `BroadcastChannel`，范围有 `package` 和 `namespace`，见[内容之间的消息](/zh/guide/messaging)；`DesktopEngine.systemAudio` 和 `system-audio` 权限，见[Mac 正在播放的声音](/zh/guide/audio#mac-正在播放的声音)；`DesktopEngine.windows`（`list()`、`visibleTopEdges()` 和 `change`）和 `window-positions` 权限，见[其他应用的窗口](/zh/guide/app-windows)；`Image` 还没加进组件时就加载 `src`，可以先等它的 `load` 再加进去 |
 | 7 | `DesktopEngine.syncStorage`，跟着用户到其他 Mac 上的键和值，见[同步的存储](/zh/guide/storage#同步的存储-desktopengine-syncstorage) |
-| 8 | 选项的 `showWhen`，只在另一个选项取某些值时显示，见[选项](#选项-parameters)；`DesktopEngine.systemStatus`：处理器、内存、网络、电源和电池、温度和磁盘，变化时有事件，内容暂停后有 `resume`，见[系统状态](/zh/guide/system-status)（`system-info` 权限） |
+| 8 | 选项的 `showWhen`，只在另一个选项取某些值时显示，见[选项](#选项-parameters)；`DesktopEngine.systemStatus`：处理器、内存、网络、电源和电池、温度和磁盘，变化时有事件，内容暂停后有 `resume`，见[系统状态](/zh/guide/system-status)（`system-info` 权限）；小组件自己的尺寸和 `widget.resize`，用户或内容调整小组件的大小，小组件的窗口不再限制在半块显示器内，见[小组件尺寸](#小组件尺寸) |
 
 版本 4 还按浏览器的样子改了一些 API：双击事件是 `dblclick`（原来是 `dbclick`），`click` 和 `dblclick` 的参数和鼠标事件一样是 `{ x, y, … }`（原来是 `{ position: { x, y } }`）。去掉了 WebGL 上下文的 `wxBindCanvasTexture` 和 `blBindCanvasTexture`、全局的 `mixin` 和 `promisify`，以及没有对应 API 的 `files`、`now-playing`、`window-positions` 权限（版本 6 随 `DesktopEngine.windows` 重新加入了 `window-positions`）。用到它们的内容改好后要写上 `"apiVersion": 4`。

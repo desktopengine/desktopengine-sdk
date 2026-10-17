@@ -31,7 +31,7 @@ import { buildProject } from './build.ts';
 import { affectsPackage } from './files.ts';
 import { WebSocketConnection, acceptKey, acceptUpgrade } from './websocket.ts';
 import type { LaunchRequest } from './dev.ts';
-import type { Manifest } from './manifest.ts';
+import { declaredWidgetSizes, englishText, widgetSizesByArea, type Manifest } from './manifest.ts';
 
 const REBUILD_DELAY = 150;
 const PROXY_LIMIT = 20 * 1024 * 1024;
@@ -583,12 +583,17 @@ export class WebDevServer extends EventEmitter<WebDevServerEvents> {
     if (url.pathname === '/package') {
       if (!build) return send(503, 'application/json', JSON.stringify({ error: 'the build failed, see the terminal' }));
       const code = fs.readFileSync(path.join(build.packageDir, 'index.js'), 'utf8');
+      const sizes = build.manifest.type === 'widget' ? declaredWidgetSizes(build.manifest) : [];
       return send(200, 'application/json', JSON.stringify({
         revision: this.revision,
         manifest: build.manifest,
         code,
         files: build.files.filter((file) => file !== 'index.js'),
         launch: this.launch,
+        // the sizes to pick from, as the app lists them: smallest first; presets by their names, sizes of its own by theirs.
+        // The default is still the first the manifest declares
+        sizes: widgetSizesByArea(sizes).map((size) => ({ id: size.id, name: size.name ? englishText(size.name) : size.id })),
+        defaultSize: sizes[0]?.id,
       }));
     }
     if (url.pathname.startsWith('/files/') && build) {
@@ -736,11 +741,16 @@ async function run() {
   const name = typeof build.manifest.name === 'string' ? build.manifest.name : (build.manifest.name.en ?? Object.values(build.manifest.name)[0]);
   document.getElementById('name').textContent = name;
   document.title = name + ' · DesktopEngine web preview';
-  const sizes = build.manifest.widget?.sizes ?? [];
+  const sizes = build.sizes;
   const select = document.getElementById('size');
-  select.hidden = build.manifest.type !== 'widget' || sizes.length < 2;
-  select.innerHTML = sizes.map((value) => '<option>' + value + '</option>').join('');
-  size = size ?? build.launch?.size ?? sizes[0];
+  select.hidden = sizes.length < 2;
+  select.replaceChildren(...sizes.map((entry) => {
+    const option = document.createElement('option');
+    option.value = entry.id;
+    option.textContent = entry.name;
+    return option;
+  }));
+  size = size ?? build.launch?.size ?? build.defaultSize;
   select.value = size;
   const permissions = build.manifest.permissions ?? [];
   const seesWindows = permissions.includes('window-positions');

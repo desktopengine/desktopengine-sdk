@@ -33,7 +33,7 @@ Usage:
       Bundles src/index.(ts|js), the modules and npm packages it imports into one index.js in dist/package/
   desktopengine dev [folder] [options]
       Runs the mini program in DesktopEngine, rebuilds and reloads it when files change, prints its console
-        --size small|medium|large   widget size
+        --size <id>                 widget size: small, medium, large or one of its own
         --level desktop|floating    on the desktop, or above all windows
         --display <number>          the display to run on, starting at 1
         --span                      a wallpaper across all displays, when manifest.json declares wallpaper.span

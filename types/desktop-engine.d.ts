@@ -51,8 +51,11 @@ declare namespace DesktopEngine {
   /** The value of a parameter: a `toggle` is a boolean, a `number` a number, a `choice`, `color` or `text` a string */
   type ParameterValue = boolean | number | string | null;
 
-  /** Widget size, matching WidgetKit: small 164×164, medium 344×164, large 344×344 */
+  /** A preset widget size, matching WidgetKit: small 164×164, medium 344×164, large 344×344 */
   type WidgetSize = 'small' | 'medium' | 'large';
+
+  /** The id of a widget size in manifest.json's `widget.sizes`: a preset, or the `id` of one of the widget's own sizes (API 8) */
+  type WidgetSizeId = WidgetSize | (string & {});
 
   /** Options passed by the app at launch; all fields are absent when loaded directly from the Develop menu */
   interface LaunchOptions {
@@ -64,11 +67,15 @@ declare namespace DesktopEngine {
     level?: 'desktop' | 'floating';
     /** The window type to pass to `new DesktopEngine.Window({ type })`, the only one the content can make where it is */
     windowType?: WindowType;
-    /** Widget size (widgets only) */
-    size?: WidgetSize;
-    /** Widget window width (points) */
+    /** The widget size the user picked, its id (widgets only); one the manifest no longer declares comes as its first */
+    size?: WidgetSizeId;
+    /**
+     * Widget window width (points): the size picked's, or, for a widget whose manifest declares `widget.resize`, the
+     * width the user or the content last left it in. Fitted into the display's visible frame when that's smaller:
+     * scaled down with the height, or, for a widget free to change shape, each edge on its own
+     */
     width?: number;
-    /** Widget window height (points) */
+    /** Widget window height (points), see `width` */
     height?: number;
     /** The display that shows the content; absent when a wallpaper spans displays (`displays`) */
     display?: LaunchDisplay;
@@ -499,9 +506,13 @@ declare namespace DesktopEngine {
     hide: void;
     /** The window is about to close */
     close: void;
-    /** Fired after the user resizes the window (no argument; read width/height) */
+    /**
+     * Fired after the window's size changed other than as its style asked (no argument; read width/height): the user
+     * resized it, or, for a widget's window, it got another size than its style asked for (its style then has the size
+     * it got). Live while the user drags an edge, at most once a frame
+     */
     resize: void;
-    /** Fired after the user moves the window */
+    /** Fired after the user moves the window, or a widget's window got another place than its style asked for */
     move: MovePayload;
     /** The window became the main window */
     focus: void;
@@ -900,7 +911,14 @@ declare namespace DesktopEngine {
    * - desktop: desktop level (wallpapers), below the desktop icons, visible in all Spaces
    * - widget: a widget pinned to the desktop, above the desktop icons, borderless with a transparent background, draggable
    * - overlay: floats above all windows, borderless with a transparent background, visible in all Spaces (floating widgets, desktop companions)
-   * None of them can be resized by the user, and showing one doesn't activate the app, so it doesn't take focus from the current app.
+   * The user can't resize them, but a widget's window when its manifest's `widget.resize` lets the user (API 8), and
+   * showing one doesn't activate the app, so it doesn't take focus from the current app.
+   *
+   * A widget's window is the first widget or overlay window without a parent that a widget shows, until it's closed:
+   * it has the size the user picked (`launchOptions.width` / `height`) whatever its style says, unless the manifest's
+   * `widget.resize` lets the content resize it (then its style's size, within the range), and it stays inside the
+   * visible frame of its display, below the menu bar and clear of the Dock, scaled down in its shape when it's bigger.
+   * When it gets another frame than its style asked for, its style takes that frame and it fires `resize` / `move`.
    */
   type WindowType = 'desktop' | 'widget' | 'overlay';
 
@@ -927,7 +945,8 @@ declare namespace DesktopEngine {
     /**
      * The parts of the window that take the mouse, in points from its top left corner. Elsewhere clicks, drags and hovering
      * go through to whatever is below, e.g. around the shape of a desktop companion. null (default): the whole window.
-     * Rectangles without a positive size are left out.
+     * Rectangles without a positive size are left out. A widget's window (API 8) keeps only the bounds of these inside its
+     * display on the left, the right and the bottom: a transparent margin round them may be off the screen.
      */
     hitRegion: Rect[] | null;
     /**
@@ -940,7 +959,7 @@ declare namespace DesktopEngine {
     /**
      * Whether macOS may tile the window, e.g. to half the screen when it's dropped on a screen edge. macOS only tiles
      * windows the user can resize, which the window types content makes aren't, so it has no effect: a window dropped on
-     * a screen edge keeps its size.
+     * a screen edge keeps its size. A widget's window the user can resize isn't tiled either.
      */
     allowsTiling: boolean;
     /** Shows the window and activates the app */
@@ -1033,7 +1052,8 @@ declare namespace DesktopEngine {
     /**
      * Creates a window (call show() to display it). Throws for a type the content's type can't use, and when the
      * content already has 16 windows (destroy() the ones it no longer needs). Widget and overlay windows stay below the
-     * menu bar and cover at most half of a display.
+     * menu bar and cover at most half of a display, but a widget's window (see `WindowType`), which keeps the widget's
+     * size and stays inside its display.
      */
     new (options: WindowOptions): Window;
   }

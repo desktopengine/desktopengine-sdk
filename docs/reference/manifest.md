@@ -29,7 +29,8 @@
 | `description` | | A sentence or two about it, can be translated |
 | `icon`, `preview` | | The icon and the preview image, paths in the package |
 | `previewDark` | | The preview image in dark mode, a path in the package: for content that follows the system appearance, `preview` is then the one in light mode. Without it, `preview` shows in both |
-| `widget.sizes` | | The sizes of a widget: `small` 164×164, `medium` 344×164, `large` 344×344; `small` by default |
+| `widget.sizes` | | The sizes of a widget, the first by default: `small` 164×164, `medium` 344×164, `large` 344×344, and sizes of its own (API 8), see [Widget sizes](#widget-sizes); `small` by default |
+| `widget.resize` | | Lets the user or the content resize a widget within a range (API 8), see [Widget sizes](#widget-sizes) |
 | `wallpaper.span` | | `true` when a wallpaper can span displays, see [Spanning displays](/guide/wallpaper#spanning-displays) |
 | `permissions` | | The permissions it needs, see [Permissions](#permissions) |
 | `network.domains` | With `network` | The domains it connects to, see [Network](/guide/network#domains) |
@@ -46,6 +47,44 @@
 | `companion` | A desktop companion: a character, a mascot, a little vehicle, a game… that lives above all windows and moves around the screen on its own |
 
 `companion` needs `"apiVersion": 2`. Apps with API 1 know companions by their old name, `pet`: a manifest that still says `pet` works everywhere and the app treats it as `companion`, `validate` only warns. `launchOptions.type` is the type as the manifest writes it.
+
+## Widget sizes
+
+`widget.sizes` lists the sizes the user picks from in the app, the first by default. The app lists them by area, smallest first, whatever their order here. Besides the presets, a widget can declare sizes of its own, mixed with them (needs `"apiVersion": 8`):
+
+```json
+"widget": {
+  "sizes": [
+    { "id": "standard", "width": 440, "height": 196, "name": { "en": "Standard", "zh-Hans": "标准" } },
+    { "id": "compact", "width": 300, "height": 133, "name": { "en": "Compact", "zh-Hans": "紧凑" } },
+    "medium"
+  ]
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `id` | Lowercase letters, digits and hyphens, not a preset's name, each once: `launchOptions.size` gives it |
+| `width`, `height` | Whole points, at least 32. There's no upper limit: the app scales a widget bigger than its display's visible frame down in its shape (`validate` warns about sizes a 1280×800 display can't show whole) |
+| `name` | Shown in the app's size picker, can be translated like `name` |
+
+A widget keeps the size picked unless `widget.resize` lets it change (needs `"apiVersion": 8`):
+
+```json
+"widget": {
+  "sizes": ["medium"],
+  "resize": { "by": ["user"], "minWidth": 200, "minHeight": 120, "maxWidth": 800, "aspectRatio": "fixed" }
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `by` | Who resizes it: `user`, by its edges and corners on the desktop like an ordinary window; `content`, by its window's style; or both |
+| `minWidth`, `minHeight` | The smallest size, whole points; 32 by default |
+| `maxWidth`, `maxHeight` | The largest size; no limit by default |
+| `aspectRatio` | `fixed`: the width and height keep the ratio of the size picked |
+
+The size picked is the one it starts in. The app remembers the size it was left in and starts it in that size next time; picking a size again starts it in that one. See [Widget size](/guide/windows#widget-size) for how the window behaves.
 
 ## JSON Schema
 
@@ -145,6 +184,6 @@ The runtime has an integer API version that goes up when APIs are added: `Deskto
 | 5 | `ellipse()`, `roundRect()`, `getTransform()`, `createConicGradient()`, `letterSpacing` and `wordSpacing` of 2D canvases, `setTransform()` taking a matrix, the blend modes (`multiply`…`luminosity`), the rest of `TextMetrics`, `Path2D`, `isPointInPath` and `isPointInStroke`; `createImageBitmap` and `new ImageData()`; `structuredClone`, `MessageChannel`, `FileReader`, `CustomEvent` and `navigator`, see [Globals](/guide/runtime#globals) |
 | 6 | `BroadcastChannel`, with the scopes `package` and `namespace`, see [Messages Between Content](/guide/messaging); `DesktopEngine.systemAudio` and the `system-audio` permission, see [What the Mac plays](/guide/audio#what-the-mac-plays); `DesktopEngine.windows` (`list()`, `visibleTopEdges()` and `change`) and the `window-positions` permission, see [Other Apps' Windows](/guide/app-windows); an `Image` loads its `src` before it's in a component, so its `load` can be waited for before adding it |
 | 7 | `DesktopEngine.syncStorage`, keys and values that follow the user to their other Macs, see [Synced storage](/guide/storage#synced-storage-desktopengine-syncstorage) |
-| 8 | `showWhen` of options, shown only for some values of another, see [Options](#options-parameters); `DesktopEngine.systemStatus`: processor, memory, network, power and the battery, temperature and disk, with events when they change and `resume` after the content was suspended, see [System Status](/guide/system-status) (`system-info` permission) |
+| 8 | `showWhen` of options, shown only for some values of another, see [Options](#options-parameters); `DesktopEngine.systemStatus`: processor, memory, network, power and the battery, temperature and disk, with events when they change and `resume` after the content was suspended, see [System Status](/guide/system-status) (`system-info` permission); widget sizes of its own and `widget.resize`, the user or the content resizing a widget, and no half-display limit for a widget's window, see [Widget sizes](#widget-sizes) |
 
 Version 4 also changed APIs as in browsers: the double click event is `dblclick` (it was `dbclick`), and `click` and `dblclick` get the mouse events' payload, `{ x, y, … }` (it was `{ position: { x, y } }`). It removed `wxBindCanvasTexture` and `blBindCanvasTexture` of WebGL contexts, the global `mixin` and `promisify`, and the `files`, `now-playing` and `window-positions` permissions, which had no API (version 6 brings `window-positions` back with `DesktopEngine.windows`). Content that used them needs `"apiVersion": 4` once it's changed.

@@ -34,10 +34,39 @@
       "required": ["sizes"],
       "properties": {
         "sizes": {
-          "description": "The sizes it supports, as in WidgetKit: small 164×164, medium 344×164, large 344×344",
+          "description": "The sizes it offers, the first by default: presets as in WidgetKit (small 164×164, medium 344×164, large 344×344), and sizes of its own (apiVersion 8)",
           "type": "array",
-          "items": { "enum": ["small", "medium", "large"] },
+          "items": {
+            "anyOf": [
+              { "enum": ["small", "medium", "large"] },
+              {
+                "type": "object",
+                "required": ["id", "width", "height", "name"],
+                "properties": {
+                  "id": { "description": "Lowercase letters, digits and hyphens, not a preset's name: launchOptions.size gives it", "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$", "not": { "enum": ["small", "medium", "large"] } },
+                  "width": { "description": "Points, a whole number", "type": "integer", "minimum": 32 },
+                  "height": { "description": "Points, a whole number", "type": "integer", "minimum": 32 },
+                  "name": { "description": "Shown in the app's size picker", "$ref": "#/definitions/localizedString" }
+                },
+                "additionalProperties": false
+              }
+            ]
+          },
           "uniqueItems": true
+        },
+        "resize": {
+          "description": "Lets the user or the content resize it from the size picked, within a range (apiVersion 8); without it, it keeps the size picked",
+          "type": "object",
+          "required": ["by"],
+          "properties": {
+            "by": { "description": "user: by its edges and corners on the desktop; content: by its window's style", "type": "array", "items": { "enum": ["user", "content"] }, "minItems": 1, "uniqueItems": true },
+            "minWidth": { "description": "Points, 32 by default", "type": "integer", "minimum": 32 },
+            "minHeight": { "description": "Points, 32 by default", "type": "integer", "minimum": 32 },
+            "maxWidth": { "description": "Points, no limit by default", "type": "integer", "minimum": 32 },
+            "maxHeight": { "description": "Points, no limit by default", "type": "integer", "minimum": 32 },
+            "aspectRatio": { "description": "fixed: the width and height keep the ratio of the size picked", "enum": ["fixed"] }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

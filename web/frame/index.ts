@@ -10,7 +10,7 @@
 
 import { contentFunction } from './realm.ts';
 import { readAppWindows, sameAppWindows, visibleTopEdges, type AppWindowInfo, type FrameMessage, type HostMessage, type LaunchMessage, type ParameterValue, type SuspendReason, type SystemStatusReading, type TopEdge, type WebScreen } from '../protocol.ts';
-import { CanvasImageImpl, CanvasImpl, ComponentImpl, componentOf, ImageImpl, VideoImpl, WindowImpl, allVideos, allWindows, reportWindows, unwrap, windowById } from './components.ts';
+import { CanvasImageImpl, CanvasImpl, ComponentImpl, componentOf, ImageImpl, VideoImpl, WindowImpl, allVideos, allWindows, reportWindows, unwrap, windowById, windowCorner } from './components.ts';
 import { Evented, defineEvents } from './events.ts';
 import { createFileSystem, loadPackage, requireFrom } from './files.ts';
 import { audioURL, installNetwork } from './network.ts';
@@ -1334,8 +1334,19 @@ scope.addEventListener('message', (event: MessageEvent) => {
       document.documentElement.style.cursor = toText(message.cursor);
       break;
     case 'move-window':
-      windowById(message.window)?.moveTo(message.x, message.y);
+      windowById(message.window)?.moveTo(message.x, message.y, message.dragging === true);
       break;
+    case 'resize-window': {
+      const finite = (value: unknown) => typeof value === 'number' && isFinite(value);
+      if (!finite(message.x) || !finite(message.y) || !finite(message.width) || !finite(message.height)) break;
+      windowById(message.window)?.resizeTo({ x: message.x, y: message.y, width: message.width, height: message.height });
+      break;
+    }
+    case 'measure-corner': {
+      const win = windowById(message.window);
+      if (win) send({ type: 'window-corner', window: message.window, shape: windowCorner(win, message.body) });
+      break;
+    }
     case 'appearance':
       if (message.appearance === state.appearance) break;
       state.appearance = message.appearance;

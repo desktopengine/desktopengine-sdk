@@ -5,7 +5,8 @@ When the app launches content, it provides the read-only `DesktopEngine.launchOp
 ```js
 const options = DesktopEngine.launchOptions || {};
 options.windowType;   // the only window type it can make, for new DesktopEngine.Window({ type }): 'widget' (on the desktop) or 'overlay' (above windows); 'desktop' for a wallpaper
-options.width;        // the widget's width in points, for the size picked
+options.size;         // the id of the widget size picked: 'small', 'medium', 'large' or one of its own
+options.width;        // the widget's width in points: the size picked, or the one it was left in when it can be resized
 options.height;
 options.position;     // { x, y }: where the user last dragged it; a widget without one gets a default, a companion picks its own
 options.display;      // { id, name, frame, visibleFrame, scale }

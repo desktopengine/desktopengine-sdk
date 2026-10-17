@@ -15,6 +15,10 @@
 import { API_VERSION, frameDocument, type AppWindowInfo, type ChannelScope, type FrameMessage, type HostMessage, type ParameterValue, type Rect, type SuspendReason, type SystemStatusOverrides, type SystemStatusReading, type WebScreen, type WindowState } from '../protocol.ts';
 import { ANALYSIS_RATE, analyseSpectrum, emptySnapshot } from '../system-audio.ts';
 import { SystemStatusSimulation, strongerReason, systemStatusChanges } from '../system-status.ts';
+import {
+  declaredSizes, edgesAt, fitted, HINT_GAP, HINT_WIDTH, hitMargins, resizeCursor, resizedFrame, resizeHintShape, sanitizeCorner, SIZING_API_VERSION, widgetSizing,
+  type CornerShape, type Edges, type Margins, type Size, type WidgetSizing, widgetFrame,
+} from '../widget-sizes.ts';
 
 /** The id prefix the store reserves */
 const OFFICIAL_ID_PREFIX = 'app.desktopengine.official.';
@@ -94,7 +98,8 @@ export interface ManifestInfo {
   apiVersion?: number;
   permissions?: string[];
   network?: { domains?: string[] };
-  widget?: { sizes?: string[] };
+  /** Preset names and sizes of its own (`{ id, width, height, name }`); who may resize it and within what */
+  widget?: { sizes?: unknown[]; resize?: unknown };
   parameters?: { key: string; default?: ParameterValue }[];
 }
 
@@ -110,8 +115,10 @@ export interface ContentSpec {
   permissions?: string[];
   /** Parameter values over the manifest's defaults */
   parameters?: Record<string, ParameterValue>;
-  /** small, medium or large, for a widget */
-  size?: 'small' | 'medium' | 'large';
+  /** For a widget: the id of one of its sizes, a preset's name (small, medium, large) or one of its own; its first by default */
+  size?: string;
+  /** For a widget that can be resized: the size it was left in, which it starts in instead of `size`'s */
+  windowSize?: Size;
   /** For a widget: on the desktop (default), or above everything; a companion always floats above everything */
   level?: 'desktop' | 'floating';
   /** Where its window starts, global points */
@@ -145,11 +152,8 @@ type ContentEvents = {
   stats: { framesPerSecond: number };
 };
 
-const WIDGET_SIZES: Record<string, { width: number; height: number }> = {
-  small: { width: 164, height: 164 },
-  medium: { width: 344, height: 164 },
-  large: { width: 344, height: 344 },
-};
+/** How long a dropped widget takes to slide where it may be (ms), as in the app */
+const SLIDE_DURATION = 250;
 
 const inside = (rect: Rect, x: number, y: number): boolean => x >= rect.x && y >= rect.y && x < rect.x + rect.width && y < rect.y + rect.height;
 
@@ -166,6 +170,8 @@ export class WebContent {
   iframe: HTMLIFrameElement;
   windows: WindowState[] = [];
   framesPerSecond = 0;
+  /** @internal: the size a widget's window was told to start in (launchOptions.width / height) */
+  launchedWidgetSize: { width: number; height: number } | null = null;
   /** Stacking among the contents; widgets and companions come to the front when pressed */
   order = 0;
   /** It has animation frame callbacks waiting: the desktop sends it its display frames */
@@ -316,6 +322,13 @@ export class WebContent {
     });
   }
 
+  /** For a widget: how its window is sized, from its manifest, the size asked for and the one it was left in */
+  get widgetSizing(): WidgetSizing | null {
+    // widgets made for an API before widget sizing keep the window rules they were made with
+    if (this.type !== 'widget' || !((this.spec.manifest?.apiVersion ?? 1) >= SIZING_API_VERSION)) return null;
+    return widgetSizing(this.spec.manifest, widgetSize(this.spec).dimensions, this.spec.windowSize);
+  }
+
   /** Where its requests go */
   get proxy(): string | undefined {
     return this.spec.proxy ?? this.desktop.options.proxy;
@@ -359,6 +372,7 @@ export class WebContent {
       case 'windows':
         this.windows = sanitizeWindows(message.windows, this.allowedWindowType);
         this.emit('windows', this.windows);
+        this.desktop.windowsChanged(this);
         break;
       case 'console':
         this.emit('console', { level: String(message.level), message: String(message.message) });
@@ -381,6 +395,9 @@ export class WebContent {
         this.wantsMouse = message.mouse === true && this.mayFollowMouse;
         this.wantsKeys = message.keys === true && this.getsKeyActivity;
         this.desktop.updateInputWatching();
+        break;
+      case 'window-corner':
+        this.desktop.cornerMeasured(this, String(message.window), sanitizeCorner(message.shape));
         break;
       case 'parameters-result':
         // like the app: content that doesn't apply new parameters itself starts again with them (only an answer to
@@ -419,13 +436,26 @@ export class WebContent {
    */
   restart(spec?: Partial<ContentSpec>): void {
     const frame = this.windows.find((win) => win.visible && win.type !== 'desktop')?.frame;
+    const widgetWindow = this.windows.find((win) => win.visible && win.widget);
+    const widgetFrame = widgetWindow?.frame;
+    const resizable = this.widgetSizing !== null && (this.widgetSizing.byUser || this.widgetSizing.byContent);
+    const sizeChanged = spec?.size !== undefined && spec.size !== this.spec.size;
     if (spec) {
       this.spec = { ...this.spec, ...spec };
       if (spec.manifest || spec.parameters) this.parameterValues = { ...defaultParameters(this.spec.manifest), ...this.spec.parameters, ...spec.parameters };
     }
-    // a widget given another size is kept on its screen in that size
-    const size = this.type === 'widget' ? widgetSize(this.spec) : null;
-    if (frame && spec?.position === undefined) this.spec.position = this.desktop.keptOnScreen({ ...frame, ...size?.dimensions }, this.spec.screen);
+    // a widget that can be resized starts again in the size it was left in, unless it's given another size, which it
+    // starts in; it's kept on its screen in that size
+    // (only a size the user or the content left it in: not the one it started in, which may be scaled down to a screen
+    // that has grown since, as the app keeps it)
+    const launched = this.launchedWidgetSize;
+    const leftIn = widgetFrame && launched && (widgetFrame.width !== launched.width || widgetFrame.height !== launched.height);
+    if (sizeChanged) this.spec.windowSize = spec?.windowSize;
+    else if (widgetFrame && leftIn && resizable && spec?.windowSize === undefined) this.spec.windowSize = { width: widgetFrame.width, height: widgetFrame.height };
+    const size = this.widgetSizing?.size ?? (this.type === 'widget' ? widgetSize(this.spec).dimensions : undefined);
+    // the widget's window as far off as it reaches past where it takes the mouse
+    const margins = widgetWindow && size ? hitMargins(widgetWindow.hitRegion, size) : undefined;
+    if (frame && spec?.position === undefined) this.spec.position = this.desktop.keptOnScreen({ ...frame, ...size }, this.spec.screen, margins);
     this.post({ type: 'stop' });
     this.ready = false;
     this.awaitingParameters = false;
@@ -458,13 +488,20 @@ export class WebContent {
     this.iframe.remove();
   }
 
+  /** Whether the user may resize its window by the edges: the widget's window, when its manifest lets the user */
+  userResizes(win: WindowState): boolean {
+    return win.widget === true && this.widgetSizing?.byUser === true;
+  }
+
   /** The window under a global point that takes the mouse there, the frontmost */
   windowAt(x: number, y: number): WindowState | null {
     let found: WindowState | null = null;
     for (const win of this.windows) {
       if (!win.visible || !inside(win.frame, x, y)) continue;
       const local = { x: x - win.frame.x, y: y - win.frame.y };
-      if (win.hitRegion && !win.hitRegion.some((rect) => inside(rect, local.x, local.y))) continue;
+      // the edges of a widget the user resizes take the mouse, whatever its hit region
+      const onEdge = this.userResizes(win) && edgesAt(local.x, local.y, win.frame) !== null;
+      if (!onEdge && win.hitRegion && !win.hitRegion.some((rect) => inside(rect, local.x, local.y))) continue;
       if (!found || win.z > found.z) found = win;
     }
     return found;
@@ -522,16 +559,17 @@ export function sanitizeWindows(value: unknown, allowedType: string | undefined)
       hitRegion: rects(win?.hitRegion),
       dragRegion: rects(win?.dragRegion),
       movable: win?.movable === true,
+      widget: win?.widget === true,
     });
   }
   return windows;
 }
 
-/** The size a widget launches in: the one asked for when its manifest has it, else its first; and its points */
-function widgetSize(spec: ContentSpec): { size: string; dimensions: { width: number; height: number } } {
-  const sizes = spec.manifest?.widget?.sizes ?? [];
-  const size = spec.size && (!sizes.length || sizes.includes(spec.size)) ? spec.size : sizes[0] ?? 'small';
-  return { size, dimensions: WIDGET_SIZES[size] ?? WIDGET_SIZES.small };
+/** The size a widget launches in: the one asked for when its manifest declares it, else its first; and its points */
+function widgetSize(spec: ContentSpec): { size: string; dimensions: Size } {
+  const sizes = declaredSizes(spec.manifest);
+  const size = sizes.find((declared) => declared.id === spec.size) ?? sizes[0];
+  return { size: size.id, dimensions: { width: size.width, height: size.height } };
 }
 
 function defaultParameters(manifest?: ManifestInfo): Record<string, ParameterValue> {
@@ -553,6 +591,10 @@ interface Press {
   movesWindow: boolean;
   dragging: boolean;
   moved: boolean;
+  /** Where the window was last taken while dragged */
+  at: { x: number; y: number } | null;
+  /** The edges of the widget's window it resizes, and the window's frame when it began */
+  resize: { edges: Edges; frame: Rect } | null;
 }
 
 /** A pretend app window (`DesktopOptions.appWindows`) and its element */
@@ -578,6 +620,11 @@ const APP_CORNER = 14;
 const APP_MIN_SIZE = { width: 160, height: 100 };
 /** Stacking of the pretend app windows: above contents on the desktop, below those above all windows */
 const APP_WINDOW_Z = 50_000;
+/** How near the widget's corner the pointer makes the resize hint full, and how faint it is elsewhere */
+const HINT_CORNER = 18;
+const HINT_RESTING_OPACITY = 0.75;
+/** Ids of the hints' masks, one per desktop on the page */
+let hintMasks = 0;
 const FLOATING_Z = 100_000;
 
 /** What the desktop reads of a pointer event, from the page or passed back by a frame */
@@ -596,7 +643,22 @@ export class WebDesktop {
   screens: WebScreen[] = [];
   readonly contents = new Set<WebContent>();
   private hovered: { content: WebContent; window: WindowState } | null = null;
+  /**
+   * The hint that the user can resize a widget, as in the app: once the pointer has rested on the widget a second, a
+   * corner bracket fades in at the bottom right of its body, nudges toward the corner twice, and rests faint until the
+   * pointer comes to the corner
+   */
+  private readonly hint: HTMLDivElement;
+  /**
+   * The widget the pointer rests on, its timer, whether the hint shows on it, and the shape its content draws at the
+   * corner (measured by its frame as the hint is about to show, and again as its window changes)
+   */
+  private hintTarget: { content: WebContent; windowId: string; timer: number; shown: boolean; measuring: boolean; shape: CornerShape | null } | null = null;
+  /** How many times the visitor resized a widget: after 3 the hint only fades in */
+  private userResizes = 0;
   private press: Press | null = null;
+  /** A dropped window sliding to where it may be, as a widget's does in the app */
+  private slide: { content: WebContent; windowId: string; from: { x: number; y: number }; to: { x: number; y: number }; start: number; request: number } | null = null;
   /** The content whose frame takes the pointer (see `input` in the protocol) */
   private pointerTaker: WebContent | null = null;
   private visible = true;
@@ -678,6 +740,21 @@ export class WebDesktop {
     this.element = document.createElement('div');
     this.element.className = 'de-desktop';
     Object.assign(this.element.style, { position: 'absolute', left: '0', top: '0', transformOrigin: '0 0', touchAction: 'pan-y', userSelect: 'none' });
+    this.hint = document.createElement('div');
+    this.hint.className = 'de-resize-hint';
+    // as the app draws it: a stroke of light glass (what's behind it blurred) with a dark hairline around it, which shows
+    // on a light wallpaper or a dark one, whatever the appearance. The parts fade, not the hint: an ancestor that's faded would leave the glass nothing to blur.
+    const mask = `de-resize-hint-${++hintMasks}`;
+    this.hint.innerHTML = `<div></div><svg fill="none" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:0;top:0">`
+      + `<mask id="${mask}" maskUnits="userSpaceOnUse"><path stroke="white" stroke-width="${HINT_WIDTH + 1.5}"/><path stroke="black" stroke-width="${HINT_WIDTH - 0.5}"/></mask>`
+      + `<path mask="url(#${mask})" stroke-width="${HINT_WIDTH + 1.5}"/></svg>`;
+    Object.assign(this.hint.style, { position: 'absolute', pointerEvents: 'none' });
+    Object.assign((this.hint.firstElementChild as HTMLElement).style, {
+      position: 'absolute', inset: '0', opacity: '0',
+      backdropFilter: 'blur(8px) saturate(1.8)', webkitBackdropFilter: 'blur(8px) saturate(1.8)',
+    });
+    (this.hint.lastElementChild as SVGSVGElement).style.opacity = '0';
+    this.element.appendChild(this.hint);
     if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
     container.appendChild(this.element);
     this.layout();
@@ -731,7 +808,10 @@ export class WebDesktop {
     });
     // the pointer going into the frame that takes it still hovers that frame's window
     this.element.addEventListener('pointerleave', () => {
-      if (!this.press && !this.pointerTaker) this.setHovered(null, { x: 0, y: 0 }, null);
+      if (!this.press && !this.pointerTaker) {
+        this.setHovered(null, { x: 0, y: 0 }, null);
+        this.updateHint(null, { x: 0, y: 0 });
+      }
     });
     // a finger on a widget works it instead of scrolling the page
     this.element.addEventListener('touchstart', (event) => {
@@ -812,11 +892,17 @@ export class WebDesktop {
     };
   }
 
-  /** @internal: where a window at `frame` goes on the screen numbered `screen`, moved in so all of it is on it */
-  keptOnScreen(frame: Rect, screen = 0): { x: number; y: number } {
+  /**
+   * @internal: where a window at `frame` goes on the screen numbered `screen`, moved in so all of it is on it, but for
+   * `margins` (a widget's window round where it takes the mouse) on the left, the right and the bottom
+   */
+  keptOnScreen(frame: Rect, screen = 0, margins: Margins = { left: 0, right: 0, bottom: 0 }): { x: number; y: number } {
     const area = this.screens[Math.min(screen, this.screens.length - 1)].visibleFrame;
-    const clamp = (value: number, start: number, free: number) => Math.round(Math.min(Math.max(value, start), start + Math.max(free, 0)));
-    return { x: clamp(frame.x, area.x, area.width - frame.width), y: clamp(frame.y, area.y, area.height - frame.height) };
+    const clamp = (value: number, low: number, high: number) => Math.round(Math.max(low, Math.min(value, high)));
+    return {
+      x: clamp(frame.x, area.x - margins.left, area.x + area.width - frame.width + margins.right),
+      y: clamp(frame.y, area.y, area.y + area.height - frame.height + margins.bottom),
+    };
   }
 
   /** Starts a mini program on the desktop */
@@ -841,7 +927,10 @@ export class WebDesktop {
   terminate(content: WebContent): void {
     if (!this.contents.delete(content)) return;
     this.releasePointer(content);
-    if (this.hovered?.content === content) this.hovered = null;
+    if (this.hovered?.content === content) {
+      this.hovered = null;
+      this.updateHint(null, { x: 0, y: 0 });
+    }
     if (this.press?.content === content) this.press = null;
     content.detach();
     this.updateInputWatching();
@@ -1103,6 +1192,7 @@ export class WebDesktop {
       systemAudio: content.systemAudio,
       appWindows: content.seesAppWindows ? this.appWindows : [],
       systemStatus: content.seesSystemStatus ? this.statusSimulation.current : undefined,
+      widgetSizing: content.widgetSizing ?? undefined,
     };
   }
 
@@ -1146,14 +1236,18 @@ export class WebDesktop {
       options.display = display(screen);
     }
     if (type === 'widget') {
-      const { size, dimensions } = widgetSize(spec);
+      // the size picked, or the one it was left in, scaled down to fit the display
+      const { size, dimensions: picked } = widgetSize(spec);
+      const sizing = content.widgetSizing;
+      const dimensions = sizing ? fitted(sizing.size, screen.visibleFrame, sizing) : picked;
       options.size = size;
       options.width = dimensions.width;
       options.height = dimensions.height;
+      content.launchedWidgetSize = dimensions;
       // the app's default place: the top right of the display, below the widgets already there
       const others = [...this.contents].filter((other) => other !== content && other.type === 'widget' && !other.spec.position).length;
       options.position = spec.position ?? {
-        x: screen.visibleFrame.x + screen.visibleFrame.width - dimensions.width - 20,
+        x: Math.max(screen.visibleFrame.x, screen.visibleFrame.x + screen.visibleFrame.width - dimensions.width - 20),
         y: screen.visibleFrame.y + 20 + others * (dimensions.height + 20),
       };
     } else if (spec.position) {
@@ -1445,12 +1539,16 @@ export class WebDesktop {
       return;
     }
     const hit = this.windowAt(point.x, point.y);
+    const edges = hit ? this.resizeEdgesAt(hit, point) : null;
     this.setHovered(hit, point, event);
-    if (hit) this.pointer(hit.content, 'move', hit.window.id, point, event);
+    // the edges of a widget the user resizes are its window's, as in the app: the content isn't told about them
+    if (hit && !edges) this.pointer(hit.content, 'move', hit.window.id, point, event);
+    else if (hit) this.pointer(hit.content, 'leave', hit.window.id, point, event);
     this.takePointer(hit && hit.content.mayPlaySound && !(this.options.muted ?? true) ? hit.content : null);
     const app = hit ? undefined : this.appWindowAt(point.x, point.y);
     const corner = app && point.x >= app.frame.x + app.frame.width - APP_CORNER && point.y >= app.frame.y + app.frame.height - APP_CORNER;
-    this.setCursor(hit && this.movesAt(hit.window, point.x, point.y) ? 'grab' : corner ? 'nwse-resize' : '');
+    this.setCursor(edges ? resizeCursor(edges) : hit && this.movesAt(hit.window, point.x, point.y) ? 'grab' : corner ? 'nwse-resize' : '');
+    this.updateHint(hit && hit.content.userResizes(hit.window) ? hit : null, point);
   }
 
   /** The window pressed, if the press is on one. Another button pressed during a press isn't a press of its own */
@@ -1467,27 +1565,46 @@ export class WebDesktop {
     // the app passes only the primary button's presses on the desktop to wallpapers
     if (!hit || (event.button !== 0 && hit.window.type === 'desktop')) return null;
     if (event.button === 0) this.bringToFront(hit.content);
-    const movesWindow = event.button === 0 && this.movesAt(hit.window, point.x, point.y);
+    // grabbed again while it slides: from where it is now
+    const sliding = this.slide?.content === hit.content && this.slide.windowId === hit.window.id ? this.stopSlide() : null;
+    const edges = event.button === 0 ? this.resizeEdgesAt(hit, point) : null;
+    const movesWindow = event.button === 0 && !edges && this.movesAt(hit.window, point.x, point.y);
     this.press = {
       content: hit.content,
       window: hit.window,
       pointerId: event.pointerId,
       button: event.button,
       start: point,
-      origin: { x: hit.window.frame.x, y: hit.window.frame.y },
+      origin: sliding ?? { x: hit.window.frame.x, y: hit.window.frame.y },
       movesWindow,
       dragging: false,
       moved: false,
+      at: null,
+      resize: edges ? { edges, frame: { ...hit.window.frame } } : null,
     };
-    // a press that moves the window reaches the contents only once it turns into a drag; a click just clicks
-    if (!movesWindow) this.pointer(hit.content, 'down', hit.window.id, point, event, event.button);
+    // a press that moves the window reaches the contents only once it turns into a drag; a click just clicks; a
+    // press on the edges that resize the widget doesn't reach it
+    if (!movesWindow && !edges) this.pointer(hit.content, 'down', hit.window.id, point, event, event.button);
     return hit.window;
   }
 
   private dragMove(press: Press, point: { x: number; y: number }, event: PointerInput): void {
     const dx = point.x - press.start.x;
     const dy = point.y - press.start.y;
-    if (!press.moved && Math.hypot(dx, dy) > 3) press.moved = true;
+    if (!press.moved && Math.hypot(dx, dy) > 3) {
+      press.moved = true;
+      // a drag or a resize: the hint goes
+      if (press.movesWindow || press.resize) this.hideHint(true);
+    }
+    if (press.resize) {
+      const sizing = press.content.widgetSizing;
+      if (!sizing) return;
+      const { frame, edges } = press.resize;
+      const screen = this.screens.find((candidate) => inside(candidate.bounds, frame.x + frame.width / 2, frame.y + frame.height / 2)) ?? this.screens[0];
+      const next = resizedFrame(frame, edges, dx, dy, sizing, screen.visibleFrame);
+      press.content.post({ type: 'resize-window', window: press.window.id, ...next });
+      return;
+    }
     if (!press.movesWindow) {
       this.pointer(press.content, 'move', press.window.id, point, event);
       return;
@@ -1498,27 +1615,78 @@ export class WebDesktop {
       this.pointer(press.content, 'down', press.window.id, press.start, event, press.button);
       this.setCursor('grabbing');
     }
-    const next = this.clamp(press.window, press.origin.x + dx, press.origin.y + dy);
-    press.content.post({ type: 'move-window', window: press.window.id, x: next.x, y: next.y });
+    const next = this.dragLimit(press.window, press.origin.x + dx, press.origin.y + dy);
+    press.at = next;
+    press.content.post({ type: 'move-window', window: press.window.id, x: next.x, y: next.y, dragging: true });
   }
 
-  /** A dragged window stays on the screens, below the menu bar */
-  private clamp(win: WindowState, x: number, y: number): { x: number; y: number } {
-    const union = this.bounds;
+  /** A dragged window follows the pointer, only kept below the menu bar as macOS does; it's put back once it's dropped */
+  private dragLimit(win: WindowState, x: number, y: number): { x: number; y: number } {
     const screen = this.screens.find((candidate) => inside(candidate.bounds, x + win.frame.width / 2, y + win.frame.height / 2)) ?? this.screens[0];
-    return {
-      x: Math.round(Math.min(Math.max(x, 0), union.width - win.frame.width)),
-      y: Math.round(Math.min(Math.max(y, screen.visibleFrame.y), screen.bounds.y + screen.bounds.height - win.frame.height)),
-    };
+    return { x: Math.round(x), y: Math.round(Math.max(y, screen.visibleFrame.y)) };
+  }
+
+  /**
+   * A dragged window was dropped at `at`, the pointer at `point`: a widget's goes where its rules let it be on the
+   * screen under the pointer (where it takes the mouse inside its visible frame), sliding there in a quarter of a
+   * second, easing out (at once with reduced motion); every window is told where it stays
+   */
+  private drop(content: WebContent, win: WindowState, at: { x: number; y: number }, point: { x: number; y: number }): void {
+    const sizing = content.widgetSizing;
+    let to = at;
+    if (win.widget && sizing) {
+      const screen = this.screens.find((candidate) => inside(candidate.bounds, point.x, point.y)) ?? this.screens[0];
+      const size = { width: win.frame.width, height: win.frame.height };
+      const kept = widgetFrame({ ...at, ...size }, sizing, size, screen.visibleFrame, win.hitRegion);
+      to = { x: kept.x, y: kept.y };
+    }
+    const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if ((to.x === at.x && to.y === at.y) || reduced) {
+      content.post({ type: 'move-window', window: win.id, x: to.x, y: to.y });
+      return;
+    }
+    this.slide = { content, windowId: win.id, from: at, to, start: performance.now(), request: 0 };
+    this.slide.request = requestAnimationFrame(this.slideStep);
+  }
+
+  private readonly slideStep = (): void => {
+    const slide = this.slide;
+    if (!slide) return;
+    const progress = Math.min(1, (performance.now() - slide.start) / SLIDE_DURATION);
+    // ease out, no overshoot
+    const eased = 1 - (1 - progress) ** 3;
+    const x = Math.round(slide.from.x + (slide.to.x - slide.from.x) * eased);
+    const y = Math.round(slide.from.y + (slide.to.y - slide.from.y) * eased);
+    if (progress < 1) {
+      slide.content.post({ type: 'move-window', window: slide.windowId, x, y, dragging: true });
+      slide.request = requestAnimationFrame(this.slideStep);
+      return;
+    }
+    this.slide = null;
+    slide.content.post({ type: 'move-window', window: slide.windowId, x: slide.to.x, y: slide.to.y });
+  };
+
+  /** Stops a window sliding where it is, and gives where that is */
+  private stopSlide(): { x: number; y: number } | null {
+    const slide = this.slide;
+    if (!slide) return null;
+    this.slide = null;
+    cancelAnimationFrame(slide.request);
+    const eased = 1 - (1 - Math.min(1, (performance.now() - slide.start) / SLIDE_DURATION)) ** 3;
+    return { x: Math.round(slide.from.x + (slide.to.x - slide.from.x) * eased), y: Math.round(slide.from.y + (slide.to.y - slide.from.y) * eased) };
   }
 
   private pointerUp(point: { x: number; y: number }, event: PointerInput): void {
     const press = this.press;
     if (!press || press.pointerId !== event.pointerId) return;
     this.press = null;
-    if (press.movesWindow) {
+    if (press.resize) {
+      // its window's, not the content's
+      if (press.moved) this.userResizes += 1;
+    } else if (press.movesWindow) {
       if (press.dragging) this.pointer(press.content, 'up', press.window.id, point, event, press.button);
       else this.pointer(press.content, 'click', press.window.id, press.start, event);
+      if (press.at) this.drop(press.content, press.window, press.at, point);
     } else {
       this.pointer(press.content, 'up', press.window.id, point, event, press.button);
     }
@@ -1529,9 +1697,176 @@ export class WebDesktop {
     const press = this.press;
     if (!press || press.pointerId !== event.pointerId) return;
     this.press = null;
-    if (press.dragging || !press.movesWindow) this.pointer(press.content, 'up', press.window.id, press.start, event, press.button);
+    if (!press.resize && (press.dragging || !press.movesWindow)) this.pointer(press.content, 'up', press.window.id, press.start, event, press.button);
+    if (press.at) this.drop(press.content, press.window, press.at, { x: press.at.x + press.window.frame.width / 2, y: press.at.y + press.window.frame.height / 2 });
     this.setHovered(null, press.start, event);
     this.setCursor('');
+  }
+
+  /** The edges of a widget's window under the point that resize it, when the user may; null elsewhere */
+  private resizeEdgesAt(hit: { content: WebContent; window: WindowState }, point: { x: number; y: number }): Edges | null {
+    if (!hit.content.userResizes(hit.window)) return null;
+    const { frame } = hit.window;
+    return edgesAt(point.x - frame.x, point.y - frame.y, frame);
+  }
+
+  /** @internal: a content's windows changed, e.g. the widget being resized: the hint follows its window */
+  windowsChanged(content: WebContent): void {
+    const hovered = this.hovered;
+    if (hovered?.content !== content) return;
+    const win = content.windows.find((candidate) => candidate.id === hovered.window.id && candidate.visible);
+    if (!win) {
+      this.updateHint(null, { x: 0, y: 0 });
+      return;
+    }
+    this.hovered = { content, window: win };
+    if (this.press?.content === content && this.press.window.id === win.id) this.press.window = win;
+    const target = this.hintTarget;
+    if (target?.shown && target.content === content && target.windowId === win.id) {
+      this.placeHint(win, content);
+      this.measureCorner(win, content);
+    }
+  }
+
+  /** The frame asks what a window draws at its body's corner, for the hint */
+  private measureCorner(win: WindowState, content: WebContent): void {
+    if (!this.hintTarget) return;
+    this.hintTarget.measuring = true;
+    content.post({ type: 'measure-corner', window: win.id, body: { x: 0, y: 0, width: win.frame.width, height: win.frame.height } });
+  }
+
+  /** @internal: a frame measured a window's corner: the hint shows around it, or follows it */
+  cornerMeasured(content: WebContent, windowId: string, shape: CornerShape | null): void {
+    const target = this.hintTarget;
+    if (!target || target.content !== content || target.windowId !== windowId || !target.measuring) return;
+    target.measuring = false;
+    target.shape = shape;
+    const win = content.windows.find((candidate) => candidate.id === windowId && candidate.visible);
+    if (!win) return;
+    if (target.shown) {
+      this.placeHint(win, content);
+      return;
+    }
+    if (this.press) return;
+    target.shown = true;
+    this.placeHint(win, content);
+    this.fadeHint(HINT_RESTING_OPACITY, 250);
+    const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion || this.userResizes >= 3) return;
+    // toward the bottom right and back, twice
+    const out = `translate(${3}px, ${3}px)`;
+    this.hint.animate([
+      { transform: 'none', easing: 'ease-in-out' },
+      { transform: out, easing: 'ease-in-out' },
+      { transform: 'none', easing: 'ease-in-out' },
+      { transform: out, easing: 'ease-in-out' },
+      { transform: 'none' },
+    ], { duration: 1200 });
+  }
+
+  /**
+   * The pointer is over a widget the visitor may resize (or none): a second after it came, the hint shows; it goes
+   * when the pointer leaves, unless it went to the corner where the window is resized or onto the hint, as in the app
+   */
+  private updateHint(hit: { content: WebContent; window: WindowState } | null, point: { x: number; y: number }): void {
+    const target = this.hintTarget;
+    if (hit && target && target.content === hit.content && target.windowId === hit.window.id) {
+      if (target.shown) this.fadeHint(this.atResizeCorner(hit.window, point) ? 1 : HINT_RESTING_OPACITY, 150);
+      return;
+    }
+    const targetWindow = target && target.content.windows.find((win) => win.id === target.windowId && win.visible);
+    if (targetWindow && (this.atResizeCorner(targetWindow, point) || (target.shown && this.onHint(point)))) {
+      if (target.shown) this.fadeHint(this.atResizeCorner(targetWindow, point) ? 1 : HINT_RESTING_OPACITY, 150);
+      return;
+    }
+    this.hideHint();
+    if (!hit) return;
+    const timer = window.setTimeout(() => this.showHint(), 1000);
+    this.hintTarget = { content: hit.content, windowId: hit.window.id, timer, shown: false, measuring: false, shape: null };
+  }
+
+  /** Once the frame has measured the widget's corner, the hint shows around it (see cornerMeasured) */
+  private showHint(): void {
+    const target = this.hintTarget;
+    const win = target?.content.windows.find((candidate) => candidate.id === target.windowId && candidate.visible);
+    if (!target || !win || this.press) return;
+    this.measureCorner(win, target.content);
+  }
+
+  /**
+   * The hint fades out and its timer stops. As a drag or a resize starts (`untilLeft`), it doesn't come back until the
+   * pointer has left the widget, as in the app
+   */
+  private hideHint(untilLeft = false): void {
+    const target = this.hintTarget;
+    if (!target) return;
+    window.clearTimeout(target.timer);
+    if (target.shown) {
+      for (const animation of this.hint.getAnimations()) if (animation.effect && (animation.effect as KeyframeEffect).getKeyframes().some((frame) => frame.transform)) animation.cancel();
+      this.fadeHint(0, 200);
+    }
+    target.shown = false;
+    target.measuring = false;
+    if (!untilLeft) this.hintTarget = null;
+  }
+
+  private fadeHint(opacity: number, duration: number): void {
+    for (const part of [this.hint.firstElementChild as HTMLElement, this.hint.lastElementChild as SVGSVGElement]) {
+      const from = getComputedStyle(part).opacity;
+      if (Number(from) === opacity) continue;
+      part.style.opacity = String(opacity);
+      part.animate([{ opacity: from }, { opacity: String(opacity) }], { duration, easing: 'ease-in-out' });
+    }
+  }
+
+  /**
+   * Just outside the window's bottom right corner, where it's resized, curved around the corner the widget draws (the
+   * arc's center is the drawn corner's, its radius reaches past the window's edges, across a clear margin), as in the
+   * app; inside the corner when the screen's edge would hide it
+   */
+  private placeHint(win: WindowState, content: WebContent): void {
+    const shape = this.hintTarget?.shape ?? { right: 0, bottom: 0, radius: 0 };
+    // the corner of a square around the drawn corner's center that reaches the window's edges
+    const margin = Math.max(shape.right, shape.bottom);
+    const x = win.frame.x + win.frame.width - shape.right + margin;
+    const y = win.frame.y + win.frame.height - shape.bottom + margin;
+    const reach = HINT_GAP + HINT_WIDTH + 2;
+    const screen = this.screens.find(({ bounds }) => x > bounds.x && x <= bounds.x + bounds.width && y > bounds.y && y <= bounds.y + bounds.height);
+    const outside = !screen || (x + reach <= screen.bounds.x + screen.bounds.width && y + reach <= screen.bounds.y + screen.bounds.height);
+    const hint = resizeHintShape(shape.radius + margin, outside);
+    const glass = this.hint.firstElementChild as HTMLElement;
+    const stroke = `<svg xmlns="http://www.w3.org/2000/svg" width="${hint.width}" height="${hint.height}"><path d="${hint.path}" fill="none" stroke="black" stroke-width="${HINT_WIDTH}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const strokeImage = `url("data:image/svg+xml,${encodeURIComponent(stroke)}")`;
+    Object.assign(glass.style, {
+      background: 'rgba(255, 255, 255, 0.45)',
+      maskImage: strokeImage, webkitMaskImage: strokeImage,
+    });
+    const svg = this.hint.lastElementChild as SVGSVGElement;
+    svg.setAttribute('width', String(hint.width));
+    svg.setAttribute('height', String(hint.height));
+    svg.setAttribute('viewBox', `0 0 ${hint.width} ${hint.height}`);
+    svg.setAttribute('stroke', 'rgba(0, 0, 0, 0.28)');
+    for (const path of svg.querySelectorAll('path')) path.setAttribute('d', hint.path);
+    // over its frame, which comes later on the page at the same level
+    if (this.hint.nextSibling) this.element.appendChild(this.hint);
+    Object.assign(this.hint.style, {
+      left: `${x - hint.corner.x}px`,
+      top: `${y - hint.corner.y}px`,
+      width: `${hint.width}px`,
+      height: `${hint.height}px`,
+      zIndex: content.iframe.style.zIndex,
+    });
+  }
+
+  /** Whether the point is at the window's bottom right corner, where it resizes */
+  /** Whether a point is on the hint as it's placed */
+  private onHint(point: { x: number; y: number }): boolean {
+    const { offsetLeft: x, offsetTop: y, offsetWidth: width, offsetHeight: height } = this.hint;
+    return point.x >= x && point.x < x + width && point.y >= y && point.y < y + height;
+  }
+
+  private atResizeCorner(win: WindowState, point: { x: number; y: number }): boolean {
+    return Math.hypot(point.x - (win.frame.x + win.frame.width), point.y - (win.frame.y + win.frame.height)) <= HINT_CORNER;
   }
 
   private setCursor(cursor: string): void {

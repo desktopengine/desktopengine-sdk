@@ -18,8 +18,8 @@ import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import type { Duplex } from 'node:stream';
-import { WIDGET_SIZES, isOneOf } from './manifest.ts';
-import type { Manifest, Parameter, Scalar, WidgetSize } from './manifest.ts';
+import { declaredWidgetSizes, isOneOf, widgetSizesByArea } from './manifest.ts';
+import type { Manifest, Parameter, Scalar } from './manifest.ts';
 import { buildProject } from './build.ts';
 import { zipPackage } from './project.ts';
 import { affectsPackage } from './files.ts';
@@ -33,7 +33,8 @@ export type WindowLevel = (typeof LEVELS)[number];
 
 /** The `launch` of a `load` message, `DevelopSession.LaunchRequest` in the app. */
 export interface LaunchRequest {
-  size?: WidgetSize;
+  /** The id of one of the widget's sizes: a preset's name or one of its own */
+  size?: string;
   level?: WindowLevel;
   /** 1-based index into the displays */
   display?: number;
@@ -96,17 +97,21 @@ export function launchRequest(manifest: Manifest, options: LaunchFlags = {}): { 
   const warnings: string[] = [];
 
   if (options.size !== undefined) {
-    if (!isOneOf(WIDGET_SIZES, options.size)) {
-      throw new Error(`--size must be one of ${WIDGET_SIZES.join(', ')}`);
+    const sizes = declaredWidgetSizes(manifest);
+    const ids = sizes.map((size) => size.id);
+    // listed as the app lists them, smallest first
+    const choices = widgetSizesByArea(sizes).map((size) => size.id).join(', ');
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(options.size)) {
+      throw new Error(`--size must be the id of one of the widget's sizes: ${choices}`);
     }
-    const declared = manifest.widget?.sizes;
-    const sizes = Array.isArray(declared) && declared.length > 0 ? declared : ['small'];
     if (manifest.type !== 'widget') {
       warnings.push('Only widgets use --size');
-    } else if (!sizes.includes(options.size)) {
-      warnings.push(`manifest.json doesn't declare the size ${options.size}, the app uses ${sizes[0]}`);
+    } else if (!ids.includes(options.size)) {
+      // not sent: the app uses the first size
+      warnings.push(`manifest.json doesn't declare the size ${options.size}, the app uses ${ids[0]} (sizes: ${choices})`);
+    } else {
+      launch.size = options.size;
     }
-    launch.size = options.size;
   }
 
   if (options.level !== undefined) {

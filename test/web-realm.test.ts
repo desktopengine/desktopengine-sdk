@@ -21,6 +21,7 @@ import * as esbuild from 'esbuild';
 
 import type { LaunchMessage } from '../web/protocol.ts';
 import { SystemStatusSimulation } from '../web/system-status.ts';
+import { widgetSizing } from '../web/widget-sizes.ts';
 
 /** The frame runtime, bundled as the SDK bundles it (web/build.mjs) */
 const { frameOptions } = await import(pathToFileURL(path.join(import.meta.dirname, '..', 'web', 'build.mjs')).href) as { frameOptions: esbuild.BuildOptions };
@@ -524,4 +525,38 @@ test('DesktopEngine.systemStatus\'s readings, events and resume work whatever th
     'powerchange ac',
     'memorypressurechange warning',
   ]);
+});
+
+test('the widget\'s window resized by the user and its corner measured work whatever the content did to the language\'s builtins', async () => {
+  const sizing = widgetSizing({ widget: { resize: { by: ['user'], minWidth: 100 } } }, { width: 300, height: 200 });
+  const { exceptions, calls, events, messages } = await runContent(`
+    const win = new DesktopEngine.Window({ type: 'widget', style: { left: 40, top: 40, width: 300, height: 200 } });
+    win.show();
+    const replaced = ${REPLACED};
+    for (let index = 0; index < replaced.length; index++) Math.replaced(replaced[index][0], replaced[index][1], replaced[index][2]);
+    const events = [];
+    Math.events = events;
+    // the style isn't read here: the components' own methods aren't what's checked
+    win.onresize = () => {
+      events[events.length] = 'resize';
+    };
+    win.onmove = (event) => {
+      events[events.length] = 'move ' + event.x + ',' + event.y;
+    };
+  `, {
+    launch: {
+      options: { permissions: [], windowType: 'widget', width: 300, height: 200 }, contentType: 'widget', allowedWindowType: 'widget',
+      apiVersion: 8, widgetSizing: sizing,
+    },
+    messages: [
+      '{ type: \'resize-window\', window: lastWindowId(), x: 20, y: 40, width: 380, height: 240 }',
+      '{ type: \'measure-corner\', window: lastWindowId(), body: { x: 0, y: 0, width: 380, height: 240 } }',
+    ],
+  });
+  assert.deepEqual(calls, []);
+  assert.deepEqual(exceptions, []);
+  assert.deepEqual(events, ['resize', 'move 20,40']);
+  const windows = messages.filter((message) => message.type === 'windows') as unknown as { windows: { frame: object }[] }[];
+  assert.ok(windows.some((report) => JSON.stringify(report.windows[0]?.frame) === JSON.stringify({ x: 20, y: 40, width: 380, height: 240 })));
+  assert.ok(messages.some((message) => message.type === 'window-corner'));
 });

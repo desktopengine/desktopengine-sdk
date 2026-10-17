@@ -185,8 +185,8 @@ test('launchRequest turns flags into launch options', () => {
     position: '10, -20.5',
     params: ['accent=#FF0000', 'count=7', 'dark=true', 'unit=1'],
   });
+  // large isn't declared: left to the app, which uses the first size
   assert.deepEqual(launch, {
-    size: 'large',
     level: 'floating',
     display: 2,
     position: { x: 10, y: -20.5 },
@@ -203,7 +203,18 @@ test('launchRequest turns flags into launch options', () => {
   assert.ok(launchRequest({ ...wallpaper, wallpaper: { span: true } }, { span: true, display: '2' }).warnings.some((message) => message.includes('--display')));
   assert.ok(launchRequest(widgetManifest, { span: true }).warnings.some((message) => message.includes('Only wallpapers')));
 
-  assert.throws(() => launchRequest(widgetManifest, { size: 'huge' }), /--size/);
+  assert.throws(() => launchRequest(widgetManifest, { size: 'Huge!' }), /--size/);
+  // a size of its own is an id like any other, one the manifest doesn't declare falls back to its first
+  const unknownSize = launchRequest(widgetManifest, { size: 'huge' });
+  assert.ok(unknownSize.warnings.some((message) => message.includes("doesn't declare the size huge")));
+  // not sent: the app uses the first size
+  assert.equal(unknownSize.launch.size, undefined);
+  const custom = { ...widgetManifest, apiVersion: 8, widget: { sizes: [{ id: 'wide', width: 440, height: 196, name: 'Wide' }] } };
+  assert.deepEqual(launchRequest(custom, { size: 'wide' }), { launch: { size: 'wide' }, warnings: [] });
+  // the sizes it declares are listed smallest first, the app still uses the first in the manifest
+  const mediumFirst = { ...widgetManifest, widget: { sizes: ['medium' as const, 'small' as const] } };
+  assert.ok(launchRequest(mediumFirst, { size: 'large' }).warnings.some((message) => message.includes('the app uses medium (sizes: small, medium)')));
+  assert.throws(() => launchRequest(mediumFirst, { size: 'Huge!' }), /sizes: small, medium$/);
   assert.throws(() => launchRequest(widgetManifest, { display: '0' }), /--display/);
   assert.throws(() => launchRequest(widgetManifest, { params: ['missing=1'] }), /declares no parameter/);
   assert.throws(() => launchRequest(widgetManifest, { params: ['count=abc'] }), /must be a number/);
