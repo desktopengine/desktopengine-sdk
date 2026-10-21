@@ -250,6 +250,19 @@ test('DesktopEngine.syncStorage has the app\'s limits and errors (recorded in th
   });
 });
 
+test('WebAssembly has the JS API, without the browser\'s streaming functions, as in the app', async () => {
+  // (module (func (export "add") (param i32 i32) (result i32) local.get 0 local.get 1 i32.add))
+  const [result] = await runContent({}, `
+    const bytes = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 7, 1, 96, 2, 127, 127, 1, 127, 3, 2, 1, 0, 7, 7, 1, 3, 97, 100, 100, 0, 0, 10, 9, 1, 7, 0, 32, 0, 32, 1, 106, 11]);
+    const instance = new WebAssembly.Instance(new WebAssembly.Module(bytes));
+    postMessage('host', {
+      streaming: [typeof WebAssembly.instantiateStreaming, typeof WebAssembly.compileStreaming, 'instantiateStreaming' in WebAssembly],
+      add: instance.exports.add(2, 3),
+    });
+  `);
+  assert.deepEqual(result, { streaming: ['undefined', 'undefined', false], add: 5 });
+});
+
 test('getContext reads alpha and antialias as the app does: undefined is the default, anything else converts to a boolean', async () => {
   const options = `[
     undefined, null, 5, 'x', true,

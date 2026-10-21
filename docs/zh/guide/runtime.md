@@ -23,6 +23,8 @@
 - `localStorage` 和 `sessionStorage`，见[存储和文件](./storage)。
 - `Audio`、`AudioContext` 和其他 Web Audio 类，见[音频](./audio)。
 
+`WebAssembly` 只有 JavaScript 引擎实现的部分（WebAssembly JS API），没有浏览器为 `Response` 加的 `instantiateStreaming` 和 `compileStreaming`。先读出文件再编译：`WebAssembly.instantiate(await (await fetch('module.wasm')).arrayBuffer(), imports)`。Emscripten 和 wasm-bindgen 的加载代码在没有这两个函数时会自己这样做。
+
 ## 画布
 
 - Canvas 支持 2D、WebGL 1 和 WebGL 2（`getContext('webgl2')`，基于 ANGLE 的 OpenGL ES 3.0）。`texImage3D` / `texSubImage3D` 也接受图片、`ImageData` 和画布，各层在源图中自上而下排列（层间距由 `UNPACK_IMAGE_HEIGHT` 决定，默认等于 height）。Apple 芯片的 Mac 提供 `WEBGL_compressed_texture_astc`。

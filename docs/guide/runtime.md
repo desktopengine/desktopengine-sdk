@@ -23,6 +23,8 @@ Besides the language's own (`Promise`, `Intl`, `WebAssembly`…), content has th
 - `localStorage` and `sessionStorage`, see [Storage and Files](./storage).
 - `Audio`, `AudioContext` and the other Web Audio classes, see [Audio](./audio).
 
+`WebAssembly` has only what JavaScript engines implement (the WebAssembly JS API), not the `instantiateStreaming` and `compileStreaming` browsers add for their `Response`. Read the file and compile what you read: `WebAssembly.instantiate(await (await fetch('module.wasm')).arrayBuffer(), imports)`. Emscripten's and wasm-bindgen's loaders do this by themselves when the streaming functions aren't there.
+
 ## Canvas
 
 - Canvases have 2D, WebGL 1 and WebGL 2 (`getContext('webgl2')`, OpenGL ES 3.0 on ANGLE). `texImage3D` / `texSubImage3D` also take images, `ImageData` and canvases, with the layers top to bottom in the source image (spaced by `UNPACK_IMAGE_HEIGHT`, the height by default). Macs with Apple silicon have `WEBGL_compressed_texture_astc`.

@@ -1136,6 +1136,9 @@ function launch(message: LaunchMessage): void {
   if (hasPermission('audio')) installPointerInput();
   installCrypto();
   installNavigator(message.options.locale);
+  // WebAssembly as JavaScript engines have it (the JS API), without what browsers add for their Response: the engine has no streaming
+  // compilation, content compiles what it has read (WebAssembly.instantiate(await response.arrayBuffer()))
+  for (const name of ['instantiateStreaming', 'compileStreaming']) reflectDelete(scope.WebAssembly, name);
   // createImageBitmap as the engine makes bitmaps, of the engine's canvases and images too
   Object.defineProperty(scope, 'createImageBitmap', {
     value: createImageBitmapFunction(scope.createImageBitmap.bind(scope), unwrap),
