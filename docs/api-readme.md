@@ -36,6 +36,7 @@ The runtime also has these globals, which behave as in browsers; the differences
 - Messages: [`structuredClone`](/api/functions/structuredClone), [`MessageChannel`](/api/interfaces/MessageChannel), [`BroadcastChannel`](/api/interfaces/BroadcastChannel), see [Data](/guide/data) and [Messages Between Content](/guide/messaging)
 - Storage: [`localStorage`, `sessionStorage`](/api/interfaces/Storage), see [Storage and Files](/guide/storage)
 - Fonts: [`FontFace`](/api/interfaces/FontFace), [`FontFaceSet`](/api/interfaces/FontFaceSet), see [Fonts](/guide/fonts)
+- Video as a canvas source: [`Video`](/api/interfaces/DesktopEngine.Video), see [Video](/guide/video)
 - Audio: [`Audio`](/api/interfaces/HTMLAudioElement), [`AudioContext`](/api/interfaces/AudioContext) and the audio nodes, see [Audio](/guide/audio)
 
 See [all declarations](/api/globals) for the full list.

@@ -10,7 +10,7 @@
 
 import { contentFunction } from './realm.ts';
 import { readAppWindows, sameAppWindows, visibleTopEdges, type AppWindowInfo, type FrameMessage, type HostMessage, type LaunchMessage, type ParameterValue, type SuspendReason, type SystemStatusReading, type TopEdge, type WebScreen } from '../protocol.ts';
-import { CanvasImageImpl, CanvasImpl, ComponentImpl, componentOf, ImageImpl, VideoImpl, WindowImpl, allVideos, allWindows, reportWindows, unwrap, windowById, windowCorner } from './components.ts';
+import { CanvasImageImpl, CanvasImpl, ComponentImpl, componentOf, ImageImpl, VideoImpl, WindowImpl, allVideos, allWindows, bitmapSource, reportWindows, windowById, windowCorner } from './components.ts';
 import { Evented, defineEvents } from './events.ts';
 import { createFileSystem, fileBytes, loadPackage, requireFrom } from './files.ts';
 import { createFrameFonts } from './fonts.ts';
@@ -1147,7 +1147,7 @@ function launch(message: LaunchMessage): void {
   for (const name of ['instantiateStreaming', 'compileStreaming']) reflectDelete(scope.WebAssembly, name);
   // createImageBitmap as the engine makes bitmaps, of the engine's canvases and images too
   Object.defineProperty(scope, 'createImageBitmap', {
-    value: createImageBitmapFunction(scope.createImageBitmap.bind(scope), unwrap),
+    value: createImageBitmapFunction(scope.createImageBitmap.bind(scope), bitmapSource),
     writable: true, configurable: true, enumerable: true,
   });
   // the engine's structuredClone, MessageChannel, MessagePort and MessageEvent rather than the browser's, and its

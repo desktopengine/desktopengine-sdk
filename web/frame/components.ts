@@ -12,7 +12,7 @@
 
 import { createContext2D } from './context2d.ts';
 import { defineEvents, Evented } from './events.ts';
-import { adaptWebGL } from './webgl.ts';
+import { adaptWebGL, NO_FRAME, NO_VIDEO } from './webgl.ts';
 import { applyStyle, BASE_CSS, createStyle, readStyle, STYLE_KEYS, stylePoints, styleValue, type StyleValue } from './style.ts';
 import { isDataURL, mediaURL } from './network.ts';
 import { hasPermission, itemsOf, nextIdentifier, send, state } from './state.ts';
@@ -30,12 +30,16 @@ const { set: mapSet } = Map.prototype;
 const { then } = Promise.prototype;
 const { max, min, floor, sqrt } = Math;
 const queueTask = queueMicrotask.bind(globalThis);
+const timeout = setTimeout.bind(globalThis);
+const now = performance.now.bind(performance);
 
 const COMPONENT_EVENTS = ['framechange', 'click', 'dblclick', 'mousedown', 'mouseup', 'mouseenter', 'mouseleave', 'mousemove', 'wheel'];
 const STYLE_NAMES = new Set(STYLE_KEYS);
 /** In Yoga these win over flex, whichever was set first; in CSS flex sets them */
 const FLEX_LONGHANDS = ['flexGrow', 'flexShrink', 'flexBasis'];
 const MAX_WINDOWS = 16;
+/** Milliseconds a video that isn't in a window keeps playing after canvases last read its frame, as in the app */
+const SOURCE_IDLE_TIME = 3000;
 
 /** Which component an element is, for finding what the pointer is on */
 export const componentOf = new WeakMap<Element, ComponentImpl>();
@@ -697,12 +701,23 @@ export function allWindows(): WindowImpl[] {
 
 // MARK: Canvas
 
-/** The browser's object for an engine object passed to texImage2D and its kin */
-/** The browser's element of an engine Canvas or CanvasImage, for the browser's own APIs; anything else as it is */
+/**
+ * The browser's element of an engine Canvas, CanvasImage or Video, for the browser's own APIs (texImage2D and its kin,
+ * createImageBitmap); anything else as it is. A Video is read as a source (see VideoImpl.readFrame): before its size
+ * is known it's NO_VIDEO, without a frame right now NO_FRAME
+ */
 export function unwrap(value: unknown): unknown {
   if (value instanceof CanvasImpl) return value.canvas;
   if (value instanceof CanvasImageImpl) return value.image;
+  if (value instanceof VideoImpl) return value.readFrame();
   return value;
+}
+
+/** createImageBitmap's source: a video without a frame rejects it, as browsers do */
+export function bitmapSource(value: unknown): unknown {
+  const source = unwrap(value);
+  if (source === NO_VIDEO || source === NO_FRAME) throw new DOMException('createImageBitmap: the video has no frame yet', 'InvalidStateError');
+  return source;
 }
 
 let imageDataCanvas: HTMLCanvasElement | null = null;
@@ -713,6 +728,12 @@ let imageDataCanvas: HTMLCanvasElement | null = null;
  */
 function drawableSource(value: unknown): CanvasImageSource | null | undefined {
   if (value instanceof CanvasImpl) return value.canvas;
+  if (value instanceof VideoImpl) {
+    const frame = value.readFrame();
+    if (frame === NO_VIDEO) return null;
+    // reloading its file: the last frame drawn, as the app draws it
+    return frame === NO_FRAME ? value.drawnFrame() : value.drew(frame as HTMLVideoElement);
+  }
   if (value instanceof ImageBitmap) return value;
   if (value instanceof CanvasImageImpl) return value.complete ? value.image : null;
   if (value instanceof ImageData) {
@@ -1009,10 +1030,33 @@ export class VideoImpl extends ComponentImpl {
   /** Playing when the content was suspended: plays again after */
   private resume = false;
   /**
-   * Out of a window (or not in one yet), as in the app: the element lets go of the file, playing, pausing and seeking
-   * only note what to do, and it continues from there when it's in a window
+   * Out of a window and not read by canvases, as in the app (see holdsFile): the element lets go of the file, playing,
+   * pausing and seeking only note what to do, and it continues from there when it's in a window or read again
    */
-  private offscreen: { time: number; playing: boolean } | null = { time: 0, playing: false };
+  private offscreen: { time: number; playing: boolean } | null = null;
+  /** In a window now, and once */
+  private shown = false;
+  private wasShown = false;
+  /** When canvases last read a frame of its src (performance.now()), 0 if they haven't */
+  private lastRead = 0;
+  /** When it could first play its src (performance.now()), 0 until then */
+  private readyAt = 0;
+  /** A check of whether canvases still read it is queued */
+  private idleCheck = false;
+  /** The 2D context drew a frame of this src */
+  private drawnOnce = false;
+  /**
+   * The frame showing when it let go of its file, after the 2D context drew one: drawImage and createPattern draw it
+   * until there's a frame again, as the app draws the last frame it drew
+   */
+  private lastFrame: HTMLCanvasElement | null = null;
+  /**
+   * readyState and the size, as the app has them: they stay while the element lets go of the file (it continues from
+   * there) and its reloading doesn't send the events again; back to nothing for another src
+   */
+  private known = { readyState: 0, width: 0, height: 0 };
+  /** Waited for data: `canplay` comes again when it can go on, as in the app */
+  private waited = false;
   /** Paused, its pause event not sent yet: unloading the element drops that event */
   private pausePending = false;
   /** `paused`, as in the app: set by play() and pause() at once, then by the play and pause events */
@@ -1056,6 +1100,37 @@ export class VideoImpl extends ComponentImpl {
     video.addEventListener('durationchange', () => {
       if (Number.isFinite(video.duration) && video.duration > 0) this.knownDuration = video.duration;
     });
+    // readyState with the web's events, as the app has it: HAVE_METADATA in loadedmetadata, HAVE_CURRENT_DATA in
+    // loadeddata, then HAVE_ENOUGH_DATA with canplay; HAVE_CURRENT_DATA while it waits for data
+    const known = this.known;
+    video.addEventListener('loadedmetadata', () => {
+      known.width = video.videoWidth;
+      known.height = video.videoHeight;
+      if (known.readyState >= 1) return;
+      known.readyState = 1;
+      this.emit('loadedmetadata');
+    });
+    video.addEventListener('loadeddata', () => {
+      if (known.readyState >= 2) return;
+      known.readyState = 2;
+      this.emit('loadeddata');
+    });
+    video.addEventListener('canplay', () => {
+      if (!this.readyAt) {
+        // not read by then: out of a window it lets go of the file (see holdsFile)
+        this.readyAt = now();
+        timeout(() => this.applyHold(), SOURCE_IDLE_TIME + 50);
+      }
+      const again = known.readyState < 3 || this.waited;
+      known.readyState = 4;
+      this.waited = false;
+      if (again) this.emit('canplay');
+    });
+    video.addEventListener('waiting', () => {
+      if (known.readyState <= 2 || this.offscreen) return;
+      known.readyState = 2;
+      this.waited = true;
+    });
     assignOptions(this as Record<(typeof keys)[number], unknown>);
     this.applyAudio();
   }
@@ -1069,6 +1144,15 @@ export class VideoImpl extends ComponentImpl {
     if (typeof value !== 'string' || !value) return;
     this.source = value;
     this.knownDuration = NaN;
+    this.known.readyState = 0;
+    this.known.width = 0;
+    this.known.height = 0;
+    this.waited = false;
+    this.drawnOnce = false;
+    this.lastFrame = null;
+    // none of its frames read yet
+    this.lastRead = 0;
+    this.readyAt = 0;
     if (isDataURL(value)) {
       // as in the app, which takes it for a file of an unknown scheme: a warning, no error event, and nothing plays
       console.warn(`Can't load ${value}: Unsupported scheme: ${value}`);
@@ -1076,7 +1160,9 @@ export class VideoImpl extends ComponentImpl {
       setTimeout(() => this.emit('error', { errMsg: 'the video can\'t be read' }));
     }
     if (this.offscreen) {
+      // out of a window it loads as a new video does (see holdsFile)
       this.offscreen = { time: this.start, playing: this.plays };
+      this.applyHold();
       return;
     }
     this.load(this.start, this.plays);
@@ -1175,6 +1261,73 @@ export class VideoImpl extends ComponentImpl {
     return this.knownDuration;
   }
 
+  get readyState(): number {
+    return this.known.readyState;
+  }
+
+  get videoWidth(): number {
+    return this.known.width;
+  }
+
+  get videoHeight(): number {
+    return this.known.height;
+  }
+
+  /**
+   * The element, to draw or upload its frame showing now, as the app reads a Video's frame: NO_VIDEO before its size
+   * is known, NO_FRAME while it has no frame (it hasn't one yet, or it reloads its file). Reading it is using it as a
+   * source: out of a window it then plays, until canvases haven't read it for SOURCE_IDLE_TIME
+   */
+  readFrame(): HTMLVideoElement | typeof NO_VIDEO | typeof NO_FRAME {
+    const time = now();
+    const wasRead = this.lastRead > 0 && time - this.lastRead < SOURCE_IDLE_TIME;
+    this.lastRead = time;
+    if (!wasRead) {
+      this.applyHold();
+      this.queueIdleCheck();
+    }
+    if (this.known.width <= 0) return NO_VIDEO;
+    // HAVE_CURRENT_DATA
+    if (this.offscreen || this.video.readyState < 2) return NO_FRAME;
+    return this.video;
+  }
+
+  /** The frame the 2D context draws: it's drawn now */
+  drew(frame: HTMLVideoElement): HTMLVideoElement {
+    this.drawnOnce = true;
+    this.lastFrame = null;
+    return frame;
+  }
+
+  /** What the 2D context draws while it has no frame: the frame it showed when it let go of its file, if one was drawn */
+  drawnFrame(): HTMLCanvasElement | null {
+    return this.lastFrame;
+  }
+
+  /**
+   * Whether it keeps its file, as in the app: in a window; out of one while canvases read it; never in one and never
+   * read (it loads when it's made, as on the web). With a src none of whose frames were read yet, also until
+   * SOURCE_IDLE_TIME after it could play: a new src out of a window loads, so content can wait for `loadeddata` before
+   * it reads it. When it leaves a window, or canvases stop reading it, it doesn't
+   */
+  private holdsFile(): boolean {
+    const time = now();
+    const read = this.lastRead > 0 && time - this.lastRead < SOURCE_IDLE_TIME;
+    const unread = this.lastRead === 0;
+    const loading = unread && (this.readyAt === 0 || time - this.readyAt < SOURCE_IDLE_TIME);
+    return this.shown || read || (!this.wasShown && unread) || loading;
+  }
+
+  private queueIdleCheck(): void {
+    if (this.idleCheck) return;
+    this.idleCheck = true;
+    timeout(() => {
+      this.idleCheck = false;
+      if (now() - this.lastRead < SOURCE_IDLE_TIME) this.queueIdleCheck();
+      else this.applyHold();
+    }, max(this.lastRead + SOURCE_IDLE_TIME - now(), 50));
+  }
+
   get paused(): boolean {
     return this.isPaused;
   }
@@ -1221,8 +1374,22 @@ export class VideoImpl extends ComponentImpl {
   }
 
   protected override inWindowChanged(inWindow: boolean): void {
-    if (!inWindow) {
+    this.shown = inWindow;
+    this.wasShown = this.wasShown || inWindow;
+    this.applyHold();
+  }
+
+  /** The element lets go of the file, or loads it again, as holdsFile says */
+  private applyHold(): void {
+    if (!this.holdsFile()) {
       if (this.offscreen) return;
+      if (this.drawnOnce && this.video.readyState >= 2) {
+        const canvas = document.createElement('canvas');
+        canvas.width = this.video.videoWidth;
+        canvas.height = this.video.videoHeight;
+        canvas.getContext('2d')?.drawImage(this.video, 0, 0);
+        this.lastFrame = canvas;
+      }
       this.offscreen = { time: this.video.currentTime, playing: !this.video.paused };
       this.pauseElement();
       const paused = this.pausePending;
@@ -1261,7 +1428,11 @@ export class VideoImpl extends ComponentImpl {
     super.destroy();
   }
 }
-defineEvents(VideoImpl.prototype, ['waiting', 'progress', 'play', 'pause', 'ended', 'timeupdate', 'error']);
+defineEvents(VideoImpl.prototype, ['waiting', 'progress', 'play', 'pause', 'ended', 'timeupdate', 'error', 'loadedmetadata', 'loadeddata', 'canplay']);
+// HTMLMediaElement's readyState values, on the videos as in the app (not on the constructor)
+for (const [name, value] of [['HAVE_NOTHING', 0], ['HAVE_METADATA', 1], ['HAVE_CURRENT_DATA', 2], ['HAVE_FUTURE_DATA', 3], ['HAVE_ENOUGH_DATA', 4]] as const) {
+  Object.defineProperty(VideoImpl.prototype, name, { value, enumerable: true });
+}
 
 /** The videos that aren't destroyed, in a list */
 export function allVideos(): VideoImpl[] {

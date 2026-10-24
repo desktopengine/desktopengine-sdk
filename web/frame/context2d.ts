@@ -170,7 +170,7 @@ export function createContext2D(native: CanvasRenderingContext2D, canvas: object
     const source = drawable(image);
     if (source === undefined) {
       if ((typeof image === 'object' && image !== null) || typeof image === 'function') {
-        console.warn(`\`CanvasRenderingContext2D.${method}\` image is not an Image, ImageData or Canvas`);
+        console.warn(`\`CanvasRenderingContext2D.${method}\` image is not an Image, ImageData, ImageBitmap, Canvas or Video`);
       }
       return null;
     }

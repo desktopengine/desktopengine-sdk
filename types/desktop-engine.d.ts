@@ -674,6 +674,12 @@ declare namespace DesktopEngine {
     timeupdate: VideoTimeUpdatePayload;
     /** Playback failed */
     error: ErrorPayload;
+    /** Its size and duration are known: `readyState` is HAVE_METADATA, `videoWidth` and `videoHeight` are set (API 9) */
+    loadedmetadata: void;
+    /** It has a frame: `readyState` is HAVE_CURRENT_DATA, canvases can draw and upload it (API 9) */
+    loadeddata: void;
+    /** It can play: `readyState` is HAVE_ENOUGH_DATA; again after it waited for data (API 9) */
+    canplay: void;
   }
 
   /** Image event map */
@@ -1099,9 +1105,23 @@ declare namespace DesktopEngine {
 
   /**
    * Video playback component (AVPlayer); pauses automatically when the runtime is suspended and resumes afterwards.
-   * It plays only while it's in a window: removed from it (itself or with a parent) or with its window destroyed, it
-   * pauses (firing `pause`) and lets go of its file; added to a window again, it continues where it was, playing if it
-   * was. `play()` and `seek()` while it's out of a window take effect when it's in one.
+   *
+   * It's also a source for canvases, as a video element is on the web (API 9): WebGL's `texImage2D` /
+   * `texSubImage2D` (and WebGL 2's `texImage3D` / `texSubImage3D`) and the 2D context's `drawImage`, `createPattern`
+   * and `createImageBitmap` take the frame showing now, at `videoWidth` × `videoHeight`. Until `readyState` is
+   * HAVE_METADATA an upload is an INVALID_VALUE error; until it's HAVE_CURRENT_DATA (`loadeddata`) an upload leaves the
+   * texture as it was, `drawImage` draws nothing, `createPattern` returns `undefined` and `createImageBitmap` rejects
+   * with an InvalidStateError. See the Video guide.
+   *
+   * Where it plays: in a window; out of one while canvases read its frames, as a video element out of the document does
+   * on the web; and a video that was never in a window nor read loads as soon as it has a `src` and plays when it's
+   * asked to, so content can wait for `loadeddata` before it reads it; so does a video given another `src` out of a
+   * window, which lets go of it again if canvases don't read it within 3 seconds of when it can play and it was in a
+   * window before. Removed from its window (itself or with a parent) or with its window destroyed, a video that
+   * canvases don't read pauses (firing `pause`) and lets go of its file, and so does a video out of a window that
+   * canvases haven't read for 3 seconds; added to a window again, or read again, it continues where it was, playing if
+   * it was. `play()` and `seek()` while it has let go of its file take effect when it
+   * continues.
    */
   interface Video extends ComponentBase<VideoEventMap> {
     /**
@@ -1132,6 +1152,22 @@ declare namespace DesktopEngine {
      * event sets it (it ended, the content was suspended, it left its window), the `play` event clears it
      */
     readonly paused: boolean;
+    /** Its width in pixels, 0 until it's known (`loadedmetadata`) (API 9) */
+    readonly videoWidth: number;
+    /** Its height in pixels, 0 until it's known (`loadedmetadata`) (API 9) */
+    readonly videoHeight: number;
+    /**
+     * How much it has, as on the web (API 9): HAVE_NOTHING (0), HAVE_METADATA (1, its size and duration),
+     * HAVE_CURRENT_DATA (2, a frame to draw), HAVE_ENOUGH_DATA (4, it can play). Back to HAVE_NOTHING for another `src`;
+     * it stays while the video has let go of its file
+     */
+    readonly readyState: number;
+    /** readyState's values, on each video (not on the constructor) */
+    readonly HAVE_NOTHING: 0;
+    readonly HAVE_METADATA: 1;
+    readonly HAVE_CURRENT_DATA: 2;
+    readonly HAVE_FUTURE_DATA: 3;
+    readonly HAVE_ENOUGH_DATA: 4;
     /** Starts playback */
     play(): void;
     /** Pauses playback */
@@ -1153,6 +1189,12 @@ declare namespace DesktopEngine {
     ontimeupdate: EventHandler<this, VideoTimeUpdatePayload> | null | undefined;
     /** error callback */
     onerror: EventHandler<this, ErrorPayload> | null | undefined;
+    /** loadedmetadata callback (API 9) */
+    onloadedmetadata: EventHandler<this, void> | null | undefined;
+    /** loadeddata callback (API 9) */
+    onloadeddata: EventHandler<this, void> | null | undefined;
+    /** canplay callback (API 9) */
+    oncanplay: EventHandler<this, void> | null | undefined;
     /** Removes the onwaiting callback */
     offwaiting(): void;
     /** Removes the onprogress callback */
@@ -1167,6 +1209,12 @@ declare namespace DesktopEngine {
     offtimeupdate(): void;
     /** Removes the onerror callback */
     offerror(): void;
+    /** Removes the onloadedmetadata callback */
+    offloadedmetadata(): void;
+    /** Removes the onloadeddata callback */
+    offloadeddata(): void;
+    /** Removes the oncanplay callback */
+    offcanplay(): void;
   }
 
   /** Video constructor */
@@ -1250,8 +1298,11 @@ declare namespace DesktopEngine {
     alpha?: boolean;
   }
 
-  /** Objects that can be a source for drawImage / createPattern / texImage2D (an ImageBitmap since API 5) */
-  type CanvasDrawable = Canvas | CanvasImage | ImageData | ImageBitmap;
+  /**
+   * Objects that can be a source for drawImage / createPattern / texImage2D (an ImageBitmap since API 5, a Video since
+   * API 9: its frame showing now)
+   */
+  type CanvasDrawable = Canvas | CanvasImage | ImageData | ImageBitmap | Video;
 
   /**
    * A bitmap ready to draw, made by createImageBitmap (API 5). WebGL uploads it as it is: UNPACK_FLIP_Y_WEBGL and

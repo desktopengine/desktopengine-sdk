@@ -3,7 +3,9 @@
 //
 // This source code is licensed under the Apache Licence 2.0.
 
-// The web runtime's Image, Video and Audio take srcs as the app does. An Image loads its src whether it's in a window,
+// The web runtime's Image, Video and Audio take srcs as the app does. A Video is a canvas source with the app's
+// states, events and rules: before its size is known an upload is INVALID_VALUE, without a frame it does nothing, and
+// out of a window it plays while canvases read it, letting go of its file 3 seconds after they stop. An Image loads its src whether it's in a window,
 // in a component or in none, keeps the picture it shows until a new src has loaded, and calls back only for the last
 // src set. Only a CanvasImage reads a data: URL: an Image fails, a Video warns as the app does and plays nothing, an
 // Audio element fails with the app's error, as for a blob: URL. An Audio element plays a package's file and an http(s)
@@ -141,6 +143,9 @@ class HTMLMediaElement extends Element {
     this.currentTime = 0;
     this.duration = NaN;
     this.buffered = { length: 0 };
+    this.readyState = 0;
+    this.videoWidth = 0;
+    this.videoHeight = 0;
   }
   // as in browsers, the src attribute itself loads, not through the element's own (replaceable) methods
   get src() { return this.getAttribute('src') ?? ''; }
@@ -156,6 +161,7 @@ class HTMLMediaElement extends Element {
   load() { this.#load(); }
   #load() {
     this.#error = null;
+    this.readyState = 0;
     const url = this.getAttribute('src');
     this.#networkState = url ? 2 : 0;
     if (!url) return;
@@ -163,7 +169,8 @@ class HTMLMediaElement extends Element {
     loads.push({
       kind: this.tagName.toLowerCase(),
       url,
-      load() { element.dispatchEvent(new Event('loadedmetadata')); },
+      load() { element.videoWidth = 64; element.videoHeight = 32; element.readyState = 1; element.dispatchEvent(new Event('loadedmetadata')); },
+      frame() { element.readyState = 4; element.dispatchEvent(new Event('loadeddata')); element.dispatchEvent(new Event('canplay')); },
       fail() { element.#error = new MediaError(4, 'the browser can\\'t play it'); element.dispatchEvent(new Event('error')); },
     });
   }
@@ -201,10 +208,32 @@ globalThis.Audio = function Audio(src) {
 };
 globalThis.Audio.prototype = HTMLAudioElement.prototype;
 
+// a canvas whose WebGL context notes the uploads in Math.uploads: the source's tag and the error a negative level makes;
+// its 2D context notes what it draws in Math.draws
+const uploads = [];
+Math.uploads = uploads;
+const draws = [];
+Math.draws = draws;
+class HTMLCanvasElement extends Element {
+  constructor() { super('canvas'); this.width = 300; this.height = 150; }
+  getContext(type) {
+    const describe = (value) => (value && value.tagName ? value.tagName.toLowerCase() : value === null ? null : typeof value);
+    if (type === '2d') return { font: '', drawImage(source) { draws.push(describe(source)); } };
+    return {
+      TEXTURE_2D: 0x0DE1, RGBA: 0x1908, UNSIGNED_BYTE: 0x1401,
+      texImage2D(...args) { uploads.push(args[1] < 0 ? 'INVALID_VALUE' : describe(args[args.length - 1])); },
+      texSubImage2D(...args) { uploads.push(describe(args[args.length - 1])); },
+      getSupportedExtensions: () => [],
+      getExtension: () => null,
+    };
+  }
+}
+globalThis.HTMLCanvasElement = HTMLCanvasElement;
+
 globalThis.document = Object.assign(new EventTarget(), {
   visibilityState: 'visible',
   documentElement: new Element('html'),
-  createElement: (tag) => (tag === 'img' ? new HTMLImageElement() : tag === 'video' ? new HTMLVideoElement() : tag === 'audio' ? new HTMLAudioElement() : new Element(tag)),
+  createElement: (tag) => (tag === 'img' ? new HTMLImageElement() : tag === 'video' ? new HTMLVideoElement() : tag === 'audio' ? new HTMLAudioElement() : tag === 'canvas' ? new HTMLCanvasElement() : new Element(tag)),
   elementFromPoint: () => null,
 });
 document.body = document.documentElement.appendChild(new Element('body'));
@@ -399,6 +428,140 @@ test('a Video doesn\'t play a data: URL: as in the app, it warns and sends no er
   `);
   assert.deepEqual(report, { events: ['missing: the video can\'t be read'], src: dataURL, playing: null, loads: [] });
   assert.deepEqual(messages, [{ type: 'console', level: 'warn', message: `Can't load ${dataURL}: Unsupported scheme: ${dataURL}` }]);
+});
+
+test('a Video as a texture source: INVALID_VALUE before its size, nothing without a frame, then its element', async () => {
+  const { report } = await runContent(`${HELPERS}
+    const video = new DesktopEngine.Video({ muted: true });
+    const gl = new DesktopEngine.Canvas({ style: { width: 4, height: 4 } }).getContext('webgl');
+    const events = [];
+    for (const type of ['loadedmetadata', 'loadeddata', 'canplay']) video.addEventListener(type, () => events.push([type, video.readyState, video.videoWidth, video.videoHeight]));
+    const before = [video.readyState, video.videoWidth, video.HAVE_NOTHING, video.HAVE_CURRENT_DATA, video.HAVE_ENOUGH_DATA, DesktopEngine.Video.HAVE_NOTHING];
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+    // never in a window: it loads as soon as it has a src
+    video.src = 'clip.mp4';
+    const load = Math.loads.at(-1);
+    load.load();
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+    load.frame();
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, video);
+    const bitmap = await createImageBitmap(new DesktopEngine.Video({})).then(() => 'resolved', (error) => error.name);
+    video.src = 'other.mp4';
+    Math.finish({ before, events, uploads: Math.uploads, bitmap, reset: [video.readyState, video.videoWidth, video.videoHeight], loads: Math.loads.map((l) => l.kind) });
+  `, {}, { 'clip.mp4': 'V', 'other.mp4': 'V' });
+  assert.deepEqual(report, {
+    before: [0, 0, 0, 2, 4, null],
+    events: [['loadedmetadata', 1, 64, 32], ['loadeddata', 2, 64, 32], ['canplay', 4, 64, 32]],
+    uploads: ['INVALID_VALUE', 'video', 'video'],
+    bitmap: 'InvalidStateError',
+    reset: [0, 0, 0],
+    loads: ['video', 'video'],
+  });
+});
+
+test('a Video out of a window plays while canvases read it, and lets go of its file 3 seconds after they stop', async () => {
+  const { report } = await runContent(`${HELPERS}
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const win = new DesktopEngine.Window({ style: { width: 100, height: 100 } });
+    const video = new DesktopEngine.Video({ src: 'clip.mp4', muted: true, autoplay: true });
+    win.appendChild(video);
+    win.show();
+    const load = Math.loads.at(-1);
+    load.load();
+    load.frame();
+    const gl = new DesktopEngine.Canvas({ style: { width: 4, height: 4 } }).getContext('webgl');
+    const events = [];
+    video.addEventListener('pause', () => events.push('pause'));
+    const read = () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+    read();
+    // read while it leaves its window: it keeps its file and plays on
+    win.removeChild(video);
+    const kept = [video.video.getAttribute('src') !== null, video.video.paused];
+    await wait(1500);
+    read();
+    await wait(1000);
+    const stillKept = video.video.getAttribute('src') !== null;
+    await wait(3000);
+    const released = [video.video.getAttribute('src'), video.paused, video.readyState, video.videoWidth];
+    // read again: it loads where it was, and nothing is uploaded until it has a frame
+    const uploaded = Math.uploads.length;
+    read();
+    const reloaded = [video.video.getAttribute('src') !== null, Math.uploads.length === uploaded];
+    Math.finish({ kept, stillKept, released, reloaded, events });
+  `, {}, { 'clip.mp4': 'V' });
+  assert.deepEqual(report, {
+    kept: [true, false],
+    stillKept: true,
+    released: [null, true, 4, 64],
+    reloaded: [true, true],
+    events: ['pause'],
+  });
+});
+
+test('a Video taken out of a window and given another src loads it, and lets go of it 3 seconds after it can play if no canvas reads it', async () => {
+  const { report } = await runContent(`${HELPERS}
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const win = new DesktopEngine.Window({ style: { width: 100, height: 100 } });
+    const video = new DesktopEngine.Video({ src: 'clip.mp4', muted: true });
+    win.appendChild(video);
+    win.show();
+    const first = Math.loads.at(-1);
+    first.load();
+    first.frame();
+    await wait(3100);
+    // out of its window, not read: it lets go of its file
+    win.removeChild(video);
+    const released = video.video.getAttribute('src');
+    const events = [];
+    for (const type of ['loadedmetadata', 'loadeddata', 'canplay']) video.addEventListener(type, () => events.push(type));
+    video.src = 'other.mp4';
+    const second = Math.loads.at(-1);
+    const loading = [second !== first, video.video.getAttribute('src') !== null];
+    second.load();
+    second.frame();
+    await wait(100);
+    const ready = [video.readyState, video.videoWidth];
+    await wait(3100);
+    // no canvas read it: it lets go of the file, knowing what it is
+    const after = [video.video.getAttribute('src'), video.readyState, video.videoWidth];
+    Math.finish({ released, loading, events, ready, after });
+  `, {}, { 'clip.mp4': 'V', 'other.mp4': 'W' });
+  assert.deepEqual(report, {
+    released: null,
+    loading: [true, true],
+    events: ['loadedmetadata', 'loadeddata', 'canplay'],
+    ready: [4, 64],
+    after: [null, 4, 64],
+  });
+});
+
+test('a Video that let go of its file draws the last frame drawn until it has one again, as in the app', async () => {
+  const { report } = await runContent(`${HELPERS}
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const win = new DesktopEngine.Window({ style: { width: 100, height: 100 } });
+    const video = new DesktopEngine.Video({ src: 'clip.mp4', muted: true });
+    win.appendChild(video);
+    win.show();
+    const load = Math.loads.at(-1);
+    load.load();
+    load.frame();
+    const context = new DesktopEngine.Canvas({ style: { width: 4, height: 4 } }).getContext('2d');
+    context.drawImage(video, 0, 0);
+    const drawn = Math.draws.slice();
+    // out of its window, not drawn for 3 seconds: it lets go of its file, keeping the frame it showed
+    win.removeChild(video);
+    await wait(3100);
+    const released = video.video.getAttribute('src');
+    // drawn while it loads again: that frame; then the video's again
+    context.drawImage(video, 0, 0);
+    const reloading = Math.draws.at(-1);
+    Math.loads.at(-1).load();
+    Math.loads.at(-1).frame();
+    context.drawImage(video, 0, 0);
+    Math.finish({ drawn, released, reloading, again: Math.draws.at(-1) });
+  `, {}, { 'clip.mp4': 'V' });
+  assert.deepEqual(report, { drawn: ['video'], released: null, reloading: 'canvas', again: 'video' });
 });
 
 test('an Audio element plays a package file and reads back its src as it was set', async () => {

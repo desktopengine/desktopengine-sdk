@@ -10,6 +10,8 @@
 import { WEBGL_EXTENSIONS, WEBGL_EXTENSION_ALIASES } from './canvas-api.ts';
 import { isStandIn, standIn } from './stand-ins.ts';
 
+const { apply } = Reflect;
+
 /**
  * The contexts' methods that make objects: what they make (a texture, a buffer, a uniform's location, a WebGL 2 query)
  * is a native object in the engine, which structuredClone and BroadcastChannel refuse
@@ -44,12 +46,28 @@ function noteExtension(extension: unknown): void {
   }
 }
 
+/** What `unwrap` gives for a video whose size isn't known yet: an upload of it is INVALID_VALUE, as in WebKit */
+export const NO_VIDEO = Object.freeze({ video: 'none' });
+/** What `unwrap` gives for a video with no frame right now (its first, or it's reloading): an upload does nothing */
+export const NO_FRAME = Object.freeze({ video: 'no frame' });
+
 export function adaptWebGL(context: WebGLRenderingContext | WebGL2RenderingContext, version: 1 | 2, canvas: object, unwrap: (value: unknown) => unknown): void {
   Object.defineProperty(context, 'canvas', { get: () => canvas });
+  const texImage2D = context.texImage2D;
   for (const name of ['texImage2D', 'texSubImage2D', 'texImage3D', 'texSubImage3D']) {
     const original = (context as unknown as Record<string, ((...args: unknown[]) => void) | undefined>)[name];
     if (!original) continue;
-    (context as unknown as Record<string, unknown>)[name] = (...args: unknown[]) => original.apply(context, args.map(unwrap));
+    (context as unknown as Record<string, unknown>)[name] = (...args: unknown[]) => {
+      const unwrapped = args.map(unwrap);
+      const source = unwrapped[unwrapped.length - 1];
+      if (source === NO_FRAME) return;
+      if (source === NO_VIDEO) {
+        // a negative level is INVALID_VALUE whatever is bound
+        apply(texImage2D, context, [context.TEXTURE_2D, -1, context.RGBA, 1, 1, 0, context.RGBA, context.UNSIGNED_BYTE, null]);
+        return;
+      }
+      original.apply(context, unwrapped);
+    };
   }
   for (const name of MAKERS) {
     const original = (context as unknown as Record<string, unknown>)[name];

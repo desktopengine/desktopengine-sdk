@@ -21,7 +21,7 @@ The app decides when to stop drawing, mute or pause content by its type, after W
 
 The app does all this: the content doesn't check for any of it. Users set the frame rate limit in Settings › General › Performance.
 
-A `Video` plays only while it's in a window: removed from it (itself or with a parent) or with its window destroyed, it pauses (firing `pause`) and lets go of its file, so nothing is read or decoded. Added to a window again, it continues where it was, playing if it was; `play()` and `seek()` in between take effect then, and a video played before it's added starts when it is. Moving it within a window doesn't interrupt it.
+A `Video` plays while it's in a window, or while canvases read its frames (see [Video](./video#playing-out-of-a-window)). Removed from its window (itself or with a parent) or with its window destroyed, a video that canvases don't read pauses (firing `pause`) and lets go of its file, so nothing is read or decoded; so does a video out of a window that canvases haven't read for 3 seconds. Added to a window again, or read again, it continues where it was, playing if it was; `play()` and `seek()` in between take effect then. Moving it within a window doesn't interrupt it.
 
 ## Frame rate
 
