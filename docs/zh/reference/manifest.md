@@ -35,6 +35,7 @@
 | `permissions` | | 需要的权限，见[权限](#权限-permissions) |
 | `network.domains` | 有 `network` 时必填 | 要连接的域名，见[网络](/zh/guide/network#域名) |
 | `parameters` | | 用户可调的选项，见[选项](#选项-parameters) |
+| `converter` | | 由工具从别的东西做成的包：是哪个工具、从什么做成的，见[由工具生成](#由工具生成) |
 
 `desktopengine validate` 按应用的规则检查清单，应用会拒绝导入不合规则的包。
 
@@ -170,6 +171,16 @@ if (permissions.includes('network')) {
 ```
 
 由运行时强制执行的权限：`network`（没有它不能联网，有它也只能连列出的域名，见[网络](/zh/guide/network#域名)）、`audio`（没有它不能发出声音，见[音频](/zh/guide/audio)）、`system-info`（没有它 `DesktopEngine.systemStatus` 为 `null`）、`mouse`（没有它收不到 `DesktopEngine.input` 的鼠标事件）、`window-positions`（没有它 `DesktopEngine.windows` 为 `null`）和 `system-audio`（没有它 `DesktopEngine.systemAudio` 为 `null`）。同时声明 `system-audio` 和 `network` 是错误：`desktopengine validate` 会报出来，应用和商店也不接受这样的包。`desktopengine dev` 和「开发」菜单载入的内容由开发者自己运行，不询问，按和已安装内容相同的规则得到声明的全部权限（例如 `network` 同样只能连列出的域名）；没有声明的同样用不了。
+
+## 由工具生成
+
+从别的东西生成包的工具（比如从另一种格式转换的转换器）可以在 `converter` 里写明：之后工具或用户就能知道一个包是哪个工具的哪个版本、从什么做成的，例如用新版本重新生成。
+
+```json
+"converter": { "name": "example-convert", "version": "0.3.0", "source": { "type": "scene", "hash": "9f2c41…" } }
+```
+
+`name` 和 `version` 是不为空、也不只有空格的字符串，`source` 是一个对象，内容由工具自己定；`desktopengine validate` 会检查这些。应用不按它做任何事：`converter` 读不懂的包照样导入，当作没有它。从同一个来源重新生成包时，工具应该保持 `id` 不变，用户选的选项、内容的数据和它的位置才会留下，并给它更高的 `version`。
 
 ## API 版本
 

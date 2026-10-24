@@ -109,6 +109,16 @@
       "description": "Options users can change. The app draws them as a form in the details pane and passes their values in DesktopEngine.launchOptions.parameters",
       "type": "array",
       "items": { "$ref": "#/definitions/parameter" }
+    },
+    "converter": {
+      "description": "For a package a tool made from something else, e.g. converted from another format: the tool and what it was made from. Apps don't act on it",
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "description": "The tool's name", "type": "string", "pattern": "\\S" },
+        "version": { "description": "The tool's version that made the package", "type": "string", "pattern": "\\S" },
+        "source": { "description": "What it was made from, in the tool's own terms", "type": "object" }
+      }
     }
   },
   "definitions": {

@@ -213,6 +213,16 @@ test('unknown fields are warnings, unknown permissions errors', () => {
   }
 });
 
+test('converter says which tool made the package', () => {
+  const converter = { name: 'convert-tool', version: '0.1.0', source: { type: 'scene', id: '123', hash: 'ab12' } };
+  assert.deepEqual(validateManifest({ ...minimal, converter }), { errors: [], warnings: [] });
+  assert.deepEqual(validateManifest({ ...minimal, converter: { name: 'convert-tool', version: '1' } }), { errors: [], warnings: [] });
+  for (const bad of ['convert-tool', { name: 'convert-tool' }, { name: '', version: '1' }, { name: '  ', version: '1' }, { name: 'convert-tool', version: 1 }, { name: 'convert-tool', version: '1', source: 'x' }]) {
+    const { errors } = validateManifest({ ...minimal, converter: bad });
+    assert.ok(errors.some((message) => message.includes('"converter')), JSON.stringify(bad));
+  }
+});
+
 test('the mouse permission asks for the API that has DesktopEngine.input', () => {
   const { errors, warnings } = validateManifest({ ...minimal, permissions: ['mouse'] });
   assert.deepEqual(errors, []);

@@ -35,6 +35,7 @@
 | `permissions` | | The permissions it needs, see [Permissions](#permissions) |
 | `network.domains` | With `network` | The domains it connects to, see [Network](/guide/network#domains) |
 | `parameters` | | Options users can change, see [Options](#options-parameters) |
+| `converter` | | For a package a tool made from something else: the tool and what it was made from, see [Made by a tool](#made-by-a-tool) |
 
 `desktopengine validate` checks the manifest by the app's rules; the app refuses packages that break them.
 
@@ -170,6 +171,16 @@ With `network`, list the domains the content connects to; it can reach those and
 ```
 
 The runtime enforces `network` (no network without it, and only the listed domains with it, see [Network](/guide/network#domains)), `audio` (no sound without it, see [Audio](/guide/audio)), `system-info` (`DesktopEngine.systemStatus` is `null` without it), `mouse` (`DesktopEngine.input`'s mouse events never come without it), `window-positions` (`DesktopEngine.windows` is `null` without it) and `system-audio` (`DesktopEngine.systemAudio` is `null` without it). Declaring both `system-audio` and `network` is an error: `desktopengine validate` reports it, and the app and the store refuse the package. Content run by `desktopengine dev` or the Develop menu is yours, so it isn't asked and gets every permission it declares, under the same rules as installed content (`network`, for example, still reaches only the listed domains). The ones it doesn't declare are off there too.
+
+## Made by a tool
+
+A tool that makes packages from something else, such as a converter from another format, can say so in `converter`: then the tool, or the user, can tell later which tool and version made a package and from what, for example to make it again with a newer version.
+
+```json
+"converter": { "name": "example-convert", "version": "0.3.0", "source": { "type": "scene", "hash": "9f2c41…" } }
+```
+
+`name` and `version` are strings that aren't empty or only spaces, `source` is an object in the tool's own terms; `desktopengine validate` checks them. Apps don't act on it: a package whose `converter` they can't read is imported as if it had none. A tool that makes a package again from the same source should keep its `id`, so the options the user chose, its data and where it is stay with it, and give it a higher `version`.
 
 ## API versions
 

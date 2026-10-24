@@ -118,6 +118,18 @@ export interface Manifest {
   /** With the `network` permission: the only hosts it may reach, `api.example.com` or `*.example.com` */
   network?: { domains: string[] };
   parameters?: Parameter[];
+  /** Made by a tool from something else, e.g. converted: which tool and what from. Apps don't act on it */
+  converter?: ManifestConverter;
+}
+
+/** `converter` of `manifest.json`: the tool that made the package */
+export interface ManifestConverter {
+  /** The tool's name */
+  name: string;
+  /** The tool's version that made it */
+  version: string;
+  /** What it was made from, in the tool's own terms */
+  source?: Record<string, unknown>;
 }
 
 /** A widget size of its own, in `widget.sizes` (API 8) */
@@ -471,7 +483,23 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
     }
   }
 
-  const known = new Set(['id', 'name', 'type', 'version', 'author', 'description', 'icon', 'preview', 'previewDark', 'widget', 'wallpaper', 'permissions', 'network', 'parameters', 'apiVersion', '$schema']);
+  const { converter } = manifest;
+  if (converter !== undefined) {
+    if (!isPlainObject(converter)) {
+      errors.push('"converter" must be an object with "name" and "version"');
+    } else {
+      for (const key of ['name', 'version']) {
+        if (typeof converter[key] !== 'string' || (converter[key] as string).trim() === '') {
+          errors.push(`"converter.${key}" must be a non-empty string`);
+        }
+      }
+      if (converter.source !== undefined && !isPlainObject(converter.source)) {
+        errors.push('"converter.source" must be an object');
+      }
+    }
+  }
+
+  const known = new Set(['id', 'name', 'type', 'version', 'author', 'description', 'icon', 'preview', 'previewDark', 'widget', 'wallpaper', 'permissions', 'network', 'parameters', 'converter', 'apiVersion', '$schema']);
   Object.keys(manifest)
     .filter((key) => !known.has(key))
     .forEach((key) => warnings.push(`The app ignores the unknown field "${key}"`));
