@@ -13,7 +13,7 @@
 import type { CornerShape, WidgetSizing } from './widget-sizes.ts';
 
 /** `DesktopEngine.apiVersion` on the web, the same as the SDK's `API_VERSION` (a test checks) */
-export const API_VERSION = 8;
+export const API_VERSION = 9;
 
 export interface Rect {
   x: number;

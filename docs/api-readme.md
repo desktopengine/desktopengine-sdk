@@ -18,6 +18,7 @@ This reference is generated from the SDK's type declarations, `types/desktop-eng
 | [`system`](/api/interfaces/DesktopEngine.System) | The system's appearance, CPU and memory usage |
 | [`ScreenManager`](/api/interfaces/DesktopEngine.ScreenManager) | The displays |
 | [`fs`](/api/interfaces/DesktopEngine.FileSystem) | Package files and the content's own files, see [Storage and Files](/guide/storage) |
+| [`fonts`](/api/interfaces/FontFaceSet) | The content's own fonts for its canvases, see [Fonts](/guide/fonts) |
 | [`input`](/api/interfaces/DesktopEngine.Input) | The mouse anywhere on screen, see [Following the Mouse](/guide/input) |
 | [`systemAudio`](/api/interfaces/DesktopEngine.SystemAudio) | What other apps play on the Mac, analysed for music visualizers, see [What the Mac plays](/guide/audio#what-the-mac-plays) |
 | [`windows`](/api/interfaces/DesktopEngine.Windows) | Where other apps' windows are, see [Other Apps' Windows](/guide/app-windows) |
@@ -34,6 +35,7 @@ The runtime also has these globals, which behave as in browsers; the differences
 - Data: [`Blob`](/api/interfaces/Blob), [`File`](/api/interfaces/File), [`FormData`](/api/interfaces/FormData), [`URL`](/api/interfaces/URL), [`URLSearchParams`](/api/interfaces/URLSearchParams), [`TextEncoder`](/api/interfaces/TextEncoder), [`TextDecoder`](/api/interfaces/TextDecoder), [`ReadableStream`](/api/interfaces/ReadableStream), see [Data](/guide/data)
 - Messages: [`structuredClone`](/api/functions/structuredClone), [`MessageChannel`](/api/interfaces/MessageChannel), [`BroadcastChannel`](/api/interfaces/BroadcastChannel), see [Data](/guide/data) and [Messages Between Content](/guide/messaging)
 - Storage: [`localStorage`, `sessionStorage`](/api/interfaces/Storage), see [Storage and Files](/guide/storage)
+- Fonts: [`FontFace`](/api/interfaces/FontFace), [`FontFaceSet`](/api/interfaces/FontFaceSet), see [Fonts](/guide/fonts)
 - Audio: [`Audio`](/api/interfaces/HTMLAudioElement), [`AudioContext`](/api/interfaces/AudioContext) and the audio nodes, see [Audio](/guide/audio)
 
 See [all declarations](/api/globals) for the full list.

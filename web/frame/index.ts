@@ -12,7 +12,8 @@ import { contentFunction } from './realm.ts';
 import { readAppWindows, sameAppWindows, visibleTopEdges, type AppWindowInfo, type FrameMessage, type HostMessage, type LaunchMessage, type ParameterValue, type SuspendReason, type SystemStatusReading, type TopEdge, type WebScreen } from '../protocol.ts';
 import { CanvasImageImpl, CanvasImpl, ComponentImpl, componentOf, ImageImpl, VideoImpl, WindowImpl, allVideos, allWindows, reportWindows, unwrap, windowById, windowCorner } from './components.ts';
 import { Evented, defineEvents } from './events.ts';
-import { createFileSystem, loadPackage, requireFrom } from './files.ts';
+import { createFileSystem, fileBytes, loadPackage, requireFrom } from './files.ts';
+import { createFrameFonts } from './fonts.ts';
 import { audioURL, installNetwork } from './network.ts';
 import { createImageBitmapFunction } from './bitmap.ts';
 import { createChannels } from './channels.ts';
@@ -1080,6 +1081,7 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
   }
   // never set here: there are no dropped files (and no drops)
   Object.defineProperty(desktopEngine, 'files', { get: () => null, enumerable: true, configurable: true });
+  Object.defineProperty(desktopEngine, 'fonts', { value: frameFonts().fonts, enumerable: true });
   // in the order the app's has its properties (Object.keys, for-in, JSON.stringify and structuredClone go by it)
   const ordered: Record<string, unknown> = {};
   for (const key of [...DESKTOP_ENGINE_ORDER, ...Object.keys(desktopEngine)]) {
@@ -1092,7 +1094,7 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
 /** The order of the properties of the app's DesktopEngine */
 const DESKTOP_ENGINE_ORDER = [
   'setTimeout', 'clearTimeout', 'base64Encode', 'clearInterval', 'base64Decode', 'applyNew', 'setInterval', 'preferredFramesPerSecond',
-  'Canvas', 'WebGLRenderingContext', 'WebGL2RenderingContext', 'CanvasImage', 'Component', 'fs', 'files', 'Image', 'input',
+  'Canvas', 'WebGLRenderingContext', 'WebGL2RenderingContext', 'CanvasImage', 'Component', 'fs', 'files', 'fonts', 'Image', 'input',
   'ScreenManager', 'syncStorage', 'system', 'systemAudio', 'systemStatus', 'Video', 'Window', 'windows', 'apiVersion', 'launchOptions',
 ];
 
@@ -1111,6 +1113,10 @@ function bound<T extends (...args: never[]) => unknown>(name: string, action: T)
   Object.defineProperty(action, 'length', { value: 0, configurable: true });
   return action;
 }
+/** FontFace, FontFaceSet and DesktopEngine.fonts, made once at launch */
+let madeFonts: ReturnType<typeof createFrameFonts> | null = null;
+const frameFonts = (): ReturnType<typeof createFrameFonts> => (madeFonts ??= createFrameFonts(fileBytes, setTimeout));
+
 const timerFunctions = {
   setTimeout: bound('setTimeout', setTimeout),
   setInterval: bound('setInterval', setInterval),
@@ -1152,6 +1158,12 @@ function launch(message: LaunchMessage): void {
     Object.defineProperty(scope, name, { value, writable: true, configurable: true, enumerable: false });
   }
   installMessageEvent(scope);
+  // the engine's FontFace, FontFaceSet and FontFaceSetLoadEvent rather than the browser's (whose sources and set are the
+  // frame document's); not enumerable, as the engine's
+  const { FontFace, FontFaceSet, FontFaceSetLoadEvent } = frameFonts();
+  for (const [name, value] of Object.entries({ FontFace, FontFaceSet, FontFaceSetLoadEvent })) {
+    Object.defineProperty(scope, name, { value, writable: true, configurable: true, enumerable: false });
+  }
   // the engine's Path2D, around the browser's (which the 2D contexts draw)
   Object.defineProperty(scope, 'Path2D', { value: createPath2D(scope.Path2D), writable: true, configurable: true, enumerable: true });
   installConsole();
@@ -1169,7 +1181,7 @@ function launch(message: LaunchMessage): void {
     Object.defineProperty(runtimeScope, name, { get: () => value });
   }
   // the app's singletons, made by DesktopEngine's globals: there's no second one
-  for (const name of ['AnimationFrameManager', 'FileSystem', 'LocalStorage', 'SyncStorage', 'Network', 'Audio']) {
+  for (const name of ['AnimationFrameManager', 'FileSystem', 'LocalStorage', 'SyncStorage', 'Network', 'Audio', 'Fonts']) {
     Object.defineProperty(runtimeScope, name, { value: undefined, writable: true, configurable: true });
   }
   const coreScope = Object.defineProperties({}, {

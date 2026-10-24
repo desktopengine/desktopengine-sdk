@@ -11,6 +11,7 @@
 //   manifest.json. Streams, Blob, FormData, URL and TextEncoder / TextDecoder are available too.
 // - Audio and Web Audio (`new Audio(src)`, AudioContext) are available; sound needs the "audio" permission in manifest.json.
 // - localStorage / sessionStorage and a Node-style file system (`DesktopEngine.fs`) keep data between launches.
+// - FontFace and `DesktopEngine.fonts` give 2D canvases the content's own fonts.
 // - Not implemented: DOM, import/ESM, IndexedDB, etc. (see https://desktopengine.app/desktopengine-sdk/guide/runtime).
 //
 // Usage: set `"types": []` in tsconfig and include this file, or use `/// <reference path="..." />` in JS.
@@ -4562,6 +4563,8 @@ declare namespace DesktopEngine {
     readonly files: UserFiles | null;
     /** The file system: package files, and the content's own files that are kept between launches */
     readonly fs: FileSystem;
+    /** The content's own fonts for its canvases: add FontFace objects to it (API 9). See {@link FontFace} */
+    readonly fonts: FontFaceSet;
     /**
      * Keys and values that follow the user to their other Macs signed in to the same DesktopEngine account, e.g. a
      * to-do list or a counter, unlike `localStorage` (API 7). See {@link SyncStorage}
@@ -4646,6 +4649,8 @@ declare namespace DesktopEngine {
     readonly Network: SingletonConstructor<unknown> | undefined;
     /** Native side of Web Audio and `Audio` (a singleton, internal: use the globals) */
     readonly Audio: SingletonConstructor<unknown> | undefined;
+    /** Native side of FontFace and `DesktopEngine.fonts` (a singleton, internal: use them) */
+    readonly Fonts: SingletonConstructor<unknown> | undefined;
   }
 
   // ---------------------------------------------------------------------------
@@ -5068,6 +5073,158 @@ declare var BroadcastChannel: {
    */
   new (name: string, options?: BroadcastChannelOptions): BroadcastChannel;
 };
+
+// -----------------------------------------------------------------------------
+// Fonts: FontFace and DesktopEngine.fonts (API 9)
+// -----------------------------------------------------------------------------
+
+/** The descriptors of a FontFace, as CSS writes them in `@font-face` */
+interface FontFaceDescriptors {
+  /** `"normal"` (the default), `"italic"` or `"oblique"`, with up to two angles (`"oblique 10deg"`) */
+  style?: string;
+  /**
+   * `"normal"` (400, the default), `"bold"` (700), a weight from 1 to 1000, or a range of two for a variable font
+   * (`"100 900"`): a variable font's weight axis follows the weight asked for, within the range
+   */
+  weight?: string;
+  /** Kept, not applied: faces aren't picked by width */
+  stretch?: string;
+  /** Kept, not applied: a face is used for every character it has */
+  unicodeRange?: string;
+  /** Kept, not applied */
+  featureSettings?: string;
+  /** Kept, not applied */
+  variationSettings?: string;
+  /** Kept, not applied: text is drawn once the face is loaded */
+  display?: string;
+  /** Kept, not applied */
+  ascentOverride?: string;
+  /** Kept, not applied */
+  descentOverride?: string;
+  /** Kept, not applied */
+  lineGapOverride?: string;
+}
+
+type FontFaceLoadStatus = 'unloaded' | 'loading' | 'loaded' | 'error';
+type FontFaceSetLoadStatus = 'loading' | 'loaded';
+
+/**
+ * A font of the content's own, as on the web (API 9). Once it's loaded and in `DesktopEngine.fonts`, a 2D canvas
+ * draws with it wherever its `font` names the family, before an installed font of that name. A content's fonts are
+ * its own: other content and other apps don't see them.
+ *
+ * ```js
+ * const face = new FontFace('Pixel', 'url(fonts/pixel.woff2)');
+ * DesktopEngine.fonts.add(face);
+ * await face.load();
+ * context.font = '24px Pixel, monospace';
+ * ```
+ *
+ * The source is a CSS `src` list: `url()` of a file of the package (a path as `require` takes it) or of a `defile://`
+ * file, a `blob:` URL (URL.createObjectURL) or a `data:` URL; `local()` of an installed font by its full or PostScript
+ * name. The first that loads is used; one whose `format()` names none of truetype, opentype, woff, woff2 and collection is skipped. Or the font's bytes, an
+ * ArrayBuffer, a typed array or a DataView, copied when it's made. Fonts aren't loaded from http(s) URLs: fetch() the
+ * file (with the "network" permission) and give the bytes. TrueType, OpenType, WOFF and WOFF2 files and collections
+ * (.ttc, their first font) of at most 64 MB.
+ *
+ * Unlike in browsers, a face draws only once it's loaded: using its family in `font` doesn't start loading it. A canvas
+ * whose `font` names the family draws with it as soon as it loads, without setting `font` again. A face from bytes
+ * loads after the current task too (its status is "loading" until then). Characters the font lacks are drawn with a
+ * system font. An upright face is slanted for italic text; a lighter face isn't made bold.
+ */
+interface FontFace {
+  /** The family name canvases use, without the quotes of a CSS string. Setting it throws a "SyntaxError" DOMException for an empty one */
+  family: string;
+  /** Setting a value that isn't valid throws a "SyntaxError" DOMException, here and for the other descriptors */
+  style: string;
+  weight: string;
+  stretch: string;
+  unicodeRange: string;
+  featureSettings: string;
+  variationSettings: string;
+  display: string;
+  ascentOverride: string;
+  descentOverride: string;
+  lineGapOverride: string;
+  /** "unloaded" until load(), "loading", then "loaded" or "error" */
+  readonly status: FontFaceLoadStatus;
+  /**
+   * Resolves with the face once it's loaded. Rejects with a "SyntaxError" DOMException when the family, a descriptor
+   * or the source isn't valid, or the bytes aren't a font; with a "NetworkError" one when no source loads (a file that
+   * isn't there, isn't a font, or an http(s) URL). A face that fails isn't reported as an unhandled rejection
+   */
+  readonly loaded: Promise<FontFace>;
+  /** Starts loading a face made from a `src` list, once; returns `loaded` */
+  load(): Promise<FontFace>;
+}
+declare var FontFace: {
+  prototype: FontFace;
+  /** Throws a TypeError with fewer than two arguments; a family, descriptors or source that aren't valid make a face of status "error" */
+  new (family: string, source: string | ArrayBuffer | ArrayBufferView, descriptors?: FontFaceDescriptors): FontFace;
+};
+
+interface FontFaceSetLoadEventInit extends EventInit {
+  fontfaces?: FontFace[];
+}
+
+/** An event of DesktopEngine.fonts */
+interface FontFaceSetLoadEvent extends Event {
+  /** The faces that loaded ("loadingdone") or failed ("loadingerror"); none for "loading" */
+  readonly fontfaces: ReadonlyArray<FontFace>;
+}
+declare var FontFaceSetLoadEvent: {
+  prototype: FontFaceSetLoadEvent;
+  new (type: string, eventInitDict?: FontFaceSetLoadEventInit): FontFaceSetLoadEvent;
+};
+
+interface FontFaceSetEventMap {
+  /** Faces of the set began loading, when none was */
+  loading: FontFaceSetLoadEvent;
+  /** None is loading any more: the faces that loaded since "loading" */
+  loadingdone: FontFaceSetLoadEvent;
+  /** After "loadingdone", when some faces failed */
+  loadingerror: FontFaceSetLoadEvent;
+}
+
+/**
+ * The faces canvases draw with, `DesktopEngine.fonts`: a set of FontFace objects, as `document.fonts` is on the
+ * web. A family's face is picked as CSS picks it: by style first (italic falls back to oblique, then to normal), then
+ * by the weight closest in CSS's order.
+ */
+interface FontFaceSet extends DesktopEngine.EventTarget<FontFaceSetEventMap> {
+  onloading: ((this: FontFaceSet, event: FontFaceSetLoadEvent) => void) | null;
+  onloadingdone: ((this: FontFaceSet, event: FontFaceSetLoadEvent) => void) | null;
+  onloadingerror: ((this: FontFaceSet, event: FontFaceSetLoadEvent) => void) | null;
+  /** Resolves with the set when none of its faces is loading */
+  readonly ready: Promise<FontFaceSet>;
+  /** "loading" while some of its faces are */
+  readonly status: FontFaceSetLoadStatus;
+  readonly size: number;
+  /** Adds a face (a TypeError for anything else); returns the set */
+  add(font: FontFace): FontFaceSet;
+  /** Removes a face: canvases no longer draw with it. Whether it was there */
+  delete(font: FontFace): boolean;
+  clear(): void;
+  has(font: FontFace): boolean;
+  forEach(callback: (font: FontFace, key: FontFace, set: FontFaceSet) => void, thisArg?: any): void;
+  /**
+   * Loads the set's faces a CSS font (`"bold 16px Pixel"`) picks, one for each of its families that has some; resolves
+   * with them, rejects with the first face's error, or with a "SyntaxError" DOMException for what isn't a font with
+   * families. `text` is ignored
+   */
+  load(font: string, text?: string): Promise<FontFace[]>;
+  /**
+   * Whether the set's faces a CSS font picks are loaded; true when it picks none (installed fonts are always there).
+   * Throws a "SyntaxError" DOMException for what isn't a font with families. `text` is ignored
+   */
+  check(font: string, text?: string): boolean;
+  entries(): IterableIterator<[FontFace, FontFace]>;
+  keys(): IterableIterator<FontFace>;
+  values(): IterableIterator<FontFace>;
+  [Symbol.iterator](): IterableIterator<FontFace>;
+}
+/** For instanceof: the one set is DesktopEngine.fonts */
+declare var FontFaceSet: DesktopEngine.IllegalConstructor<FontFaceSet>;
 
 // -----------------------------------------------------------------------------
 // Events and errors: DOMException, Event, CustomEvent and EventTarget, shared by fetch, WebSocket and audio

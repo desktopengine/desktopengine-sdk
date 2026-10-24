@@ -173,7 +173,7 @@ if (permissions.includes('network')) {
 
 ## API 版本
 
-运行时有一个整数的 API 版本，新增 API 时递增，JavaScript 里是 `DesktopEngine.apiVersion`，当前的 SDK 对应的版本是 8（`desktopengine --help` 的第一行也会显示）。用到之后新增的 API 时，在清单的 `"apiVersion"` 写上它的版本，API 版本更低的应用会拒绝导入并提示用户更新；也可以不写，在运行时判断 `DesktopEngine.apiVersion` 后降级。
+运行时有一个整数的 API 版本，新增 API 时递增，JavaScript 里是 `DesktopEngine.apiVersion`，当前的 SDK 对应的版本是 9（`desktopengine --help` 的第一行也会显示）。用到之后新增的 API 时，在清单的 `"apiVersion"` 写上它的版本，API 版本更低的应用会拒绝导入并提示用户更新；也可以不写，在运行时判断 `DesktopEngine.apiVersion` 后降级。
 
 | 版本 | 新增 |
 | --- | --- |
@@ -185,5 +185,6 @@ if (permissions.includes('network')) {
 | 6 | `BroadcastChannel`，范围有 `package` 和 `namespace`，见[内容之间的消息](/zh/guide/messaging)；`DesktopEngine.systemAudio` 和 `system-audio` 权限，见[Mac 正在播放的声音](/zh/guide/audio#mac-正在播放的声音)；`DesktopEngine.windows`（`list()`、`visibleTopEdges()` 和 `change`）和 `window-positions` 权限，见[其他应用的窗口](/zh/guide/app-windows)；`Image` 还没加进组件时就加载 `src`，可以先等它的 `load` 再加进去 |
 | 7 | `DesktopEngine.syncStorage`，跟着用户到其他 Mac 上的键和值，见[同步的存储](/zh/guide/storage#同步的存储-desktopengine-syncstorage) |
 | 8 | 选项的 `showWhen`，只在另一个选项取某些值时显示，见[选项](#选项-parameters)；`DesktopEngine.systemStatus`：处理器、内存、网络、电源和电池、温度和磁盘，变化时有事件，内容暂停后有 `resume`，见[系统状态](/zh/guide/system-status)（`system-info` 权限）；小组件自己的尺寸和 `widget.resize`，用户或内容调整小组件的大小，小组件的窗口不再限制在半块显示器内，见[小组件尺寸](#小组件尺寸)；去掉了 `DesktopEngine.system.cpuUsage()` 和 `memoryUsage()`：处理器（`cpu.usage`）和内存（`memory.used`、`memory.total`）由 `DesktopEngine.systemStatus` 读取；指针停在小组件和桌面伙伴的窗口上时窗口收到 `wheel`，见[鼠标](/zh/guide/windows#鼠标) |
+| 9 | `FontFace` 和 `DesktopEngine.fonts`：2D 画布用的内容自己的字体，来自包里的文件、`defile://`、`blob:` 和 `data:` 地址、已安装的字体或字节，见[字体](/zh/guide/fonts) |
 
 版本 4 还按浏览器的样子改了一些 API：双击事件是 `dblclick`（原来是 `dbclick`），`click` 和 `dblclick` 的参数和鼠标事件一样是 `{ x, y, … }`（原来是 `{ position: { x, y } }`）。去掉了 WebGL 上下文的 `wxBindCanvasTexture` 和 `blBindCanvasTexture`、全局的 `mixin` 和 `promisify`，以及没有对应 API 的 `files`、`now-playing`、`window-positions` 权限（版本 6 随 `DesktopEngine.windows` 重新加入了 `window-positions`）。用到它们的内容改好后要写上 `"apiVersion": 4`。

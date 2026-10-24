@@ -33,7 +33,7 @@ const ENGINE = [
   'crypto', 'navigator', 'require', 'module', 'exports', 'postMessage', 'WebGLRenderingContext', 'WebGL2RenderingContext',
   'structuredClone', 'DOMException', 'Event', 'CustomEvent', 'EventTarget', 'MessageEvent', 'MessageChannel', 'MessagePort',
   'BroadcastChannel',
-  'FileReader', 'Path2D', 'ImageData', 'ImageBitmap', 'createImageBitmap', 'CloseEvent', 'ProgressEvent', 'AbortController', 'AbortSignal',
+  'FileReader', 'FontFace', 'FontFaceSet', 'FontFaceSetLoadEvent', 'Path2D', 'ImageData', 'ImageBitmap', 'createImageBitmap', 'CloseEvent', 'ProgressEvent', 'AbortController', 'AbortSignal',
   'fetch', 'Headers', 'Request', 'Response', 'WebSocket', 'XMLHttpRequest', 'XMLHttpRequestEventTarget',
   'XMLHttpRequestUpload', 'Blob', 'File', 'FormData', 'URL', 'URLSearchParams', 'TextEncoder', 'TextDecoder',
   'TextEncoderStream', 'TextDecoderStream', 'ByteLengthQueuingStrategy', 'CountQueuingStrategy', 'ReadableStream',
