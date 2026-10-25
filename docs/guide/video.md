@@ -52,6 +52,12 @@ They follow WebGL's rules for a video:
 
 `drawImage(video, …)` in all its forms draws the frame showing now, smoothed as images are. The frame is copied on the GPU once when it changes, so drawing it again (several canvases, several parts) is cheap.
 
+## Looping
+
+With `loop`, a video goes on from the start at its end without a pause in the picture or the sound, as a looping video element does, and so it doesn't fire `ended`: `currentTime` goes back to the start and `timeupdate` follows it. To know when a time through ends, compare the positions `timeupdate` gives. Turning `loop` off while it plays lets it end at the end of that time through, with `pause` and then `ended`.
+
+For a loop without a seam, make the sound as long as the picture: a sound track longer than the picture holds the last frame until the sound ends.
+
 ## Playing out of a window
 
 On the web, a video element plays whether or not it's in the page. A `Video` does too, with limits that keep content from decoding videos nobody sees:

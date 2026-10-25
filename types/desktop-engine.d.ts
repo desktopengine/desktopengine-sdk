@@ -668,7 +668,10 @@ declare namespace DesktopEngine {
     play: void;
     /** Paused */
     pause: void;
-    /** Playback ended */
+    /**
+     * Playback ended: it stopped at the end. Not while `loop` is set: a looping video goes on from the start without it,
+     * as on the web
+     */
     ended: void;
     /** Playback progress */
     timeupdate: VideoTimeUpdatePayload;
@@ -1095,7 +1098,7 @@ declare namespace DesktopEngine {
     objectFit?: VideoObjectFit;
     /** Whether to play automatically; defaults to false */
     autoplay?: boolean;
-    /** Whether to loop; defaults to false */
+    /** Whether to loop (see `Video.loop`); defaults to false */
     loop?: boolean;
     /** Whether to mute; defaults to false */
     muted?: boolean;
@@ -1137,7 +1140,11 @@ declare namespace DesktopEngine {
     playbackRate: number;
     /** Whether to play automatically; accepts booleans only */
     autoplay: boolean;
-    /** Whether to loop; accepts booleans only */
+    /**
+     * Whether to loop; accepts booleans only. At the end it goes on from the start without a pause in the picture or
+     * the sound, and without `ended`, as a looping video element does; turned off while it plays, it ends at the end
+     * of that time through
+     */
     loop: boolean;
     /** Whether to mute; accepts booleans only */
     muted: boolean;
