@@ -37,8 +37,39 @@ There is no `AudioWorklet`, `ScriptProcessorNode`, `MediaElementAudioSourceNode`
 - An allowed `AudioContext` is `running` right away: there is no user gesture to wait for on the desktop. When the app pauses content (see [Pausing](./performance#pausing)) it becomes `interrupted` and its time stops, then goes back to `running`; playing `Audio` elements pause too and continue afterwards. When drawing only stops, or the content is muted, sound isn't affected.
 - The `src` of `Audio` can be a file in the package (with the same path rules as `require`) or a `defile://` address, and an http(s) address with the `network` permission; `data:` and `blob:` addresses aren't supported (the element fails with an `error` of code `MEDIA_ERR_SRC_NOT_SUPPORTED`). It plays and decodes what macOS does: MP3, AAC / M4A, WAV, AIFF, CAF, FLAC, ALAC and more, and Ogg on newer systems; check with `canPlayType()`.
 - Sound plays on the system's current output device and follows it when it changes; the default sample rate of `AudioContext` is the device's.
-- Users can set the volume of each item of content in the app, or mute all content. It multiplies the volume the content sets, and the `volume` JavaScript reads doesn't change.
+- The app's volume and mute are above everything the content plays, see [Volume and mute](#volume-and-mute). The `volume` JavaScript reads doesn't change.
 - When content is removed or stopped, all its sound stops at once.
+
+## Volume and mute
+
+Each item of content that plays sound has a mute switch and a volume in the app, and users can mute all content. They're above what the content does, from the most to the least:
+
+1. The app: Mute All Content, Pause All Content, the user's playback rules for wallpapers (e.g. while an app is full screen, or another app plays sound) and the displays sleeping
+2. The item's mute switch. Content starts muted: users turn on the sound of what they want to hear
+3. The item's volume, 0...1. It starts at the manifest's [`audio.volume`](/reference/manifest#audio), or 1, until the user sets one
+4. The volumes the content sets in its code (`Audio.volume`, `GainNode`s, a `Video`'s `volume`): they only balance its own sounds
+
+What's heard is the content's mix, kept to full scale, times the item's volume, and nothing while it's muted: a `GainNode` turned above 1 isn't louder than the volume the user set. This applies from the start, before `index.js` runs, so content isn't heard while it loads, and changes without restarting the content.
+
+`DesktopEngine.audioSettings` (API 9) tells the content what the user set: `muted` is `true` while the user muted all content or this item, and `volume` is the item's volume. It's read only, right from `index.js`'s first line, and fires `change` when either changes. It's `undefined` without the `audio` permission. The other reasons the app mutes content (the playback rules, the displays sleeping, pausing) aren't told: `muted` stays `false` then.
+
+```js
+const settings = DesktopEngine.audioSettings;
+let sounds = null;
+
+async function update() {
+  // load the sounds only once someone can hear them
+  if (settings && !settings.muted && !sounds) {
+    sounds = await loadSounds();
+  }
+}
+settings?.addEventListener('change', update);
+update();
+```
+
+Don't scale your sounds by `volume`: the app does. Use it to show something, e.g. a quieter animation at a low volume.
+
+In the web preview (`desktopengine dev --web` and the store), `muted` is the page's sound switch, which starts off, and `volume` is the manifest's `audio.volume`, or 1; the page doesn't change the sound by it.
 
 ## What the Mac plays
 

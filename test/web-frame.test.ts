@@ -193,7 +193,7 @@ test('DesktopEngine.syncStorage has the app\'s limits and errors (recorded in th
     const error = (action) => { try { action(); return 'none'; } catch (e) { return e.name + ': ' + e.message; } };
     const results = {
       tag: Object.prototype.toString.call(s), eventTarget: s instanceof EventTarget, same: s === DesktopEngine.syncStorage,
-      order: Object.keys(DesktopEngine).slice(18, 21), onchange: s.onchange,
+      order: Object.keys(DesktopEngine).slice(19, 22), onchange: s.onchange,
       constructor: error(() => new s.constructor()),
       invocation: error(() => Object.getPrototypeOf(s).getItem.call({}, 'a')),
       arguments: error(() => s.getItem()),

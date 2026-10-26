@@ -4328,6 +4328,39 @@ declare namespace DesktopEngine {
   }
 
   // ---------------------------------------------------------------------------
+  // Sound settings (DesktopEngine.audioSettings)
+  // ---------------------------------------------------------------------------
+
+  /** `DesktopEngine.audioSettings` event map */
+  interface AudioSettingsEventMap {
+    change: Event;
+  }
+
+  /**
+   * `DesktopEngine.audioSettings` (API 9): the sound as the user set it for this item of content in the app, read
+   * only. `undefined` without the `audio` permission.
+   *
+   * The app's volume and mute are above everything the content plays: what's heard is the content's mix, kept to full
+   * scale, times `volume`, and nothing while it's muted. The volumes the content sets in its code (`Audio.volume`,
+   * `GainNode`s, a `Video`'s `volume`) only balance its own sounds below that. Both apply from the start, before
+   * index.js runs, and change without restarting the content: the values are right from index.js's first line.
+   *
+   * The app also mutes content for reasons it isn't told, e.g. while another app plays sound, while an app is full
+   * screen or the displays sleep, by the user's playback rules: `muted` stays false then.
+   */
+  interface AudioSettings extends EventTarget<AudioSettingsEventMap> {
+    /**
+     * The user muted it: all content, or this item in its details. Content that plays sound starts muted until the
+     * user turns its sound on. While it's muted, e.g. skip loading sounds, or show that it's silent
+     */
+    readonly muted: boolean;
+    /** The volume the user set for the item, 0...1; it starts at the manifest's `audio.volume`, or 1 */
+    readonly volume: number;
+    /** `muted` or `volume` changed */
+    onchange: ((this: AudioSettings, event: Event) => void) | null;
+  }
+
+  // ---------------------------------------------------------------------------
   // Synced storage (DesktopEngine.syncStorage)
   // ---------------------------------------------------------------------------
 
@@ -4611,6 +4644,8 @@ declare namespace DesktopEngine {
     input: Input;
     /** What the Mac plays, as an analysis for music visualizers; null without the "system-audio" permission (API 6) */
     readonly systemAudio: SystemAudio | null;
+    /** The sound as the user set it for the content: muted, and its volume; undefined without the "audio" permission (API 9) */
+    readonly audioSettings: AudioSettings | undefined;
     /** How the Mac is doing: processor, memory, network, power, temperature, disk; null without the "system-info" permission (API 8) */
     readonly systemStatus: SystemStatus | null;
     /** Where other apps' windows are; null without the "window-positions" permission (API 6) */

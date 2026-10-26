@@ -21,6 +21,7 @@ This reference is generated from the SDK's type declarations, `types/desktop-eng
 | [`fonts`](/api/interfaces/FontFaceSet) | The content's own fonts for its canvases, see [Fonts](/guide/fonts) |
 | [`input`](/api/interfaces/DesktopEngine.Input) | The mouse anywhere on screen, see [Following the Mouse](/guide/input) |
 | [`systemAudio`](/api/interfaces/DesktopEngine.SystemAudio) | What other apps play on the Mac, analysed for music visualizers, see [What the Mac plays](/guide/audio#what-the-mac-plays) |
+| [`audioSettings`](/api/interfaces/DesktopEngine.AudioSettings) | The mute and volume the user set for the content, above the volumes it sets itself, see [Volume and mute](/guide/audio#volume-and-mute) |
 | [`windows`](/api/interfaces/DesktopEngine.Windows) | Where other apps' windows are, see [Other Apps' Windows](/guide/app-windows) |
 
 All the types are in the [`DesktopEngine` namespace](/api/modules/DesktopEngine).

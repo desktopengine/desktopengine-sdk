@@ -12,7 +12,7 @@
 //   const content = desktop.launch({ name: 'Clock', code, manifest, files });
 //   content.on('console', ({ level, message }) => …);
 
-import { API_VERSION, frameDocument, type AppWindowInfo, type ChannelScope, type FrameMessage, type HostMessage, type ParameterValue, type Rect, type SuspendReason, type SystemStatusOverrides, type SystemStatusReading, type WebScreen, type WindowState } from '../protocol.ts';
+import { API_VERSION, frameDocument, itemVolume, type AppWindowInfo, type ChannelScope, type FrameMessage, type HostMessage, type ParameterValue, type Rect, type SuspendReason, type SystemStatusOverrides, type SystemStatusReading, type WebScreen, type WindowState } from '../protocol.ts';
 import { ANALYSIS_RATE, analyseSpectrum, emptySnapshot } from '../system-audio.ts';
 import { SystemStatusSimulation, strongerReason, systemStatusChanges } from '../system-status.ts';
 import {
@@ -98,6 +98,8 @@ export interface ManifestInfo {
   apiVersion?: number;
   permissions?: string[];
   network?: { domains?: string[] };
+  /** The volume the user's starts at, 0...1 */
+  audio?: { volume?: unknown };
   /** Preset names and sizes of its own (`{ id, width, height, name }`); who may resize it and within what */
   widget?: { sizes?: unknown[]; resize?: unknown };
   parameters?: { key: string; default?: ParameterValue }[];
@@ -115,6 +117,11 @@ export interface ContentSpec {
   permissions?: string[];
   /** Parameter values over the manifest's defaults */
   parameters?: Record<string, ParameterValue>;
+  /**
+   * The item's volume as the user set it, 0...1, which the content reads (`DesktopEngine.audioSettings.volume`); the
+   * manifest's `audio.volume` by default, or 1. The page doesn't scale the sound by it
+   */
+  volume?: number;
   /** For a widget: the id of one of its sizes, a preset's name (small, medium, large) or one of its own; its first by default */
   size?: string;
   /** For a widget that can be resized: the size it was left in, which it starts in instead of `size`'s */
@@ -245,6 +252,11 @@ export class WebContent {
   /** The only window type it may make (launchOptions.windowType); undefined: any (no manifest) */
   get allowedWindowType(): string | undefined {
     return this.type && windowType(this.type, this.level);
+  }
+
+  /** DesktopEngine.audioSettings.volume: the spec's, the manifest's `audio.volume`, or 1, as the app picks it */
+  get volume(): number {
+    return itemVolume(this.spec.volume, this.spec.manifest?.audio?.volume);
   }
 
   /** It may play sound: its frame takes the pointer over its windows while the desktop's sound is on */
@@ -1199,6 +1211,7 @@ export class WebDesktop {
       apiVersion: API_VERSION,
       maxFramesPerSecond: this.options.maxFramesPerSecond ?? 0,
       muted: this.options.muted ?? true,
+      volume: content.volume,
       keyActivity: content.getsKeyActivity,
       namespaceChannels: content.channelGroup('namespace') !== null,
       systemAudio: content.systemAudio,

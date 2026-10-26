@@ -539,6 +539,65 @@ const screenManager = new ScreenManagerImpl();
 const input = new InputImpl();
 let windows: WindowsImpl | null = null;
 
+// MARK: DesktopEngine.audioSettings
+
+// the engine's EventTarget calls the onchange property, the browser's doesn't: a listener added first does
+const { addEventListener: settingsAddListener, dispatchEvent: settingsDispatch } = EventTarget.prototype;
+const SettingsEvent = Event;
+/** The one there is, made the first time it's read with the audio permission */
+let audioSettings: AudioSettingsImpl | undefined;
+let makingAudioSettings = false;
+
+/**
+ * DesktopEngine.audioSettings, as the app's: the sound as the user set it for the content. On the web the page's
+ * sound switch is the user's mute (it starts muted, as content that plays sound does in the app), the volume the
+ * item's (ContentSpec.volume)
+ */
+class AudioSettingsImpl extends EventTarget {
+  constructor() {
+    if (!makingAudioSettings) throw new TypeError('Illegal constructor');
+    super();
+    (this as unknown as { onchange: unknown }).onchange = null;
+    apply(settingsAddListener, this, ['change', (event: Event) => {
+      const handler = (this as unknown as { onchange: unknown }).onchange;
+      if (typeof handler === 'function') apply(handler, this, [event]);
+    }]);
+  }
+
+  get muted(): boolean {
+    if (this !== audioSettings) throw new TypeError('Illegal invocation');
+    return state.muted;
+  }
+
+  get volume(): number {
+    if (this !== audioSettings) throw new TypeError('Illegal invocation');
+    return state.launch?.volume ?? 1;
+  }
+
+  get [Symbol.toStringTag](): string {
+    return 'AudioSettings';
+  }
+}
+Object.defineProperty(AudioSettingsImpl, 'name', { value: 'AudioSettings', configurable: true });
+
+function readAudioSettings(): AudioSettingsImpl | undefined {
+  if (!hasPermission('audio')) return undefined;
+  if (!audioSettings) {
+    makingAudioSettings = true;
+    try {
+      audioSettings = new AudioSettingsImpl();
+    } finally {
+      makingAudioSettings = false;
+    }
+  }
+  return audioSettings;
+}
+
+/** The page's sound was turned on or off: `change`, once the content has the settings */
+function audioSettingsChanged(): void {
+  if (audioSettings) apply(settingsDispatch, audioSettings, [new SettingsEvent('change')]);
+}
+
 // MARK: Audio
 
 const audioContexts = new Set<{ context: AudioContext; wantsRunning: boolean }>();
@@ -1079,6 +1138,8 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
       configurable: true,
     });
   }
+  // as the app's polyfill: undefined without the audio permission
+  Object.defineProperty(desktopEngine, 'audioSettings', { get: readAudioSettings, enumerable: true, configurable: true });
   // never set here: there are no dropped files (and no drops)
   Object.defineProperty(desktopEngine, 'files', { get: () => null, enumerable: true, configurable: true });
   Object.defineProperty(desktopEngine, 'fonts', { value: frameFonts().fonts, enumerable: true });
@@ -1094,7 +1155,7 @@ function createGlobal(launch: LaunchMessage): Record<string, unknown> {
 /** The order of the properties of the app's DesktopEngine */
 const DESKTOP_ENGINE_ORDER = [
   'setTimeout', 'clearTimeout', 'base64Encode', 'clearInterval', 'base64Decode', 'applyNew', 'setInterval', 'preferredFramesPerSecond',
-  'Canvas', 'WebGLRenderingContext', 'WebGL2RenderingContext', 'CanvasImage', 'Component', 'fs', 'files', 'fonts', 'Image', 'input',
+  'audioSettings', 'Canvas', 'WebGLRenderingContext', 'WebGL2RenderingContext', 'CanvasImage', 'Component', 'fs', 'files', 'fonts', 'Image', 'input',
   'ScreenManager', 'syncStorage', 'system', 'systemAudio', 'systemStatus', 'Video', 'Window', 'windows', 'apiVersion', 'launchOptions',
 ];
 
@@ -1381,6 +1442,7 @@ scope.addEventListener('message', (event: MessageEvent) => {
       const wasSuspended = state.suspended;
       state.suspended = message.suspended;
       state.renderingPaused = message.renderingPaused;
+      const wasMuted = state.muted;
       state.muted = message.muted;
       state.hostMaxFramesPerSecond = message.maxFramesPerSecond;
       const visible = !state.suspended && !state.renderingPaused;
@@ -1391,6 +1453,7 @@ scope.addEventListener('message', (event: MessageEvent) => {
       const videos = allVideos();
       for (let index = 0; index < videos.length; index++) videos[index].suspend(state.suspended);
       applyAudio();
+      if (state.muted !== wasMuted) audioSettingsChanged();
       // the suspension's reason noted from its start, `resume` once it's over (after the rest is handled)
       if (state.launch && (state.suspended || wasSuspended)) statusSuspended(state.suspended, readSuspendReason(message.suspendReason));
       break;

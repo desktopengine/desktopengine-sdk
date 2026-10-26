@@ -63,8 +63,10 @@ export interface LaunchMessage {
   apiVersion: number;
   /** At most this many frames per second (0: the display's) */
   maxFramesPerSecond: number;
-  /** Sound starts muted on the web until the visitor turns it on */
+  /** Sound starts muted on the web until the visitor turns it on: DesktopEngine.audioSettings.muted */
   muted: boolean;
+  /** The item's volume, 0...1: DesktopEngine.audioSettings.volume (WebContent.volume); 1 without it */
+  volume?: number;
   /** Whether it gets keyactivity (DesktopOptions.keyActivity) */
   keyActivity: boolean;
   /** Whether it may open BroadcastChannels of scope "namespace" (ContentSpec.namespaceChannels) */
@@ -393,4 +395,14 @@ export function frameDocument(runtime: string, { proxy }: { proxy?: string } = {
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${policy}">` +
     '<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}</style></head>' +
     `<body><script>${runtime.replace(/<\/script/gi, '<\\/script')}</script></body></html>`;
+}
+
+/**
+ * The volume of an item of content, as the app picks it: the one the user set, else the manifest's `audio.volume`,
+ * else 1; one outside 0...1, or not a number, doesn't count
+ */
+export function itemVolume(own: unknown, declared: unknown): number {
+  const valid = (volume: unknown): volume is number => typeof volume === 'number' && Number.isFinite(volume) && volume >= 0 && volume <= 1;
+  if (valid(own)) return own;
+  return valid(declared) ? declared : 1;
 }

@@ -37,8 +37,39 @@ requestAnimationFrame(function draw() {
 - `AudioContext` 创建后在允许时直接是 `running`，桌面上没有需要等待的用户手势。应用暂停内容时（见[暂停规则](./performance#暂停规则)）它变成 `interrupted`，时间停止，恢复后回到 `running`；播放中的 `Audio` 元素同样暂停并在之后继续。只是停止绘制或静音时声音不受影响。
 - `Audio` 的 `src` 可以是包内文件（与 `require` 相同的路径规则）和 `defile://` 地址，声明了 `network` 权限时也可以是 http(s) 地址；不支持 `data:` 和 `blob:` 地址（元素会失败，`error` 的代码是 `MEDIA_ERR_SRC_NOT_SUPPORTED`）。能播放和解码的格式就是 macOS 支持的：MP3、AAC / M4A、WAV、AIFF、CAF、FLAC、ALAC 等，较新的系统还支持 Ogg；用 `canPlayType()` 判断。
 - 声音从系统当前的输出设备播放，跟随系统切换设备；`AudioContext` 的默认采样率是设备的采样率。
-- 用户可以在应用里调节每个内容的音量，或者把所有内容静音。它乘在内容自己设置的音量之上，JavaScript 读到的 `volume` 不受影响。
+- 应用的音量和静音在内容播放的一切之上，见[音量和静音](#音量和静音)。JavaScript 读到的 `volume` 不受影响。
 - 内容被移除或停止时，所有声音立即停止。
+
+## 音量和静音
+
+每个会发出声音的内容在应用里都有一个静音开关和一个音量，用户还可以把所有内容静音。它们都在内容自己做的事之上，从高到低是：
+
+1. 应用：「所有内容静音」、「暂停所有内容」、用户给壁纸设的播放规则（比如有应用全屏时、其他应用在出声时），以及显示器睡眠
+2. 这一项的静音开关。内容一开始是静音的：用户把想听的打开
+3. 这一项的音量，0...1。用户设置之前是清单的 [`audio.volume`](/zh/reference/manifest#声音-audio)，没有就是 1
+4. 内容在代码里设的音量（`Audio.volume`、`GainNode`、`Video` 的 `volume`）：只调它自己几个声音之间的配比
+
+听到的是内容的混音（限制在满幅以内）乘以这一项的音量，静音时什么也听不到：`GainNode` 开到 1 以上，也不会比用户设的音量更响。这些从一开始就生效，在 `index.js` 运行之前，所以内容加载时不会先出声；改动时也不用重新启动内容。
+
+`DesktopEngine.audioSettings`（API 9）告诉内容用户的设置：用户把所有内容或这一项静音时 `muted` 为 `true`，`volume` 是这一项的音量。它是只读的，从 `index.js` 第一行起就是对的，任一项变化时触发 `change`。没有 `audio` 权限时是 `undefined`。应用静音内容的其他原因（播放规则、显示器睡眠、暂停）不会告诉内容：这时 `muted` 仍是 `false`。
+
+```js
+const settings = DesktopEngine.audioSettings;
+let sounds = null;
+
+async function update() {
+  // 有人能听到时才加载声音
+  if (settings && !settings.muted && !sounds) {
+    sounds = await loadSounds();
+  }
+}
+settings?.addEventListener('change', update);
+update();
+```
+
+不要按 `volume` 缩放自己的声音：应用会做。用它来显示点什么，比如音量低时动画也安静一些。
+
+在网页预览里（`desktopengine dev --web` 和商店），`muted` 是页面的声音开关（一开始关着），`volume` 是清单的 `audio.volume`，没有就是 1；页面不按它改变声音。
 
 ## Mac 正在播放的声音
 
