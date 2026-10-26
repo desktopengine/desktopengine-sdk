@@ -56,6 +56,8 @@ They follow WebGL's rules for a video:
 
 With `loop`, a video goes on from the start at its end without a pause in the picture or the sound, as a looping video element does, and so it doesn't fire `ended`: `currentTime` goes back to the start and `timeupdate` follows it. To know when a time through ends, compare the positions `timeupdate` gives. Turning `loop` off while it plays lets it end at the end of that time through, with `pause` and then `ended`.
 
+Apps with API 9 play every package this way, whatever its `apiVersion`: before, a looping video paused at its end, fired `ended` and started again. Content made for an earlier version that counts loops with `ended`, or does something at each end, should compare the positions of `timeupdate` instead: they go back to the start in earlier apps too, so the same code works in both.
+
 For a loop without a seam, make the sound as long as the picture: a sound track longer than the picture holds the last frame until the sound ends.
 
 ## Playing out of a window

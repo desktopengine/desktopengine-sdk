@@ -670,7 +670,8 @@ declare namespace DesktopEngine {
     pause: void;
     /**
      * Playback ended: it stopped at the end. Not while `loop` is set: a looping video goes on from the start without it,
-     * as on the web
+     * as on the web. Apps before API 9 fired it at each end of a looping video too; from API 9 none does, whatever the
+     * package's `apiVersion`
      */
     ended: void;
     /** Playback progress */

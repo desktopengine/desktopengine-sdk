@@ -56,6 +56,8 @@ three.js 的 `VideoTexture` 可以直接用：`new THREE.VideoTexture(video)` �
 
 设了 `loop` 的视频播到结尾时接着从头播放，画面和声音都不停顿，和循环播放的视频元素一样，所以不发 `ended`：`currentTime` 回到开头，`timeupdate` 跟着它。想知道每一遍什么时候播完，可以比较 `timeupdate` 给的位置。播放中关掉 `loop`，这一遍播到结尾时结束，先发 `pause` 再发 `ended`。
 
+API 9 的 App 里所有包都这样播放，不管包的 `apiVersion` 是多少：以前循环的视频播到结尾会暂停、发 `ended` 再从头开始。为更早的版本做的内容如果用 `ended` 数循环次数，或者在每遍结尾做什么，要改成比较 `timeupdate` 的位置：在更早的 App 里位置也会回到开头，同一段代码两边都能用。
+
 要循环得没有接缝，让声音和画面一样长：声音比画面长时，最后一帧会停到声音结束。
 
 ## 窗口外的播放
