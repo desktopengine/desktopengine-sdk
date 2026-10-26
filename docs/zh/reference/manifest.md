@@ -34,6 +34,7 @@
 | `wallpaper.span` | | 为 `true` 时壁纸可以跨显示器，见[跨显示器](/zh/guide/wallpaper#跨显示器) |
 | `permissions` | | 需要的权限，见[权限](#权限-permissions) |
 | `network.domains` | 有 `network` 时必填 | 要连接的域名，见[网络](/zh/guide/network#域名) |
+| `audio.volume` | | 有 `audio` 时：用户的音量从多少开始，0...1（API 9），见[声音](#声音-audio) |
 | `parameters` | | 用户可调的选项，见[选项](#选项-parameters) |
 | `converter` | | 由工具从别的东西做成的包：是哪个工具、从什么做成的，见[由工具生成](#由工具生成) |
 
@@ -150,7 +151,7 @@
 | `system-audio` | 其他应用在 Mac 上播放的声音整体和从低到高各个频带有多响，只有分析结果，从不给声音本身（需要 `"apiVersion": 6`）；有它的内容不能同时有 `network`，见[Mac 正在播放的声音](/zh/guide/audio#mac-正在播放的声音) |
 | `window-positions` | 其他应用窗口的位置、大小和前后顺序，以及哪些属于正在用的应用；不包括它们的标题和窗口里显示的东西（需要 `"apiVersion": 6`），见[其他应用的窗口](/zh/guide/app-windows) |
 
-写其他权限会报错：应用不认识的权限不列出、不询问，内容也得不到。应用在详情栏列出这些权限。`audio` 不询问：声明了就能发出声音，用户用音量和「所有内容静音」控制。其余权限在用户第一次把内容添加到桌面时逐项询问，用户可以只允许一部分，之后也能在详情栏里随时更改（内容会重新启动）。没有声明权限的内容不会弹出询问。系统早于 macOS 14.2 的 Mac 上也不询问 `system-audio`：没有什么可听的，内容得到它，听到的是静音（`supported` 为 false）。
+写其他权限会报错：应用不认识的权限不列出、不询问，内容也得不到。应用在详情栏列出这些权限。`audio` 不询问：声明了就能发出声音，用户用它的静音开关（打开声音之前一直是静音）、音量和「所有内容静音」控制，见[音量和静音](/zh/guide/audio#音量和静音)。其余权限在用户第一次把内容添加到桌面时逐项询问，用户可以只允许一部分，之后也能在详情栏里随时更改（内容会重新启动）。没有声明权限的内容不会弹出询问。系统早于 macOS 14.2 的 Mac 上也不询问 `system-audio`：没有什么可听的，内容得到它，听到的是静音（`supported` 为 false）。
 
 被拒绝的权限不会阻止内容运行：内容照常启动，只是对应的能力关闭，所以要为没有权限的情况做好降级。实际得到的权限在 `DesktopEngine.launchOptions.permissions` 里，每个只出现一次，应用里和网页预览里都是这样。应用详情栏里的预览不出声，也看不到其他应用的窗口，所以那里没有 `audio` 和 `window-positions`：
 
@@ -171,6 +172,20 @@ if (permissions.includes('network')) {
 ```
 
 由运行时强制执行的权限：`network`（没有它不能联网，有它也只能连列出的域名，见[网络](/zh/guide/network#域名)）、`audio`（没有它不能发出声音，见[音频](/zh/guide/audio)）、`system-info`（没有它 `DesktopEngine.systemStatus` 为 `null`）、`mouse`（没有它收不到 `DesktopEngine.input` 的鼠标事件）、`window-positions`（没有它 `DesktopEngine.windows` 为 `null`）和 `system-audio`（没有它 `DesktopEngine.systemAudio` 为 `null`）。同时声明 `system-audio` 和 `network` 是错误：`desktopengine validate` 会报出来，应用和商店也不接受这样的包。`desktopengine dev` 和「开发」菜单载入的内容由开发者自己运行，不询问，按和已安装内容相同的规则得到声明的全部权限（例如 `network` 同样只能连列出的域名）；没有声明的同样用不了。
+
+## 声音（audio）
+
+`audio.volume` 是用户为内容设置音量之前它播放的音量，0...1：比如对它来说偏响的内容可以写 `0.5`。没有它时音量从 1 开始。用户设的音量会替代它，内容从 [`DesktopEngine.audioSettings`](/zh/guide/audio#音量和静音) 读到其中之一。需要 `audio` 权限；不在 0...1 之内的数会报错。
+
+```json
+{
+  "permissions": ["audio"],
+  "audio": { "volume": 0.5 },
+  "apiVersion": 9
+}
+```
+
+API 较旧的应用会忽略它、在用户设置之前用满音量播放，所以没有 `"apiVersion": 9` 时 `validate` 只给警告。
 
 ## 由工具生成
 
@@ -196,6 +211,6 @@ if (permissions.includes('network')) {
 | 6 | `BroadcastChannel`，范围有 `package` 和 `namespace`，见[内容之间的消息](/zh/guide/messaging)；`DesktopEngine.systemAudio` 和 `system-audio` 权限，见[Mac 正在播放的声音](/zh/guide/audio#mac-正在播放的声音)；`DesktopEngine.windows`（`list()`、`visibleTopEdges()` 和 `change`）和 `window-positions` 权限，见[其他应用的窗口](/zh/guide/app-windows)；`Image` 还没加进组件时就加载 `src`，可以先等它的 `load` 再加进去 |
 | 7 | `DesktopEngine.syncStorage`，跟着用户到其他 Mac 上的键和值，见[同步的存储](/zh/guide/storage#同步的存储-desktopengine-syncstorage) |
 | 8 | 选项的 `showWhen`，只在另一个选项取某些值时显示，见[选项](#选项-parameters)；`DesktopEngine.systemStatus`：处理器、内存、网络、电源和电池、温度和磁盘，变化时有事件，内容暂停后有 `resume`，见[系统状态](/zh/guide/system-status)（`system-info` 权限）；小组件自己的尺寸和 `widget.resize`，用户或内容调整小组件的大小，小组件的窗口不再限制在半块显示器内，见[小组件尺寸](#小组件尺寸)；去掉了 `DesktopEngine.system.cpuUsage()` 和 `memoryUsage()`：处理器（`cpu.usage`）和内存（`memory.used`、`memory.total`）由 `DesktopEngine.systemStatus` 读取；指针停在小组件和桌面伙伴的窗口上时窗口收到 `wheel`，见[鼠标](/zh/guide/windows#鼠标) |
-| 9 | `FontFace` 和 `DesktopEngine.fonts`：2D 画布用的内容自己的字体，来自包里的文件、`defile://`、`blob:` 和 `data:` 地址、已安装的字体或字节，见[字体](/zh/guide/fonts)；`Video` 和视频元素一样可以当画布的来源：WebGL 的 `texImage2D` / `texSubImage2D`（和 `texImage3D` / `texSubImage3D`）、`drawImage`、`createPattern` 和 `createImageBitmap` 取它这时显示的那一帧；它的 `videoWidth`、`videoHeight`、`readyState` 和 `loadedmetadata`、`loadeddata`、`canplay` 事件；画布在读它时它在窗口外也播放，从没进过窗口的视频有了 `src` 就加载，见[视频](/zh/guide/video)；循环播放的 `Video` 接着从头播放、不停顿，每遍播完不再发 `ended`，和循环播放的视频元素一样：所有包都是，不管它的 `apiVersion`，见[循环播放](/zh/guide/video#循环播放) |
+| 9 | `FontFace` 和 `DesktopEngine.fonts`：2D 画布用的内容自己的字体，来自包里的文件、`defile://`、`blob:` 和 `data:` 地址、已安装的字体或字节，见[字体](/zh/guide/fonts)；`Video` 和视频元素一样可以当画布的来源：WebGL 的 `texImage2D` / `texSubImage2D`（和 `texImage3D` / `texSubImage3D`）、`drawImage`、`createPattern` 和 `createImageBitmap` 取它这时显示的那一帧；它的 `videoWidth`、`videoHeight`、`readyState` 和 `loadedmetadata`、`loadeddata`、`canplay` 事件；画布在读它时它在窗口外也播放，从没进过窗口的视频有了 `src` 就加载，见[视频](/zh/guide/video)；循环播放的 `Video` 接着从头播放、不停顿，每遍播完不再发 `ended`，和循环播放的视频元素一样：所有包都是，不管它的 `apiVersion`，见[循环播放](/zh/guide/video#循环播放)；`DesktopEngine.audioSettings`：用户给内容设的静音和音量，以及清单的 `audio.volume`，见[音量和静音](/zh/guide/audio#音量和静音) |
 
 版本 4 还按浏览器的样子改了一些 API：双击事件是 `dblclick`（原来是 `dbclick`），`click` 和 `dblclick` 的参数和鼠标事件一样是 `{ x, y, … }`（原来是 `{ position: { x, y } }`）。去掉了 WebGL 上下文的 `wxBindCanvasTexture` 和 `blBindCanvasTexture`、全局的 `mixin` 和 `promisify`，以及没有对应 API 的 `files`、`now-playing`、`window-positions` 权限（版本 6 随 `DesktopEngine.windows` 重新加入了 `window-positions`）。用到它们的内容改好后要写上 `"apiVersion": 4`。

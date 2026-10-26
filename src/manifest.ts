@@ -24,6 +24,8 @@ export const WIDGET_SIZE_POINTS: Readonly<Record<WidgetSize, { width: number; he
 export const WIDGET_RESIZERS = ['user', 'content'] as const;
 /** The API version of custom widget sizes and `widget.resize` */
 export const WIDGET_SIZING_API_VERSION = 8;
+/** The API version of `audio.volume` */
+export const AUDIO_VOLUME_API_VERSION = 9;
 /** The smallest width and height of a widget, in points */
 export const MIN_WIDGET_EDGE = 32;
 /** The free area of a small display (1280×800 without the menu bar): a bigger widget is scaled down to fit there */
@@ -117,6 +119,8 @@ export interface Manifest {
   permissions?: string[];
   /** With the `network` permission: the only hosts it may reach, `api.example.com` or `*.example.com` */
   network?: { domains: string[] };
+  /** With the `audio` permission: the volume the user's volume starts at, 0...1 (API 9) */
+  audio?: { volume?: number };
   parameters?: Parameter[];
   /** Made by a tool from something else, e.g. converted: which tool and what from. Apps don't act on it */
   converter?: ManifestConverter;
@@ -466,6 +470,28 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
     errors.push('Content with the "system-audio" permission can\'t have "network" too: remove one of them');
   }
 
+  const { audio } = manifest;
+  if (audio !== undefined) {
+    if (!isPlainObject(audio)) {
+      errors.push('"audio" must be an object');
+    } else {
+      const { volume } = audio;
+      if (volume !== undefined) {
+        if (typeof volume !== 'number' || !Number.isFinite(volume) || volume < 0 || volume > 1) {
+          errors.push(`"audio.volume" must be a number from 0 to 1 (it is ${JSON.stringify(volume)})`);
+        } else if (!(typeof apiVersion === 'number' && apiVersion >= AUDIO_VOLUME_API_VERSION)) {
+          warnings.push(`"audio.volume" is in API ${AUDIO_VOLUME_API_VERSION}: apps with an older API play the content at full volume until the user sets one`);
+        }
+      }
+      Object.keys(audio)
+        .filter((key) => key !== 'volume')
+        .forEach((key) => warnings.push(`The app ignores the unknown field "audio.${key}"`));
+    }
+    if (!(Array.isArray(permissions) && permissions.includes('audio'))) {
+      warnings.push('"audio" has no effect without the "audio" permission');
+    }
+  }
+
   const { parameters } = manifest;
   if (parameters !== undefined) {
     if (!Array.isArray(parameters)) {
@@ -499,7 +525,7 @@ export function validateManifest(manifest: unknown, options: { packageDir?: stri
     }
   }
 
-  const known = new Set(['id', 'name', 'type', 'version', 'author', 'description', 'icon', 'preview', 'previewDark', 'widget', 'wallpaper', 'permissions', 'network', 'parameters', 'converter', 'apiVersion', '$schema']);
+  const known = new Set(['id', 'name', 'type', 'version', 'author', 'description', 'icon', 'preview', 'previewDark', 'widget', 'wallpaper', 'permissions', 'network', 'audio', 'parameters', 'converter', 'apiVersion', '$schema']);
   Object.keys(manifest)
     .filter((key) => !known.has(key))
     .forEach((key) => warnings.push(`The app ignores the unknown field "${key}"`));

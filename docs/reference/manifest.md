@@ -34,6 +34,7 @@
 | `wallpaper.span` | | `true` when a wallpaper can span displays, see [Spanning displays](/guide/wallpaper#spanning-displays) |
 | `permissions` | | The permissions it needs, see [Permissions](#permissions) |
 | `network.domains` | With `network` | The domains it connects to, see [Network](/guide/network#domains) |
+| `audio.volume` | | With `audio`: the volume the user's volume for it starts at, 0...1 (API 9), see [Audio](#audio) |
 | `parameters` | | Options users can change, see [Options](#options-parameters) |
 | `converter` | | For a package a tool made from something else: the tool and what it was made from, see [Made by a tool](#made-by-a-tool) |
 
@@ -150,7 +151,7 @@ When the user changes an option, the new values are in `DesktopEngine.launchOpti
 | `system-audio` | How loud the sound other apps play on the Mac is, overall and from low to high, never the sound itself (needs `"apiVersion": 6`); content with it can't have `network` too, see [What the Mac plays](/guide/audio#what-the-mac-plays) |
 | `window-positions` | Where other apps' windows are, their size and order, and which belong to the app in use; never their titles or what they show (needs `"apiVersion": 6`), see [Other Apps' Windows](/guide/app-windows) |
 
-Any other permission is an error: the app neither lists nor asks for permissions it doesn't know, and the content never gets them. The app lists these permissions in the details pane. `audio` isn't asked for: content that declares it can make sound, and users control it with the volume and Mute All Content. The other permissions are asked for one by one the first time the user adds the content to the desktop; the user can allow only some of them and change them any time in the details pane (the content restarts). Content that declares no permissions never prompts. On a Mac before macOS 14.2 `system-audio` isn't asked for either: there's nothing to hear, so the content gets it and hears silence (`supported` is false).
+Any other permission is an error: the app neither lists nor asks for permissions it doesn't know, and the content never gets them. The app lists these permissions in the details pane. `audio` isn't asked for: content that declares it can make sound, and users control it with its mute switch (on until they turn the sound on), its volume and Mute All Content, see [Volume and mute](/guide/audio#volume-and-mute). The other permissions are asked for one by one the first time the user adds the content to the desktop; the user can allow only some of them and change them any time in the details pane (the content restarts). Content that declares no permissions never prompts. On a Mac before macOS 14.2 `system-audio` isn't asked for either: there's nothing to hear, so the content gets it and hears silence (`supported` is false).
 
 A denied permission doesn't stop the content: it starts as usual with that capability off, so plan for running without it. The permissions it got are in `DesktopEngine.launchOptions.permissions`, each once, in the app and in the web preview alike. The previews in the app's details pane are silent and don't see other apps' windows, so `audio` and `window-positions` aren't there:
 
@@ -171,6 +172,20 @@ With `network`, list the domains the content connects to; it can reach those and
 ```
 
 The runtime enforces `network` (no network without it, and only the listed domains with it, see [Network](/guide/network#domains)), `audio` (no sound without it, see [Audio](/guide/audio)), `system-info` (`DesktopEngine.systemStatus` is `null` without it), `mouse` (`DesktopEngine.input`'s mouse events never come without it), `window-positions` (`DesktopEngine.windows` is `null` without it) and `system-audio` (`DesktopEngine.systemAudio` is `null` without it). Declaring both `system-audio` and `network` is an error: `desktopengine validate` reports it, and the app and the store refuse the package. Content run by `desktopengine dev` or the Develop menu is yours, so it isn't asked and gets every permission it declares, under the same rules as installed content (`network`, for example, still reaches only the listed domains). The ones it doesn't declare are off there too.
+
+## Audio
+
+`audio.volume` is the volume the content plays at until the user sets one for it, 0...1: e.g. `0.5` for content that's loud for what it is. Without it the volume starts at 1. The user's volume replaces it, and the content reads either in [`DesktopEngine.audioSettings`](/guide/audio#volume-and-mute). It needs the `audio` permission; a number outside 0...1 is an error.
+
+```json
+{
+  "permissions": ["audio"],
+  "audio": { "volume": 0.5 },
+  "apiVersion": 9
+}
+```
+
+Apps with an older API ignore it and play at full volume until the user sets one, so `validate` only warns without `"apiVersion": 9`.
 
 ## Made by a tool
 
@@ -196,6 +211,6 @@ The runtime has an integer API version that goes up when APIs are added: `Deskto
 | 6 | `BroadcastChannel`, with the scopes `package` and `namespace`, see [Messages Between Content](/guide/messaging); `DesktopEngine.systemAudio` and the `system-audio` permission, see [What the Mac plays](/guide/audio#what-the-mac-plays); `DesktopEngine.windows` (`list()`, `visibleTopEdges()` and `change`) and the `window-positions` permission, see [Other Apps' Windows](/guide/app-windows); an `Image` loads its `src` before it's in a component, so its `load` can be waited for before adding it |
 | 7 | `DesktopEngine.syncStorage`, keys and values that follow the user to their other Macs, see [Synced storage](/guide/storage#synced-storage-desktopengine-syncstorage) |
 | 8 | `showWhen` of options, shown only for some values of another, see [Options](#options-parameters); `DesktopEngine.systemStatus`: processor, memory, network, power and the battery, temperature and disk, with events when they change and `resume` after the content was suspended, see [System Status](/guide/system-status) (`system-info` permission); widget sizes of its own and `widget.resize`, the user or the content resizing a widget, and no half-display limit for a widget's window, see [Widget sizes](#widget-sizes); `DesktopEngine.system.cpuUsage()` and `memoryUsage()` are removed: `DesktopEngine.systemStatus` reads the processor (`cpu.usage`) and memory (`memory.used`, `memory.total`); `wheel` on widget and companion windows while the pointer is over them, see [Mouse](/guide/windows#mouse) |
-| 9 | `FontFace` and `DesktopEngine.fonts`: fonts of the content's own for 2D canvases, from package files, `defile://`, `blob:` and `data:` URLs, installed fonts or bytes, see [Fonts](/guide/fonts); A `Video` is a source for canvases, as a video element is: WebGL's `texImage2D` / `texSubImage2D` (and `texImage3D` / `texSubImage3D`), `drawImage`, `createPattern` and `createImageBitmap` take its frame showing now; its `videoWidth`, `videoHeight`, `readyState` and the `loadedmetadata`, `loadeddata` and `canplay` events; it plays out of a window while canvases read it, and a video never in a window loads when it has a `src`, see [Video](/guide/video); a looping `Video` goes on from the start without a pause and doesn't fire `ended` at each end any more, as a looping video element: in every package, whatever its `apiVersion`, see [Looping](/guide/video#looping) |
+| 9 | `FontFace` and `DesktopEngine.fonts`: fonts of the content's own for 2D canvases, from package files, `defile://`, `blob:` and `data:` URLs, installed fonts or bytes, see [Fonts](/guide/fonts); A `Video` is a source for canvases, as a video element is: WebGL's `texImage2D` / `texSubImage2D` (and `texImage3D` / `texSubImage3D`), `drawImage`, `createPattern` and `createImageBitmap` take its frame showing now; its `videoWidth`, `videoHeight`, `readyState` and the `loadedmetadata`, `loadeddata` and `canplay` events; it plays out of a window while canvases read it, and a video never in a window loads when it has a `src`, see [Video](/guide/video); a looping `Video` goes on from the start without a pause and doesn't fire `ended` at each end any more, as a looping video element: in every package, whatever its `apiVersion`, see [Looping](/guide/video#looping); `DesktopEngine.audioSettings`, the mute and volume the user set for the content, and `audio.volume` in the manifest, see [Volume and mute](/guide/audio#volume-and-mute) |
 
 Version 4 also changed APIs as in browsers: the double click event is `dblclick` (it was `dbclick`), and `click` and `dblclick` get the mouse events' payload, `{ x, y, … }` (it was `{ position: { x, y } }`). It removed `wxBindCanvasTexture` and `blBindCanvasTexture` of WebGL contexts, the global `mixin` and `promisify`, and the `files`, `now-playing` and `window-positions` permissions, which had no API (version 6 brings `window-positions` back with `DesktopEngine.windows`). Content that used them needs `"apiVersion": 4` once it's changed.

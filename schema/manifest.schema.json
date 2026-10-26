@@ -105,6 +105,19 @@
       },
       "required": ["domains"]
     },
+    "audio": {
+      "description": "With the audio permission: how the app plays the content's sound (API 9)",
+      "type": "object",
+      "properties": {
+        "volume": {
+          "description": "The volume the user's volume for the content starts at, 0...1, e.g. 0.5 for content that's loud for what it is; 1 by default. The user's volume replaces it, and the content's own volumes only mix its sounds below it",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "additionalProperties": false
+    },
     "parameters": {
       "description": "Options users can change. The app draws them as a form in the details pane and passes their values in DesktopEngine.launchOptions.parameters",
       "type": "array",

@@ -271,6 +271,28 @@ test('the network permission reaches only the domains it lists', () => {
   assert.ok(unused.warnings.some((message) => message.includes('no effect')));
 });
 
+test('audio.volume is where the user\'s volume starts, 0 to 1, with the audio permission and API 9', () => {
+  const sounding = { ...minimal, permissions: ['audio'], apiVersion: 9 };
+  assert.deepEqual(validateManifest({ ...sounding, audio: { volume: 0.5 } }), { errors: [], warnings: [] });
+  assert.deepEqual(validateManifest({ ...sounding, audio: { volume: 0 } }), { errors: [], warnings: [] });
+  assert.deepEqual(validateManifest({ ...sounding, audio: { volume: 1 } }), { errors: [], warnings: [] });
+  assert.deepEqual(validateManifest({ ...sounding, audio: {} }), { errors: [], warnings: [] });
+  for (const volume of [1.5, -0.1, '0.5', null, Number.NaN, true]) {
+    const { errors } = validateManifest({ ...sounding, audio: { volume } });
+    assert.ok(errors.some((message) => message.includes('"audio.volume" must be a number from 0 to 1')), String(volume));
+  }
+  assert.ok(validateManifest({ ...sounding, audio: 0.5 }).errors.some((message) => message.includes('"audio" must be an object')));
+  // older apps ignore it: a warning, not an error
+  const older = validateManifest({ ...sounding, apiVersion: 8, audio: { volume: 0.5 } });
+  assert.deepEqual(older.errors, []);
+  assert.ok(older.warnings.some((message) => message.includes('API 9')));
+  const silent = validateManifest({ ...minimal, apiVersion: 9, audio: { volume: 0.5 } });
+  assert.deepEqual(silent.errors, []);
+  assert.ok(silent.warnings.some((message) => message.includes('without the "audio" permission')));
+  assert.ok(validateManifest({ ...sounding, audio: { gain: 2 } }).warnings.some((message) => message.includes('"audio.gain"')));
+  assert.ok(!validateManifest({ ...sounding, audio: { volume: 0.5 } }).warnings.some((message) => message.includes('unknown field "audio"')));
+});
+
 test('domain names follow the rule of the app', () => {
   assert.ok(isValidNetworkDomain('API.Example.com'));
   assert.ok(isValidNetworkDomain('xn--fiqs8s.xn--fiqz9s'));
