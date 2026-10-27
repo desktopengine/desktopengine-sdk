@@ -2,6 +2,26 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 6.0.0 (2026-10-27)
+
+API version 9 (was 8): packages with `"apiVersion": 9` need an app that has it.
+
+### Breaking Changes
+
+- A looping Video goes on from the start without a pause and doesn't fire ended, as a looping video element does
+- DesktopEngine.audioSettings tells content the mute and volume the user set for it (API 9); in the app, content that plays sound starts muted until the user turns its sound on
+
+### Features
+
+- API 9, FontFace and DesktopEngine.fonts give 2D canvases fonts of the content's own
+- A Video is a source for WebGL textures and 2D canvases as a video element is, with videoWidth, videoHeight, readyState and their events (API 9)
+- manifest.json can say which tool made a package from something else and from what, in "converter"
+- "audio": { "volume": 0...1 } in manifest.json is where the user's volume for the content starts (API 9)
+
+### Bug Fixes
+
+- The web runtime's WebAssembly has no instantiateStreaming or compileStreaming, as in the app
+
 ## 5.0.0 (2026-10-18)
 
 API version 8 (was 7): packages with `"apiVersion": 8` need an app that has it.
