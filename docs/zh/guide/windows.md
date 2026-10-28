@@ -33,6 +33,7 @@
 
 - `widget` 和 `overlay` 窗口按住任意位置就能拖动（系统原生拖动）：拖动时依次收到 `mousedown`、窗口的 `move` 和松手时的 `mouseup`，拖动过程中没有 `mousemove`；单击只收到 `click`，没有 `mousedown` / `mouseup`。
 - 窗口的 `dragRegion` 限定按住哪些地方会拖动窗口，其余地方的按下和拖动交给组件（`mousedown`、按住时的 `mousemove`、`mouseup`），适合表盘、滑块这类控件；`null`（默认）是整个窗口，`[]` 是哪里都不拖动。
+- 不拖动窗口的按下（`dragRegion` 以外，或在 `desktop` 窗口上）依次收到 `mousedown`、`mouseup`、`click`，和浏览器一样，让 DesktopEngine 来到前台的那一下也是；松手前移动超过 3 点的不算单击。双击的第二下在 `click` 之后还有 `dblclick`。每个事件先给指针下的组件，再依次给外面的组件，直到窗口。
 - 窗口拖到屏幕边缘松手后，大小不变，停在松手的位置，不过 macOS 仍会显示平铺的预览。
 - 窗口的 `hitRegion`（以窗口左上角为原点的矩形数组，单位点）限定只有这些地方响应鼠标，其余地方的点击、拖动和悬停都会穿透到下面的窗口；`null`（默认）是整个窗口。窗口透明的地方默认仍然会接住鼠标，不规则形状的桌面伙伴应随画面更新它（见 companion 模板）。
 - `mouseenter`、`mousemove`、`mouseleave` 在窗口不是当前窗口时也会触发。

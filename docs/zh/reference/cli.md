@@ -56,7 +56,6 @@ desktopengine dev [folder] [options]
 - 2D 画布里，`resetClip()` 和 `resetCurrentState()` 只去掉上一次 `save()` 之后的裁剪，App 里会全部去掉。文字由浏览器绘制，字形和宽度可能略有不同。
 - `defile://usr/` 里的文件、`localStorage` 和 `sessionStorage` 存在内存里，网页重新加载就没了。
 - 内容收不到键盘事件（和 App 一样）。滚轮和 App 一样给响应鼠标处的小组件和桌面伙伴；声音开着时，在可能出声的内容上滚动也可能让页面跟着滚动。
-- 一个组件或它的上层（包括窗口）监听了 `click` 时，App 对一次单击不发主按键的 `mousedown` 和 `mouseup`，只发 `click`；网页运行时三个都发。
 - 页面隐藏时（标签页在后台），内容和在 App 里一样被暂停，它的计时器改用浏览器自己的，浏览器可能放得比 App 更慢。
 - `DesktopEngine.systemStatus` 给的是一台模拟的 Mac 的读数：网页看不到电脑的数据（见[系统状态](/zh/guide/system-status#在网页上)）。
 - `DesktopEngine.windows` 列出的是页面上模拟的应用窗口：`dev --web` 给有 `window-positions` 权限的内容开一个，菜单栏的 New Window 可以再开（见[其他应用的窗口](/zh/guide/app-windows#在网页上)）；商店的预览里没有这些窗口。

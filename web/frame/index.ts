@@ -1307,13 +1307,14 @@ function mousePayload(component: ComponentImpl, message: Extract<HostMessage, { 
   };
 }
 
+/** As in the DOM: every click, and the second of a double click then `dblclick`, each up the components in turn */
 function click(chain: ComponentImpl[], message: Extract<HostMessage, { type: 'pointer' }>): void {
   const time = now();
   const double = time - lastClick.time < 400 && hypot(message.x - lastClick.x, message.y - lastClick.y) < 5 && lastClick.target === chain[0];
   lastClick = { time: double ? 0 : time, x: message.x, y: message.y, target: chain[0] };
-  for (let index = 0; index < chain.length; index++) {
-    chain[index].emit(double ? 'dblclick' : 'click', mousePayload(chain[index], message));
-  }
+  for (let index = 0; index < chain.length; index++) chain[index].emit('click', mousePayload(chain[index], message));
+  if (!double) return;
+  for (let index = 0; index < chain.length; index++) chain[index].emit('dblclick', mousePayload(chain[index], message));
 }
 
 function pointer(message: Extract<HostMessage, { type: 'pointer' }>): void {

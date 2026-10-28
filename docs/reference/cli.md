@@ -56,7 +56,6 @@ The web runtime implements the same JavaScript API on top of the browser: window
 - In a 2D canvas, `resetClip()` and `resetCurrentState()` only remove the clips made since the last `save()`, where the app removes them all. Text is drawn by the browser, so glyphs and their widths can differ a little.
 - Files in `defile://usr/`, `localStorage` and `sessionStorage` are kept in memory and gone when the page reloads.
 - Keyboard events never reach the content (as in the app). The wheel reaches widgets and companions where they take the mouse, as in the app; while sound is on, a wheel over content that may play sound can scroll the page too.
-- When a component listens to `click`, or one of its parents (the window too) does, the app holds back the primary button's `mousedown` and `mouseup` of a click and only fires `click`; the web runtime fires all three.
 - While the page is hidden (a background tab), the content is paused as in the app, and its timers run on the browser's own, which the browser may slow down more than the app does.
 - `DesktopEngine.systemStatus` gives a made-up Mac's readings: a web page can't see the computer's (see [System Status](/guide/system-status#on-the-web)).
 - `DesktopEngine.windows` lists the page's pretend app windows: `dev --web` opens one for content with the `window-positions` permission, and New Window in the menu bar opens more (see [Other Apps' Windows](/guide/app-windows#on-the-web)); the store's preview has none.
