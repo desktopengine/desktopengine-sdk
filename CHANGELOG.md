@@ -2,6 +2,12 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 6.0.2 (2026-10-31)
+
+### Bug Fixes
+
+- In Safari the web runtime gives the wheel to widgets and companions without the audio permission
+
 ## 6.0.1 (2026-10-31)
 
 ### Bug Fixes
