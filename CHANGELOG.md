@@ -2,6 +2,12 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 6.0.1 (2026-10-31)
+
+### Bug Fixes
+
+- The web runtime fires click and then dblclick for the second click of a double click, as the app does
+
 ## 6.0.0 (2026-10-27)
 
 API version 9 (was 8): packages with `"apiVersion": 9` need an app that has it.
