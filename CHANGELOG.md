@@ -2,6 +2,12 @@
 
 Changes to `@desktopengine/sdk` that matter to its users. Versions follow [semantic versioning](https://semver.org).
 
+## 6.0.3 (2026-10-31)
+
+### Bug Fixes
+
+- The web runtime no longer clicks a widget or companion after it is dragged
+
 ## 6.0.2 (2026-10-31)
 
 ### Bug Fixes
