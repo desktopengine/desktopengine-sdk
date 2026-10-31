@@ -1201,6 +1201,10 @@ function launch(message: LaunchMessage): void {
   installStorage(scope);
   installAudio();
   if (hasPermission('audio')) installPointerInput();
+  // Safari loses the wheel over a frame that doesn't take the pointer if nothing in the frame listens to it: its
+  // scrolling takes it and the page never sees it, so the host can't pass it on to the content (Chrome gives it to the
+  // page anyway). A listener here, which does nothing, lets the page have it. Before the content's code runs
+  else scope.addEventListener('wheel', () => {}, { passive: true });
   installCrypto();
   installNavigator(message.options.locale);
   // WebAssembly as JavaScript engines have it (the JS API), without what browsers add for their Response: the engine has no streaming
