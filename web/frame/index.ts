@@ -1355,8 +1355,8 @@ function pointer(message: Extract<HostMessage, { type: 'pointer' }>): void {
       const press = pressed;
       pressed = null;
       tell(press?.chain ?? chain, 'mouseup', message.button);
-      // only the primary button clicks
-      if (press && !press.moved && message.button === 0) click(chain, message);
+      // only the primary button clicks, and not after the press dragged the window (whose moves the frame isn't told)
+      if (press && !press.moved && message.noClick !== true && message.button === 0) click(chain, message);
       break;
     }
     case 'click':

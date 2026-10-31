@@ -1556,7 +1556,7 @@ export class WebDesktop {
   }
 
   /** `button` is the one that went down or up, for down and up */
-  private pointer(content: WebContent, kind: Extract<HostMessage, { type: 'pointer' }>['kind'], windowId: string | null, point: { x: number; y: number }, event: PointerInput | null, button = 0): void {
+  private pointer(content: WebContent, kind: Extract<HostMessage, { type: 'pointer' }>['kind'], windowId: string | null, point: { x: number; y: number }, event: PointerInput | null, button = 0, noClick = false): void {
     content.post({
       type: 'pointer',
       kind,
@@ -1569,6 +1569,7 @@ export class WebDesktop {
       shiftKey: event?.shiftKey ?? false,
       button: kind === 'down' || kind === 'up' ? button : 0,
       buttons: event?.buttons ?? 0,
+      ...(noClick ? { noClick: true } : {}),
     });
   }
 
@@ -1738,7 +1739,8 @@ export class WebDesktop {
       // its window's, not the content's
       if (press.moved) this.userResizes += 1;
     } else if (press.movesWindow) {
-      if (press.dragging) this.pointer(press.content, 'up', press.window.id, point, event, press.button);
+      // dragged: mousedown and mouseup, no click, as in the app
+      if (press.dragging) this.pointer(press.content, 'up', press.window.id, point, event, press.button, true);
       else this.pointer(press.content, 'click', press.window.id, press.start, event);
       if (press.at) this.drop(press.content, press.window, press.at, point);
     } else {
@@ -1751,7 +1753,7 @@ export class WebDesktop {
     const press = this.press;
     if (!press || press.pointerId !== event.pointerId) return;
     this.press = null;
-    if (!press.resize && (press.dragging || !press.movesWindow)) this.pointer(press.content, 'up', press.window.id, press.start, event, press.button);
+    if (!press.resize && (press.dragging || !press.movesWindow)) this.pointer(press.content, 'up', press.window.id, press.start, event, press.button, true);
     if (press.at) this.drop(press.content, press.window, press.at, { x: press.at.x + press.window.frame.width / 2, y: press.at.y + press.window.frame.height / 2 });
     this.setHovered(null, press.start, event);
     this.setCursor('');

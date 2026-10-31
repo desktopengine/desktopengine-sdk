@@ -260,6 +260,11 @@ export type HostMessage =
       button: number;
       /** The DOM's buttons held after the event */
       buttons: number;
+      /**
+       * up: the press doesn't click, whatever the frame saw of it: it dragged the window (the frame isn't told of the
+       * pointer's moves then; the app gives such a press `mousedown` and `mouseup` only), or the browser took the pointer
+       */
+      noClick?: boolean;
       deltaX?: number;
       deltaY?: number;
     }
