@@ -200,7 +200,8 @@ test('while the page can be seen, the frame\'s 0 ms timers and port messages are
   // cut one computed again to whole milliseconds), the next one's computed when it fires
   assert.equal(delays.length, 2, delays.join(', '));
   assert.equal(delays[0], 20);
-  assert.ok(delays[1] > 0 && delays[1] <= 30, delays.join(', '));
+  // about 30: a browser timer may fire a millisecond or two before its delay is up, whole milliseconds being rounded
+  assert.ok(delays[1] > 0 && delays[1] <= 32, delays.join(', '));
 });
 
 test('when the page hides, what\'s queued goes to the browser\'s timers in its order; when it shows, timers are queued again', async () => {
